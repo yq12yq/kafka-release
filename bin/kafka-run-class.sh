@@ -29,7 +29,10 @@ if [ -f $KAFKA_ENV ]; then
 fi
 
 # create logs directory
-LOG_DIR=$base_dir/logs
+if [ "x$LOG_DIR" = "x" ]; then
+    LOG_DIR="$base_dir/logs"
+fi
+
 if [ ! -d $LOG_DIR ]; then
 	mkdir $LOG_DIR
 fi
