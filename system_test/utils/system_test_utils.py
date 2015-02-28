@@ -620,7 +620,6 @@ def diff_lists(a, b):
     mismatchCount = 0
     d = difflib.Differ()
     diff = d.compare(a,b)
-
     for item in diff:
         result = item[0:1].strip()
         if len(result) > 0:

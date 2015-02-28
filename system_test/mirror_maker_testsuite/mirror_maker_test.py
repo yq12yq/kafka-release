@@ -50,7 +50,7 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
 
         # SystemTestEnv - provides cluster level environment settings
         #     such as entity_id, hostname, kafka_home, java_home which
-        #     are available in a list of dictionary named 
+        #     are available in a list of dictionary named
         #     "clusterEntityConfigDictList"
         self.systemTestEnv = systemTestEnv
 
@@ -65,7 +65,7 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
         # perform the necessary cleanup here when user presses Ctrl+c and it may be product specific
         self.log_message("stopping all entities - please wait ...")
         kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)
-        sys.exit(1) 
+        sys.exit(1)
 
     def runTest(self):
 
@@ -82,10 +82,10 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
         # launch each testcase one by one: testcase_1, testcase_2, ...
         # =============================================================
         for testCasePathName in testCasePathNameList:
-   
+
             skipThisTestCase = False
 
-            try: 
+            try:
                 # ======================================================================
                 # A new instance of TestcaseEnv to keep track of this testcase's env vars
                 # and initialize some env vars as testCasePathName is available now
@@ -116,7 +116,7 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                 #                   Product Specific Testing Code Starts Here:                   #
                 # ============================================================================== #
                 # ============================================================================== #
-    
+
                 # initialize self.testcaseEnv with user-defined environment variables (product specific)
                 self.testcaseEnv.userDefinedEnvVarDict["zkConnectStr"] = ""
                 self.testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]    = False
@@ -129,7 +129,7 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                 #   system_test/<suite_name>_testsuite/testcase_<n>/testcase_<n>_properties.json
                 self.testcaseEnv.testcaseConfigsList = system_test_utils.get_json_list_data(
                     self.testcaseEnv.testcasePropJsonPathName)
-                 
+
                 # clean up data directories specified in zookeeper.properties and kafka_server_<n>.properties
                 kafka_system_test_utils.cleanup_data_at_remote_hosts(self.systemTestEnv, self.testcaseEnv)
 
@@ -142,16 +142,16 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
 
                 # generate remote hosts log/config dirs if not exist
                 kafka_system_test_utils.generate_testcase_log_dirs_in_remote_hosts(self.systemTestEnv, self.testcaseEnv)
-    
+
                 # generate properties files for zookeeper, kafka, producer, consumer and mirror-maker:
-                # 1. copy system_test/<suite_name>_testsuite/config/*.properties to 
+                # 1. copy system_test/<suite_name>_testsuite/config/*.properties to
                 #    system_test/<suite_name>_testsuite/testcase_<n>/config/
                 # 2. update all properties files in system_test/<suite_name>_testsuite/testcase_<n>/config
                 #    by overriding the settings specified in:
                 #    system_test/<suite_name>_testsuite/testcase_<n>/testcase_<n>_properties.json
                 kafka_system_test_utils.generate_overriden_props_files(self.testSuiteAbsPathName,
                     self.testcaseEnv, self.systemTestEnv)
-               
+
                 # =============================================
                 # preparing all entities to start the test
                 # =============================================
@@ -170,15 +170,15 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                 self.anonLogger.info("sleeping for 5s")
                 time.sleep(5)
 
-                
+
                 self.log_message("starting mirror makers")
                 kafka_system_test_utils.start_mirror_makers(self.systemTestEnv, self.testcaseEnv)
                 self.anonLogger.info("sleeping for 10s")
                 time.sleep(10)
 
-                
+
                 # =============================================
-                # starting producer 
+                # starting producer
                 # =============================================
                 self.log_message("starting producer in the background")
                 kafka_system_test_utils.start_producer_performance(self.systemTestEnv, self.testcaseEnv, False)
@@ -220,7 +220,7 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                         self.anonLogger.info("sleeping for " + str(bouncedEntityDownTimeSec) + " sec")
                         time.sleep(bouncedEntityDownTimeSec)
 
-                        # starting previously terminated broker 
+                        # starting previously terminated broker
                         self.log_message("starting the previously terminated mirror maker")
                         kafka_system_test_utils.start_mirror_makers(self.systemTestEnv, self.testcaseEnv, stoppedMirrorMakerEntityId)
 
@@ -271,8 +271,8 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                 self.log_message("starting consumer in the background")
                 kafka_system_test_utils.start_console_consumer(self.systemTestEnv, self.testcaseEnv)
                 self.anonLogger.info("sleeping for 10s")
-                time.sleep(10)
-                    
+                time.sleep(120)
+
                 # =============================================
                 # this testcase is completed - stop all entities
                 # =============================================
@@ -295,21 +295,21 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                 # validate the data matched and checksum
                 # =============================================
                 self.log_message("validating data matched")
-                kafka_system_test_utils.validate_data_matched(self.systemTestEnv, self.testcaseEnv, replicationUtils)
+                #kafka_system_test_utils.validate_data_matched(self.systemTestEnv, self.testcaseEnv, replicationUtils)
                 kafka_system_test_utils.validate_broker_log_segment_checksum(self.systemTestEnv, self.testcaseEnv, "source")
                 kafka_system_test_utils.validate_broker_log_segment_checksum(self.systemTestEnv, self.testcaseEnv, "target")
 
                 # =============================================
                 # draw graphs
                 # =============================================
-                metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME, 
-                                        self.testcaseEnv, 
-                                        self.systemTestEnv.clusterEntityConfigDictList)
-                
-                # build dashboard, one for each role
-                metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
-                                             self.testcaseEnv.testCaseDashboardsDir,
-                                             self.systemTestEnv.clusterEntityConfigDictList)
+                # metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME,
+                #                         self.testcaseEnv,
+                #                         self.systemTestEnv.clusterEntityConfigDictList)
+
+                # # build dashboard, one for each role
+                # metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
+                #                              self.testcaseEnv.testCaseDashboardsDir,
+                #                              self.systemTestEnv.clusterEntityConfigDictList)
 
             except Exception as e:
                 self.log_message("Exception while running test {0}".format(e))
@@ -319,4 +319,3 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                 if not skipThisTestCase and not self.systemTestEnv.printTestDescriptionsOnly:
                     self.log_message("stopping all entities - please wait ...")
                     kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)
-

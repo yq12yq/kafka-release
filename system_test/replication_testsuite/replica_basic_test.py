@@ -434,19 +434,19 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                     kafka_system_test_utils.validate_broker_log_segment_checksum(self.systemTestEnv, self.testcaseEnv)
                     kafka_system_test_utils.validate_data_matched(self.systemTestEnv, self.testcaseEnv, replicationUtils)
 
-                kafka_system_test_utils.validate_index_log(self.systemTestEnv, self.testcaseEnv)
- 
+                #kafka_system_test_utils.validate_index_log(self.systemTestEnv, self.testcaseEnv)
+                
                 # =============================================
                 # draw graphs
                 # =============================================
-                metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME, 
-                                        self.testcaseEnv, 
-                                        self.systemTestEnv.clusterEntityConfigDictList)
+                # metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME, 
+                #                         self.testcaseEnv, 
+                #                         self.systemTestEnv.clusterEntityConfigDictList)
                 
-                # build dashboard, one for each role
-                metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
-                                             self.testcaseEnv.testCaseDashboardsDir,
-                                             self.systemTestEnv.clusterEntityConfigDictList)
+                # # build dashboard, one for each role
+                # metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
+                #                              self.testcaseEnv.testCaseDashboardsDir,
+                #                              self.systemTestEnv.clusterEntityConfigDictList)
             except Exception as e:
                 self.log_message("Exception while running test {0}".format(e))
                 traceback.print_exc()

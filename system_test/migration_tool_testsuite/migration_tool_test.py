@@ -50,7 +50,7 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
 
         # SystemTestEnv - provides cluster level environment settings
         #     such as entity_id, hostname, kafka_home, java_home which
-        #     are available in a list of dictionary named 
+        #     are available in a list of dictionary named
         #     "clusterEntityConfigDictList"
         self.systemTestEnv = systemTestEnv
 
@@ -65,7 +65,7 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
         # perform the necessary cleanup here when user presses Ctrl+c and it may be product specific
         self.log_message("stopping all entities - please wait ...")
         kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)
-        sys.exit(1) 
+        sys.exit(1)
 
     def runTest(self):
 
@@ -82,10 +82,10 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
         # launch each testcase one by one: testcase_1, testcase_2, ...
         # =============================================================
         for testCasePathName in testCasePathNameList:
-   
+
             skipThisTestCase = False
 
-            try: 
+            try:
                 # ======================================================================
                 # A new instance of TestcaseEnv to keep track of this testcase's env vars
                 # and initialize some env vars as testCasePathName is available now
@@ -116,7 +116,7 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
                 #                   Product Specific Testing Code Starts Here:                   #
                 # ============================================================================== #
                 # ============================================================================== #
-    
+
                 # initialize self.testcaseEnv with user-defined environment variables (product specific)
                 self.testcaseEnv.userDefinedEnvVarDict["zkConnectStr"] = ""
                 self.testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]    = False
@@ -124,27 +124,27 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
 
                 # initialize signal handler
                 signal.signal(signal.SIGINT, self.signal_handler)
-    
+
                 # TestcaseEnv.testcaseConfigsList initialized by reading testcase properties file:
                 #   system_test/<suite_name>_testsuite/testcase_<n>/testcase_<n>_properties.json
                 self.testcaseEnv.testcaseConfigsList = system_test_utils.get_json_list_data(
                     self.testcaseEnv.testcasePropJsonPathName)
-    
+
                 # clean up data directories specified in zookeeper.properties and kafka_server_<n>.properties
                 kafka_system_test_utils.cleanup_data_at_remote_hosts(self.systemTestEnv, self.testcaseEnv)
 
                 # create "LOCAL" log directories for metrics, dashboards for each entity under this testcase
                 # for collecting logs from remote machines
                 kafka_system_test_utils.generate_testcase_log_dirs(self.systemTestEnv, self.testcaseEnv)
-    
+
                 # TestcaseEnv - initialize producer & consumer config / log file pathnames
                 kafka_system_test_utils.init_entity_props(self.systemTestEnv, self.testcaseEnv)
 
                 # generate remote hosts log/config dirs if not exist
                 kafka_system_test_utils.generate_testcase_log_dirs_in_remote_hosts(self.systemTestEnv, self.testcaseEnv)
-    
+
                 # generate properties files for zookeeper, kafka, producer, consumer and mirror-maker:
-                # 1. copy system_test/<suite_name>_testsuite/config/*.properties to 
+                # 1. copy system_test/<suite_name>_testsuite/config/*.properties to
                 #    system_test/<suite_name>_testsuite/testcase_<n>/config/
                 # 2. update all properties files in system_test/<suite_name>_testsuite/testcase_<n>/config
                 #    by overriding the settings specified in:
@@ -159,7 +159,7 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
                 kafka_system_test_utils.start_zookeepers(self.systemTestEnv, self.testcaseEnv)
                 self.anonLogger.info("sleeping for 2s")
                 time.sleep(2)
-        
+
                 self.log_message("starting brokers")
                 kafka_system_test_utils.start_brokers(self.systemTestEnv, self.testcaseEnv)
                 self.anonLogger.info("sleeping for 5s")
@@ -176,7 +176,7 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
                 time.sleep(5)
 
                 # =============================================
-                # starting producer 
+                # starting producer
                 # =============================================
                 self.log_message("starting producer in the background")
                 kafka_system_test_utils.start_producer_performance(self.systemTestEnv, self.testcaseEnv, True)
@@ -219,7 +219,7 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
                         self.anonLogger.info("sleeping for " + str(bouncedEntityDownTimeSec) + " sec")
                         time.sleep(bouncedEntityDownTimeSec)
 
-                        # starting previously terminated broker 
+                        # starting previously terminated broker
                         self.log_message("starting the previously terminated migration tool")
                         kafka_system_test_utils.start_migration_tool(self.systemTestEnv, self.testcaseEnv, stoppedMigrationToolEntityId)
 
@@ -255,7 +255,7 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
 
                 #print "\n\n#### sleeping for 30 min ...\n\n"
                 #time.sleep(1800)
-                
+
                 # =============================================
                 # starting consumer
                 # =============================================
@@ -263,7 +263,7 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
                 kafka_system_test_utils.start_console_consumer(self.systemTestEnv, self.testcaseEnv)
                 self.anonLogger.info("sleeping for 20s")
                 time.sleep(20)
-                    
+
                 # =============================================
                 # this testcase is completed - stop all entities
                 # =============================================
@@ -281,7 +281,7 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
                 # collect logs from remote hosts
                 # =============================================
                 kafka_system_test_utils.collect_logs_from_remote_hosts(self.systemTestEnv, self.testcaseEnv)
-    
+
                 # =============================================
                 # validate the data matched and checksum
                 # =============================================
@@ -292,15 +292,15 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
                 # =============================================
                 # draw graphs
                 # =============================================
-                metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME, 
-                                        self.testcaseEnv, 
-                                        self.systemTestEnv.clusterEntityConfigDictList)
-                
-                # build dashboard, one for each role
-                metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
-                                             self.testcaseEnv.testCaseDashboardsDir,
-                                             self.systemTestEnv.clusterEntityConfigDictList)
-                
+                # metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME,
+                #                         self.testcaseEnv,
+                #                         self.systemTestEnv.clusterEntityConfigDictList)
+
+                # # build dashboard, one for each role
+                # metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
+                #                              self.testcaseEnv.testCaseDashboardsDir,
+                #                              self.systemTestEnv.clusterEntityConfigDictList)
+
             except Exception as e:
                 self.log_message("Exception while running test {0}".format(e))
                 traceback.print_exc()
@@ -309,4 +309,3 @@ class MigrationToolTest(ReplicationUtils, SetupUtils):
                 if not skipThisTestCase and not self.systemTestEnv.printTestDescriptionsOnly:
                     self.log_message("stopping all entities - please wait ...")
                     kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)
-
