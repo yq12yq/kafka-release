@@ -42,7 +42,7 @@ if [ -z "$SCALA_VERSION" ]; then
 fi
 
 # run ./gradlew copyDependantLibs to get all dependant jars in a local dir
-for file in $base_dir/core/build/dependant-libs-${SCALA_VERSION}/*.jar;
+for file in $base_dir/core/build/dependant-libs-${SCALA_VERSION}*/*.jar;
 do
   CLASSPATH=$CLASSPATH:$file
 done
