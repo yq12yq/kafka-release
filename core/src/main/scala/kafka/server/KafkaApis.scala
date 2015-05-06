@@ -183,7 +183,7 @@ class KafkaApis(val requestChannel: RequestChannel,
     //operation only allowed if client has READ permission on topic and Write permission on group
     val (authorizedRequestInfo, unauthorizedRequestInfo) =  offsetCommitRequest.requestInfo.partition(
       mapEntry => !authorizer.isDefined || (authorizer.get.authorize(request.session, Operation.READ, new Resource(ResourceType.TOPIC,mapEntry._1.topic)) &&
-        authorizer.get.authorize(request.session, Operation.WRITE, new Resource(ResourceType.GROUP,offsetCommitRequest.groupId))))
+        authorizer.get.authorize(request.session, Operation.WRITE, new Resource(ResourceType.CONSUMER_GROUP,offsetCommitRequest.groupId))))
 
     // the callback for sending an offset commit response
     def sendResponseCallback(commitStatus: immutable.Map[TopicAndPartition, Short]) {
@@ -581,7 +581,7 @@ class KafkaApis(val requestChannel: RequestChannel,
 
     val (authorizedTopics, unauthorizedTopics) =  joinGroupRequest.topics().partition(
       topic => (!authorizer.isDefined || authorizer.get.authorize(request.session, Operation.READ, new Resource(ResourceType.TOPIC, topic))
-        && authorizer.get.authorize(request.session, Operation.READ, new Resource(ResourceType.GROUP, joinGroupRequest.groupId()))))
+        && authorizer.get.authorize(request.session, Operation.READ, new Resource(ResourceType.CONSUMER_GROUP, joinGroupRequest.groupId()))))
 
     val unauthorizedTopicPartition = unauthorizedTopics.map(topic => new TopicPartition(topic, -1))
 
@@ -607,7 +607,7 @@ class KafkaApis(val requestChannel: RequestChannel,
     val heartbeatRequest = request.body.asInstanceOf[HeartbeatRequest]
     val respHeader = new ResponseHeader(request.header.correlationId)
 
-    if (authorizer.isDefined && !authorizer.get.authorize(request.session, Operation.READ, new Resource(ResourceType.GROUP, heartbeatRequest.groupId()))) {
+    if (authorizer.isDefined && !authorizer.get.authorize(request.session, Operation.READ, new Resource(ResourceType.CONSUMER_GROUP, heartbeatRequest.groupId()))) {
       val heartbeatResponse = new HeartbeatResponse(ErrorMapping.AuthorizationCode)
       requestChannel.sendResponse(new Response(request, new BoundedByteBufferSend(respHeader, heartbeatResponse)))
       return
