@@ -7,6 +7,32 @@ import collections
 import fileinput
 import re
 
+# brokers    = ["c6501.ambari.apache.org",
+#               "c6502.ambari.apache.org",
+#               "c6503.ambari.apache.org"]
+#
+# zookeepers = ["c6501.ambari.apache.org"]
+#
+# producers =  ["c6501.ambari.apache.org",
+#               "c6502.ambari.apache.org"]
+#
+# consumers =  ["c6501.ambari.apache.org"]
+#
+# javaHome = "/usr/jdk64/jdk1.8.0_40"
+# kafkaHome = "/usr/hdp/current/kafka-broker"
+#
+# zkPort = "2181"
+
+# Settings loaded from cluster.properties file
+brokers    = []
+zookeepers = []
+producers =  []
+consumers =  []
+javaHome = ""
+kafkaHome = ""
+zkPort = ""
+
+
 def find_files(pattern, path):
     result = []
     for root, dirs, files in os.walk(path):
@@ -14,24 +40,6 @@ def find_files(pattern, path):
             if fnmatch.fnmatch(name, pattern):
                 result.append(os.path.join(root, name))
     return result
-
-
-brokers    = ["c6501.ambari.apache.org",
-              "c6502.ambari.apache.org",
-              "c6503.ambari.apache.org"]
-
-zookeepers = ["c6501.ambari.apache.org"]
-
-producers =  ["c6501.ambari.apache.org",
-              "c6502.ambari.apache.org"]
-
-consumers =  ["c6501.ambari.apache.org"]
-
-javaHome = "/usr/jdk64/jdk1.8.0_40"
-kafkaHome = "/usr/hdp/current/kafka-broker"
-
-zkPort = "2181"
-
 
 
 def fix_cluster_config_files(directory):
@@ -97,13 +105,71 @@ def fix_other_properties_file(directory):
             print os.popen("perl -i -pe 's/server.1=localhost/server.1=" + zookeepers[0] + "/' " + f).read()
 
 
+def loadClusterProperties(clusterProp):
+    inFile = open(clusterProp, "r")
+    data = json.load(inFile)
+    inFile.close()
+    global kafkaHome, javaHome, zkPort, zookeepers, producers, consumers, brokers
+
+    if not "zookeepers" in data:
+        print >> sys.stderr, "'zookeepers' list not specified"
+    for zk in data["zookeepers"]:
+        zookeepers.append(zk)
+
+    if not "brokers" in data:
+        print >> sys.stderr, "'brokers' list not specified"
+    for b in data["brokers"]:
+        brokers.append(b)
+
+    if not "producers" in data:
+        print >> sys.stderr, "'producers' list not specified"
+    for p in data["producers"]:
+        producers.append(p)
+
+    if not "zkPort" in data:
+        print >> sys.stderr, "'zkPort' not specified"
+    zkPort = data["zkPort"]
+
+    if not "consumers" in data:
+        print >> sys.stderr, "'consumers' list not specified"
+    for c in data["consumers"]:
+        consumers.append(c)
+
+    if not "javaHome" in data:
+        print >> sys.stderr, "'javaHome' not specified"
+    javaHome = data["javaHome"]
+
+    if not "kafkaHome" in data:
+        print >> sys.stderr, "'kafaHome' not specified"
+    kafkaHome = data["kafkaHome"]
+
+
 # Main
-#Usage  genclusterconf.py systest_dir
-directory = sys.argv[1]  # "/Users/rnaik/Projects/idea/kafka/system_test"
+
+def usage():
+    print "Usage :"
+    print sys.argv[0] + " cluster.json testsuite_dir/"
+
+if not len(sys.argv) == 3:
+    usage()
+    exit(1)
+
+clusterProp = sys.argv[1]
+directory = sys.argv[2]  # "./system_test/offset_management_testsuite"
+
+loadClusterProperties(clusterProp)
+
+print "-Kafka Home: " + kafkaHome
+print "-Java Home: " + javaHome
+print "-ZK port : " + zkPort
+print "-Consumers : " + ",".join( consumers )
+print "-Producers : " + ",".join( producers )
+print "-Brokers : " + ",".join( brokers )
+print "-Zookeepers : " + ",".join( zookeepers )
+
 
 # 1 Update all cluster_config.json files
 fix_cluster_config_files(directory)
-
 
 # 2 Update testcase_*_properties.json files
 fix_json_properties_files(directory)
