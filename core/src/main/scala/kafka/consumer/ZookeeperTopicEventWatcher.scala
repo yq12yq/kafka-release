@@ -94,8 +94,8 @@ class ZookeeperTopicEventWatcher(val zkClient: ZkClient,
       }
     }
 
-    def handleSessionEstablishmentError(error: Throwable): Unit = {
-      //do nothing,
+    override def handleSessionEstablishmentError(error: Throwable): Unit = {
+      //no-op ZookeeperConsumerConnector should log error.
     }
   }
 }

@@ -1122,8 +1122,8 @@ class KafkaController(val config : KafkaConfig, zkClient: ZkClient, val brokerSt
      * @throws Exception
      * On any error.
      */
-    def handleSessionEstablishmentError(error: Throwable): Unit = {
-      //do nothing,
+    override def handleSessionEstablishmentError(error: Throwable): Unit = {
+      //no-op handleSessionEstablishmentError in KafkaHealthCheck should System.exit and log the error.
     }
   }
 
