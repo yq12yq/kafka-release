@@ -36,7 +36,7 @@ from   testcase_env       import TestcaseEnv
 
 # product specific: Kafka
 import kafka_system_test_utils
-import metrics
+# import metrics
 
 class OffsetManagementTest(ReplicationUtils, SetupUtils):
 

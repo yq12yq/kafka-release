@@ -36,7 +36,7 @@ import time
 import traceback
 
 import system_test_utils
-import metrics
+# import metrics
 
 from datetime  import datetime
 from time      import mktime

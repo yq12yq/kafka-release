@@ -40,7 +40,7 @@ from   testcase_env       import TestcaseEnv
 
 # product specific: Kafka
 import kafka_system_test_utils
-import metrics
+# import metrics
 
 class ReplicaBasicTest(ReplicationUtils, SetupUtils):
 
@@ -443,14 +443,14 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 # =============================================
                 # draw graphs
                 # =============================================
-                metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME, 
-                                        self.testcaseEnv, 
-                                        self.systemTestEnv.clusterEntityConfigDictList)
+#                metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME, 
+#                                        self.testcaseEnv, 
+#                                        self.systemTestEnv.clusterEntityConfigDictList)
                 
                 # build dashboard, one for each role
-                metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
-                                             self.testcaseEnv.testCaseDashboardsDir,
-                                             self.systemTestEnv.clusterEntityConfigDictList)
+#                metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
+#                                             self.testcaseEnv.testCaseDashboardsDir,
+#                                             self.systemTestEnv.clusterEntityConfigDictList)
             except Exception as e:
                 self.log_message("Exception while running test {0}".format(e))
                 traceback.print_exc()
