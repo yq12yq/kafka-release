@@ -954,7 +954,7 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
 
         cmdStr = " ".join(cmdList)
 
-        logger.debug("executing command: [" + cmdStr + "]", extra=d)
+        logger.info("executing command: [" + cmdStr + "]", extra=d)
         system_test_utils.async_sys_call(cmdStr)
 
         pidCmdStr = "ssh " + host + " 'cat " + consumerLogPath + "/entity_" + entityId + "_pid'"
@@ -1735,7 +1735,7 @@ def start_migration_tool(systemTestEnv, testcaseEnv, onlyThisEntityId=None):
                        " & echo pid:$! > " + migrationToolLogPath + "/entity_" + entityId + "_pid'"]
 
             cmdStr = " ".join(cmdList)
-            logger.debug("executing command: [" + cmdStr + "]", extra=d)
+            logger.info("executing command: [" + cmdStr + "]", extra=d)
             system_test_utils.async_sys_call(cmdStr)
             time.sleep(5)
 

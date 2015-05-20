@@ -7,22 +7,6 @@ import collections
 import fileinput
 import re
 
-# brokers    = ["c6501.ambari.apache.org",
-#               "c6502.ambari.apache.org",
-#               "c6503.ambari.apache.org"]
-#
-# zookeepers = ["c6501.ambari.apache.org"]
-#
-# producers =  ["c6501.ambari.apache.org",
-#               "c6502.ambari.apache.org"]
-#
-# consumers =  ["c6501.ambari.apache.org"]
-#
-# javaHome = "/usr/jdk64/jdk1.8.0_40"
-# kafkaHome = "/usr/hdp/current/kafka-broker"
-#
-# zkPort = "2181"
-
 # Settings loaded from cluster.properties file
 brokers    = []
 zookeepers = []
