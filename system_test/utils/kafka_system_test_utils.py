@@ -834,7 +834,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
 
     cmdStr = " ".join(cmdList)
 
-    logger.debug("executing command: [" + cmdStr + "]", extra=d)
+    logger.info("executing command: [" + cmdStr + "]", extra=d)
     system_test_utils.async_sys_call(cmdStr)
     logger.info("sleeping for 5 seconds.", extra=d)
     time.sleep(5)
