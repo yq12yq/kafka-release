@@ -1,0 +1,29 @@
+
+1) Create a cluster.json file based on what Ambari has deployed. Below is the example file that you can find under system_test/ : 
+ {
+    "brokers": [
+        "c6501.ambari.apache.org",
+        "c6502.ambari.apache.org",
+        "c6503.ambari.apache.org"
+    ],  
+    "zookeepers": [
+        "c6501.ambari.apache.org"
+    ],  
+    "zkPort": "2181",
+    "producers": [
+        "c6501.ambari.apache.org",
+        "c6502.ambari.apache.org"
+    ],  
+    "consumers": [
+        "c6501.ambari.apache.org"
+    ],  
+    "javaHome": "/usr/jdk64/jdk1.8.0_40",
+    "kafkaHome": "/usr/hdp/current/kafka-broker"
+}
+
+
+2) Using this cluster info file (cluster.json), update all test config files in the test suite  as follows:
+ - # system_test/fixtestconfigs.py  cluster.json  system_test/replication_testsuite
+
+3) Run the test suite. 
+
