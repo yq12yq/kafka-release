@@ -55,22 +55,22 @@ def fix_cluster_config_files(directory):
         zkIndx = 0
 
         for entity in data["cluster_config"]:
-            if entity["role"] == "broker":
+            if entity["role"] == "broker" and len(brokers)>0:
                 entity["hostname"] = brokers[brokerIndx]
                 brokerIndx = brokerIndx+1 if brokerIndx+1<len(brokers) else 0
-            elif entity["role"] == "zookeeper":
+            elif entity["role"] == "zookeeper" and len(zookeepers)>0:
                 entity["hostname"] = zookeepers[zkIndx]
                 zkIndx = zkIndx+1 if zkIndx+1<len(zookeepers) else 0
-            elif entity["role"] == "producer_performance":
+            elif entity["role"] == "producer_performance" and len(producers)>0:
                 entity["hostname"] = producers[producerIndx]
                 producerIndx = producerIndx+1 if producerIndx+1<len(producers) else 0
-            elif entity["role"] == "console_consumer":
+            elif entity["role"] == "console_consumer" and len(consumers)>0:
                 entity["hostname"] = consumers[consumerIndx]
                 consumerIndx = consumerIndx+1 if consumerIndx+1<len(consumers) else 0
 
-            if "java_home" in entity:
+            if "java_home" in entity and javaHome!="":
                 entity["java_home"] = javaHome
-            if "kafka_home" in entity:
+            if "kafka_home" in entity and kafkaHome!="":
                 entity["kafka_home"] = kafkaHome
 
         outFile = open(f, "w+")
@@ -96,6 +96,8 @@ def fix_json_properties_files(directory):
             outFile.close()
 
 def fix_other_properties_file(directory):
+    if len(zookeepers) == 0:
+        return
     for f in find_files("*.properties", directory):
         print "Processing " + f
         print os.popen("perl -i -pe 's/zookeeper.connect=localhost:.*/zookeeper.connect=" + zookeepers[0] + ":" + zkPort + "/' " + f).read()
@@ -113,35 +115,42 @@ def loadClusterProperties(clusterProp):
 
     if not "zookeepers" in data:
         print >> sys.stderr, "'zookeepers' list not specified"
-    for zk in data["zookeepers"]:
-        zookeepers.append(zk)
+    else:
+        for zk in data["zookeepers"]:
+            zookeepers.append(zk)
 
     if not "brokers" in data:
         print >> sys.stderr, "'brokers' list not specified"
-    for b in data["brokers"]:
-        brokers.append(b)
+    else:
+        for b in data["brokers"]:
+            brokers.append(b)
 
     if not "producers" in data:
         print >> sys.stderr, "'producers' list not specified"
-    for p in data["producers"]:
-        producers.append(p)
+    else:
+        for p in data["producers"]:
+            producers.append(p)
 
     if not "zkPort" in data:
         print >> sys.stderr, "'zkPort' not specified"
-    zkPort = data["zkPort"]
+    else:
+        zkPort = data["zkPort"]
 
     if not "consumers" in data:
         print >> sys.stderr, "'consumers' list not specified"
-    for c in data["consumers"]:
-        consumers.append(c)
+    else:
+        for c in data["consumers"]:
+            consumers.append(c)
 
     if not "javaHome" in data:
         print >> sys.stderr, "'javaHome' not specified"
-    javaHome = data["javaHome"]
+    else:
+        javaHome = data["javaHome"]
 
     if not "kafkaHome" in data:
         print >> sys.stderr, "'kafaHome' not specified"
-    kafkaHome = data["kafkaHome"]
+    else:
+        kafkaHome = data["kafkaHome"]
 
 
 # Main
