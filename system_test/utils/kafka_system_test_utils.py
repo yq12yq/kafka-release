@@ -436,7 +436,10 @@ def generate_overriden_props_files(testsuitePathname, testcaseEnv, systemTestEnv
                     addedCSVConfig["kafka.metrics.polling.interval.secs"] = "5"
                     addedCSVConfig["kafka.metrics.reporters"] = "kafka.metrics.KafkaCSVMetricsReporter"
                     addedCSVConfig["kafka.csv.metrics.reporter.enabled"] = "true"
-                    addedCSVConfig["listeners"] = "PLAINTEXT://" + hostname + ":"+tcCfg["port"]
+                    if systemTestEnv.SECURE_MODE:
+                        addedCSVConfig["listeners"] = "PLAINTEXTSASL://" + hostname + ":"+tcCfg["port"]
+                    else:
+                        addedCSVConfig["listeners"] = "PLAINTEXT://" + hostname + ":"+tcCfg["port"]
 
                     if brokerVersion == "0.7":
                         addedCSVConfig["brokerid"] = tcCfg["brokerid"]
@@ -702,6 +705,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
     javaHome  = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", entityId, "java_home")
     jmxPort   = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", entityId, "jmx_port")
     clusterName = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", entityId, "cluster_name")
+    secureMode = systemTestEnv.SECURE_MODE
 
     # testcase configurations:
     testcaseConfigsList = testcaseEnv.testcaseConfigsList
@@ -725,9 +729,11 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
         logPathName    = replace_kafka_home(logPathName, kafkaHome)
 
     if role == "zookeeper":
+        zkEnvSetting = "JVMFLAGS='-Djava.security.auth.login.config=/etc/zookeeper/conf/jaas.conf'" if secureMode else ""
         cmdList = ["ssh " + hostname,
                   "'JAVA_HOME=" + javaHome,
                   "JMX_PORT=" + jmxPort,
+                  zkEnvSetting,
                   kafkaHome + "/bin/zookeeper-server-start.sh ",
                   configPathName + "/" + configFile + " &> ",
                   logPathName + "/" + logFile + " & echo pid:$! > ",
@@ -819,18 +825,22 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
         else:
             logger.error("Invalid cluster name : " + clusterName, extra=d)
             sys.exit(1)
+        kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+        securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
         cmdList = ["ssh " + hostname,
-                   "'JAVA_HOME=" + javaHome,
+                   "'(", kinitCmd,
+                   "JAVA_HOME=" + javaHome,
                    "JMX_PORT=" + jmxPort,
                    kafkaHome + "/bin/kafka-run-class.sh kafka.tools.ConsoleConsumer",
                    "--zookeeper " + zkConnectStr,
                    "--topic " + topic,
                    "--consumer.config /tmp/consumer.properties",
                    "--csv-reporter-enabled",
+                   securityProtocol,
                    formatterOption,
                    "--from-beginning",
                    " >> " + logPathName + "/" + logFile + " & echo pid:$! > ",
-                   logPathName + "/entity_" + entityId + "_pid'"]
+                   logPathName + "/entity_" + entityId + "_pid)'"]
 
     cmdStr = " ".join(cmdList)
 
@@ -841,7 +851,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
 
     pidCmdStr = "ssh " + hostname + " 'cat " + logPathName + "/entity_" + entityId + "_pid' 2> /dev/null"
     logger.debug("executing command: [" + pidCmdStr + "]", extra=d)
-    subproc = system_test_utils.sys_call_return_subproc(pidCmdStr)
+    subproc = system_test_utils.sys_carell_return_subproc(pidCmdStr)
 
     # keep track of the remote entity pid in a dictionary
     for line in subproc.stdout.readlines():
@@ -938,8 +948,13 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
         logger.debug("executing command [" + scpCmdStr + "]", extra=d)
         system_test_utils.sys_call(scpCmdStr)
 
+        secureMode = systemTestEnv.SECURE_MODE
+        kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+        securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
+
         cmdList = ["ssh " + host,
-                   "'JAVA_HOME=" + javaHome,
+                   "'(", kinitCmd,
+                   "JAVA_HOME=" + javaHome,
                    "JMX_PORT=" + jmxPort,
                    kafkaRunClassBin + " kafka.tools.ConsoleConsumer",
                    "--zookeeper " + zkConnectStr,
@@ -949,8 +964,9 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
                    #"--metrics-dir " + metricsDir,
                    formatterOption,
                    "--from-beginning ",
+                   securityProtocol,
                    " >> " + consumerLogPathName,
-                   " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid'"]
+                   " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid)'"]
 
         cmdStr = " ".join(cmdList)
 
@@ -974,7 +990,7 @@ def start_producer_performance(systemTestEnv, testcaseEnv, kafka07Client):
     entityConfigList     = systemTestEnv.clusterEntityConfigDictList
     testcaseConfigsList  = testcaseEnv.testcaseConfigsList
     brokerListStr = ""
-
+    secureMode = systemTestEnv.SECURE_MODE
     # construct "broker-list" for producer
     for entityConfig in entityConfigList:
         entityRole = entityConfig["role"]
@@ -990,7 +1006,7 @@ def start_producer_performance(systemTestEnv, testcaseEnv, kafka07Client):
         jmxPort           = producerConfig["jmx_port"]
         role              = producerConfig["role"]
 
-        thread.start_new_thread(start_producer_in_thread, (testcaseEnv, entityConfigList, producerConfig, kafka07Client))
+        thread.start_new_thread(start_producer_in_thread, (testcaseEnv, entityConfigList, producerConfig, kafka07Client, secureMode))
         logger.debug("calling testcaseEnv.lock.acquire()", extra=d)
         testcaseEnv.lock.acquire()
         testcaseEnv.numProducerThreadsRunning += 1
@@ -1027,7 +1043,7 @@ def generate_topics_string(topicPrefix, numOfTopics):
         counter += 1
     return topicsStr
 
-def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafka07Client):
+def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafka07Client, secureMode):
     host              = producerConfig["hostname"]
     entityId          = producerConfig["entity_id"]
     jmxPort           = producerConfig["jmx_port"]
@@ -1109,6 +1125,9 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
 
     # keep calling producer until signaled to stop by:
     # testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]
+    kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+    securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
+
     while 1:
         logger.debug("calling testcaseEnv.lock.acquire()", extra=d)
         testcaseEnv.lock.acquire()
@@ -1119,7 +1138,8 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                 + str(noMsgPerBatch) + "] messages with starting message id : [" + str(initMsgId) + "]", extra=d)
 
             cmdList = ["ssh " + host,
-                       "\'JAVA_HOME=" + javaHome,
+                       "\'(", kinitCmd,
+                       "JAVA_HOME=" + javaHome,
                        "JMX_PORT=" + jmxPort,
                        "KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%s/config/test-log4j.properties" % kafkaHome,
                        kafkaRunClassBin + " kafka.tools.ProducerPerformance",
@@ -1135,10 +1155,11 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        "--producer-num-retries " + numOfRetries,
                        "--csv-reporter-enabled",
                        "--metrics-dir " + metricsDir,
+                       securityProtocol,
                        boolArgumentsStr,
                        " >> " + producerLogPathName,
                        " & echo $! > " + producerLogPath + "/entity_" + entityId + "_pid",
-                       " & wait\'"]
+                       " & wait)\'"]
 
             if kafka07Client:
                 cmdList[:] = []
@@ -1156,7 +1177,8 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                 brokerInfoStr = "broker.list=" + brokerInfoStr
 
                 cmdList = ["ssh " + host,
-                       "'JAVA_HOME=" + javaHome,
+                       "'(", kinitCmd,
+                       "JAVA_HOME=" + javaHome,
                        "JMX_PORT=" + jmxPort,
                        "KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%s/config/test-log4j.properties" % kafkaHome,
                        kafkaRunClassBin + " kafka.tools.ProducerPerformance",
@@ -1168,9 +1190,10 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        "--compression-codec " + compCodec,
                        "--message-size " + messageSize,
                        "--vary-message-size --async",
+                       securityProtocol,
                        " >> " + producerLogPathName,
                        " & echo $! > " + producerLogPath + "/entity_" + entityId + "_pid",
-                       " & wait'"]
+                       " & wait)'"]
 
             cmdStr = " ".join(cmdList)
             logger.debug("executing command: [" + cmdStr + "]", extra=d)
@@ -1266,19 +1289,23 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
 
         testcaseBaseDir = testcaseEnv.testCaseBaseDir
 
+        secureMode = systemTestEnv.SECURE_MODE
+        kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+
         if zkHost != "localhost":
             testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
 
         for topic in topicsList:
             logger.info("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
             cmdList = ["ssh " + zkHost,
+                       "'(", kinitCmd,
                        "'JAVA_HOME=" + javaHome,
                        createTopicBin,
                        " --topic "     + topic,
                        " --zookeeper " + zkConnectStr,
                        " --replication-factor "   + testcaseEnv.testcaseArgumentsDict["replica_factor"],
                        " --partitions " + testcaseEnv.testcaseArgumentsDict["num_partition"] + " >> ",
-                       testcaseBaseDir + "/logs/create_source_cluster_topic.log'"]
+                       testcaseBaseDir + "/logs/create_source_cluster_topic.log)'"]
 
             cmdStr = " ".join(cmdList)
             logger.info("executing command: [" + cmdStr + "]", extra=d)
@@ -1303,15 +1330,19 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
 
     testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
 
+    secureMode = systemTestEnv.SECURE_MODE
+    kinitCmd = ("kinit -k -t /etc/security/keytabs/kafka.security.keytab kafka/" + zkHost + ";") if secureMode else ""
+
     logger.debug("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
     cmdList = ["ssh " + zkHost,
-               "'JAVA_HOME=" + javaHome,
+               "'(", kinitCmd,
+               "JAVA_HOME=" + javaHome,
                createTopicBin,
                " --topic "     + topic,
                " --zookeeper " + zkConnectStr,
                " --replication-factor "   + str(replication_factor),
                " --partitions " + str(num_partitions) + " >> ",
-               testcaseBaseDir + "/logs/create_source_cluster_topic.log'"]
+               testcaseBaseDir + "/logs/create_source_cluster_topic.log)'"]
 
     cmdStr = " ".join(cmdList)
     logger.info("executing command: [" + cmdStr + "]", extra=d)
@@ -1995,6 +2026,9 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
         else:
             numPartitions = int(numPartitions)
 
+        secureMode = systemTestEnv.SECURE_MODE
+        kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+
         replicaIndex   = 1
         startingOffset = -2
         brokerPortList = brokerListStr.split(',')
@@ -2010,8 +2044,10 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
 
                 outputFilePathName = consumerLogPath + "/simple_consumer_" + topic + "-" + str(partitionId) + "_r" + str(replicaIndex) + ".log"
                 brokerPortLabel = brokerPort.replace(":", "_")
+                securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
                 cmdList = ["ssh " + host,
                            "'JAVA_HOME=" + javaHome,
+                           "'(", kinitCmd,
                            kafkaRunClassBin + " kafka.tools.SimpleConsumerShell",
                            "--broker-list " + brokerListStr,
                            "--topic " + topic,
@@ -2020,7 +2056,8 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
                            "--offset " + str(startingOffset),
                            "--no-wait-at-logend ",
                            " > " + outputFilePathName,
-                           " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid'"]
+                           securityProtocol,
+                           " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid)'"]
 
                 cmdStr = " ".join(cmdList)
 
