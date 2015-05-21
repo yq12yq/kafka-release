@@ -1654,7 +1654,7 @@ def stop_all_remote_running_processes(systemTestEnv, testcaseEnv):
         while 1:
             logger.debug("calling testcaseEnv.lock.acquire()", extra=d)
             testcaseEnv.lock.acquire()
-            logger.info("status of backgroundProducerStopped : [" + \
+            logger.debug("status of backgroundProducerStopped : [" + \
                 str(testcaseEnv.userDefinedEnvVarDict["backgroundProducerStopped"]) + "]", extra=d)
             if testcaseEnv.userDefinedEnvVarDict["backgroundProducerStopped"]:
                 logger.debug("calling testcaseEnv.lock.release()", extra=d)
