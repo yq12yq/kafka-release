@@ -1299,7 +1299,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
             logger.info("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
             cmdList = ["ssh " + zkHost,
                        "'(", kinitCmd,
-                       "'JAVA_HOME=" + javaHome,
+                       "JAVA_HOME=" + javaHome,
                        createTopicBin,
                        " --topic "     + topic,
                        " --zookeeper " + zkConnectStr,
