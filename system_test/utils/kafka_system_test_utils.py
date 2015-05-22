@@ -851,7 +851,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
 
     pidCmdStr = "ssh " + hostname + " 'cat " + logPathName + "/entity_" + entityId + "_pid' 2> /dev/null"
     logger.debug("executing command: [" + pidCmdStr + "]", extra=d)
-    subproc = system_test_utils.sys_carell_return_subproc(pidCmdStr)
+    subproc = system_test_utils.sys_call_return_subproc(pidCmdStr)
 
     # keep track of the remote entity pid in a dictionary
     for line in subproc.stdout.readlines():
