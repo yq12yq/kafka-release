@@ -1196,7 +1196,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        " & wait)'"]
 
             cmdStr = " ".join(cmdList)
-            logger.debug("executing command: [" + cmdStr + "]", extra=d)
+            logger.info("executing command: [" + cmdStr + "]", extra=d)
 
             subproc = system_test_utils.sys_call_return_subproc(cmdStr)
             logger.debug("waiting for producer to finish", extra=d)
