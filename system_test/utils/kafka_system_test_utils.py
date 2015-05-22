@@ -825,7 +825,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
         else:
             logger.error("Invalid cluster name : " + clusterName, extra=d)
             sys.exit(1)
-        kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
         securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
         cmdList = ["ssh " + hostname,
                    "'(", kinitCmd,
@@ -949,7 +949,7 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
         system_test_utils.sys_call(scpCmdStr)
 
         secureMode = systemTestEnv.SECURE_MODE
-        kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
         securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
 
         cmdList = ["ssh " + host,
@@ -1125,7 +1125,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
 
     # keep calling producer until signaled to stop by:
     # testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]
-    kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+    kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
     securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
 
     while 1:
@@ -1290,7 +1290,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
         testcaseBaseDir = testcaseEnv.testCaseBaseDir
 
         secureMode = systemTestEnv.SECURE_MODE
-        kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
 
         if zkHost != "localhost":
             testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
@@ -2027,7 +2027,7 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
             numPartitions = int(numPartitions)
 
         secureMode = systemTestEnv.SECURE_MODE
-        kinitCmd = "kinit -k -t /etc/security/keytabs/ambari.qa.keytab ambariqa;" if secureMode else ""
+        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
 
         replicaIndex   = 1
         startingOffset = -2
