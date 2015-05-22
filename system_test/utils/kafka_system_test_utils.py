@@ -729,7 +729,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
         logPathName    = replace_kafka_home(logPathName, kafkaHome)
 
     if role == "zookeeper":
-        zkEnvSetting = "JVMFLAGS='-Djava.security.auth.login.config=/etc/zookeeper/conf/jaas.conf'" if secureMode else ""
+        zkEnvSetting = "JVMFLAGS='-Djava.security.auth.login.config=/etc/zookeeper/conf/zookeeper_jaas.conf'" if secureMode else ""
         cmdList = ["ssh " + hostname,
                   "'JAVA_HOME=" + javaHome,
                   "JMX_PORT=" + jmxPort,
