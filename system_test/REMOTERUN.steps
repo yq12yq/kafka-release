@@ -18,7 +18,8 @@
         "c6501.ambari.apache.org"
     ],  
     "javaHome": "/usr/jdk64/jdk1.8.0_40",
-    "kafkaHome": "/usr/hdp/current/kafka-broker"
+    "kafkaHome": "/usr/hdp/current/kafka-broker",
+    "secure": false
 }
 
 
@@ -27,5 +28,11 @@
 
 3) Run the test suite.
   Update the test_to_run.json (based on which tests need to be run). Use the other test_to_run*.json sample files as reference.
+
+  - For unsecure:
   # python -u -B system_test_runner.py 2>&1 | tee system_test_output.log
+
+  - For secure (need to set/export SECURE in environment) :
+  # SECURE="true" python -u -B system_test_runner.py 2>&1 | tee system_test_output.log
+  
   For more details on running system tests check  https://cwiki.apache.org/confluence/display/KAFKA/Kafka+System+Tests
