@@ -2046,8 +2046,8 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
                 brokerPortLabel = brokerPort.replace(":", "_")
                 securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
                 cmdList = ["ssh " + host,
-                           "'JAVA_HOME=" + javaHome,
                            "'(", kinitCmd,
+                           "JAVA_HOME=" + javaHome,
                            kafkaRunClassBin + " kafka.tools.SimpleConsumerShell",
                            "--broker-list " + brokerListStr,
                            "--topic " + topic,
@@ -2061,7 +2061,7 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
 
                 cmdStr = " ".join(cmdList)
 
-                logger.debug("executing command: [" + cmdStr + "]", extra=d)
+                logger.info("executing command: [" + cmdStr + "]", extra=d)
                 subproc_1 = system_test_utils.sys_call_return_subproc(cmdStr)
                 # dummy for-loop to wait until the process is completed
                 for line in subproc_1.stdout.readlines():
