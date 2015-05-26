@@ -1290,7 +1290,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
         testcaseBaseDir = testcaseEnv.testCaseBaseDir
 
         secureMode = systemTestEnv.SECURE_MODE
-        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
+        kinitCmd = "kinit -k -t /etc/security/keytabs/kafka.security.keytab kafka/"+zkHost+";" if secureMode else ""
 
         if zkHost != "localhost":
             testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
