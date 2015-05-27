@@ -21,7 +21,7 @@ import kafka.cluster.BrokerEndPoint
 import kafka.server.AbstractFetcherThread
 import kafka.message.ByteBufferMessageSet
 import kafka.api.{Request, OffsetRequest, FetchResponsePartitionData}
-import kafka.common.{TopicAndPartition, ProtocolAndAuth}
+import kafka.common.TopicAndPartition
 import org.apache.kafka.common.protocol.SecurityProtocol
 
 

@@ -20,7 +20,7 @@ package kafka.consumer
 import kafka.api._
 import kafka.network._
 import kafka.utils._
-import kafka.common.{ErrorMapping, TopicAndPartition, ProtocolAndAuth}
+import kafka.common.{ErrorMapping, TopicAndPartition}
 import kafka.common.security.LoginManager
 import org.apache.kafka.common.utils.Utils._
 import org.apache.kafka.common.protocol.SecurityProtocol

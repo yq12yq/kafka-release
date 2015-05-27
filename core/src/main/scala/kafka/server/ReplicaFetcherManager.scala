@@ -18,7 +18,6 @@
 package kafka.server
 
 import kafka.cluster.BrokerEndPoint
-import kafka.common.ProtocolAndAuth
 
 import org.apache.kafka.common.protocol.SecurityProtocol
 

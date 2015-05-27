@@ -24,7 +24,7 @@ import java.util.concurrent.{LinkedBlockingQueue, BlockingQueue}
 import kafka.server.KafkaConfig
 import collection.mutable
 import kafka.api._
-import kafka.common.{TopicAndPartition, ProtocolAndAuth}
+import kafka.common.TopicAndPartition
 import kafka.api.RequestOrResponse
 import collection.Set
 
