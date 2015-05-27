@@ -1,20 +1,21 @@
 {
     "brokers": [
-        "c6501.ambari.apache.org",
-        "c6502.ambari.apache.org",
-        "c6503.ambari.apache.org"
+        "c6401.ambari.apache.org",
+        "c6402.ambari.apache.org",
+        "c6403.ambari.apache.org"
     ],
     "zookeepers": [
-        "c6501.ambari.apache.org"
+        "c6401.ambari.apache.org"
     ],
     "zkPort": "2181",
     "producers": [
-        "c6501.ambari.apache.org",
-        "c6502.ambari.apache.org"
+        "c6401.ambari.apache.org",
+        "c6402.ambari.apache.org"
     ],
     "consumers": [
-        "c6501.ambari.apache.org"
+        "c6401.ambari.apache.org"
     ],
     "javaHome": "/usr/jdk64/jdk1.8.0_40",
-    "kafkaHome": "/usr/hdp/current/kafka-broker"
+    "kafkaHome": "/usr/hdp/current/kafka-broker",
+    "secure": true
 }

@@ -15,6 +15,7 @@ consumers =  []
 javaHome = ""
 kafkaHome = ""
 zkPort = ""
+secure = False
 
 
 def find_files(pattern, path):
@@ -89,13 +90,27 @@ def fix_other_properties_file(directory):
 
         if re.search("zookeeper_.*properties", f):
             print os.popen("perl -i -pe 's/server.1=localhost/server.1=" + zookeepers[0] + "/' " + f).read()
+            with open(f, "a") as zkConf:
+                zkConf.write("\nauthProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider")
+                zkConf.write("\njaasLoginRenew=3600000")
+                zkConf.write("\nkerberos.removeHostFromPrincipal=true")
+                zkConf.write("\nkerberos.removeRealmFromPrincipal=true")
 
+
+        if secure and f == "server.properties":
+            with open(f, "a") as brokerconf:
+                brokerconf.write("\nsuper.users=kafka")
+                brokerconf.write("\nauthorizer.class=kafka.security.auth.SimpleAclAuthorizer")
+                brokerconf.write("\nsecurity.inter.broker.protocol=PLAINTEXTSASL")
+        if secure and (f == "producer.properties" or f == "producer_performance.properties" or f == "consumer.properties"):
+            with open(f, "a") as producerconf:
+                producerconf.write("\nsecurity.protocol=PLAINTEXTSASL")
 
 def loadClusterProperties(clusterProp):
     inFile = open(clusterProp, "r")
     data = json.load(inFile)
     inFile.close()
-    global kafkaHome, javaHome, zkPort, zookeepers, producers, consumers, brokers
+    global kafkaHome, javaHome, zkPort, zookeepers, producers, consumers, brokers, secure
 
     if not "zookeepers" in data:
         print >> sys.stderr, "'zookeepers' list not specified"
@@ -136,6 +151,11 @@ def loadClusterProperties(clusterProp):
     else:
         kafkaHome = data["kafkaHome"]
 
+    if not "secure" in data:
+        secure = False
+    else:
+        secure = True if data['secure'] else False
+    print "**** SECURE MODE = %s ****" % secure
 
 # Main
 
@@ -159,7 +179,7 @@ print "-Consumers : " + ",".join( consumers )
 print "-Producers : " + ",".join( producers )
 print "-Brokers : " + ",".join( brokers )
 print "-Zookeepers : " + ",".join( zookeepers )
-
+print "-Secure : %s " % secure
 
 # 1 Update all cluster_config.json files
 fix_cluster_config_files(directory)

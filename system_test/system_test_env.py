@@ -48,6 +48,7 @@ class SystemTestEnv():
     TESTCASE_TO_RUN_PATHNAME  = os.path.abspath(SYSTEM_TEST_BASE_DIR + "/" + TESTCASE_TO_RUN_FILENAME)
     TESTCASE_TO_SKIP_FILENAME = "testcase_to_skip.json"
     TESTCASE_TO_SKIP_PATHNAME = os.path.abspath(SYSTEM_TEST_BASE_DIR + "/" + TESTCASE_TO_SKIP_FILENAME)
+    SECURE_MODE = True if os.getenv('SECURE', "false") == "true" else False
 
     clusterEntityConfigDictList                      = []   # cluster entity config for current level
     clusterEntityConfigDictListInSystemTestLevel     = []   # cluster entity config defined in system level
