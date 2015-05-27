@@ -43,6 +43,8 @@ import org.apache.kafka.common.metrics.stats.Count;
 import org.apache.kafka.common.metrics.stats.Max;
 import org.apache.kafka.common.metrics.stats.Rate;
 import org.apache.kafka.common.protocol.SecurityProtocol;
+import org.apache.kafka.common.security.AuthUtils;
+import org.apache.kafka.common.security.kerberos.LoginFactory;
 import org.apache.kafka.common.security.auth.PrincipalBuilder;
 import org.apache.kafka.common.security.auth.DefaultPrincipalBuilder;
 import org.apache.kafka.common.utils.Time;
@@ -95,8 +97,9 @@ public class Selector implements Selectable {
     private final String metricGrpPrefix;
     private final Map<String, String> metricTags;
     private final SecurityProtocol securityProtocol;
-    private SSLFactory sslFactory = null;
-    private ExecutorService executorService = null;
+    private SSLFactory sslFactory;
+    private ExecutorService executorService;
+    private LoginFactory loginFactory;
 
     /**
      * Create a new selector
@@ -120,10 +123,16 @@ public class Selector implements Selectable {
         this.sensors = new SelectorMetrics(metrics);
         this.securityProtocol = configs.containsKey(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG) ?
             SecurityProtocol.valueOf((String) configs.get(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG)) : SecurityProtocol.PLAINTEXT;
-        if (securityProtocol == SecurityProtocol.SSL) {
-            this.executorService = Executors.newScheduledThreadPool(1);
-            this.sslFactory = new SSLFactory(SSLFactory.Mode.CLIENT);
-            this.sslFactory.configure(configs);
+        try {
+            if (securityProtocol == SecurityProtocol.SSL) {
+                this.executorService = Executors.newScheduledThreadPool(1);
+                this.sslFactory = new SSLFactory(SSLFactory.Mode.CLIENT);
+                this.sslFactory.configure(configs);
+            } else if (securityProtocol == SecurityProtocol.PLAINTEXTSASL) {
+                this.loginFactory = new LoginFactory(AuthUtils.LOGIN_CONTEXT_CLIENT);
+            }
+        } catch(Exception e) {
+            throw new KafkaException(e);
         }
     }
 
@@ -172,7 +181,14 @@ public class Selector implements Selectable {
             transportLayer = new PlainTextTransportLayer(socketChannel);
         }
         PrincipalBuilder principalBuilder = new DefaultPrincipalBuilder();
-        Authenticator authenticator = new DefaultAuthenticator(transportLayer, principalBuilder);
+        Authenticator authenticator;
+
+        if (securityProtocol == SecurityProtocol.PLAINTEXTSASL) {
+            authenticator = new SaslClientAuthenticator(loginFactory.subject(), transportLayer, loginFactory.serviceName(), address.getHostName());
+        } else {
+            authenticator = new DefaultAuthenticator(transportLayer, principalBuilder);
+        }
+
         Channel channel = new Channel(transportLayer, authenticator);
         SelectionKey key = socketChannel.register(this.selector, SelectionKey.OP_CONNECT);
         key.attach(new Transmissions(id));
@@ -210,6 +226,8 @@ public class Selector implements Selectable {
             this.selector.close();
             if (this.executorService != null)
                 this.executorService.shutdown();
+            if (this.loginFactory != null)
+                this.loginFactory.close();
         } catch (IOException e) {
             log.error("Exception closing selector:", e);
         } catch (SecurityException se) {
@@ -286,7 +304,7 @@ public class Selector implements Selectable {
                         if (!channel.isReady()) {
                             int status = channel.connect(key.isReadable(), key.isWritable());
                             if (status == 0)
-                                key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
+                                key.interestOps(SelectionKey.OP_WRITE | SelectionKey.OP_READ);
                             else
                                 key.interestOps(status);
                         } else {
@@ -307,7 +325,7 @@ public class Selector implements Selectable {
                         if (!channel.isReady()) {
                             int status = channel.connect(key.isReadable(), key.isWritable());
                             if (status == 0)
-                                key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
+                                key.interestOps(SelectionKey.OP_WRITE | SelectionKey.OP_READ);
                             else
                                 key.interestOps(status);
                         } else {

@@ -5,7 +5,7 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
- * 
+ *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -25,6 +25,9 @@ import kafka.api.{OffsetRequest, FetchRequestBuilder, Request}
 import kafka.cluster.BrokerEndPoint
 import scala.collection.JavaConversions._
 import kafka.common.TopicAndPartition
+import kafka.common.security.LoginManager
+import org.apache.kafka.common.protocol.SecurityProtocol
+import org.apache.kafka.common.security.AuthUtils
 import org.apache.kafka.common.utils.Utils
 
 /**
@@ -90,11 +93,17 @@ object SimpleConsumerShell extends Logging {
                            .describedAs("max-messages")
                            .ofType(classOf[java.lang.Integer])
                            .defaultsTo(Integer.MAX_VALUE)
+    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
+                                .withRequiredArg
+                                .describedAs("security-protocol")
+                                .ofType(classOf[String])
+                                .defaultsTo("PLAINTEXT")
+
     val skipMessageOnErrorOpt = parser.accepts("skip-message-on-error", "If there is an error when processing a message, " +
         "skip it instead of halt.")
     val noWaitAtEndOfLogOpt = parser.accepts("no-wait-at-logend",
         "If set, when the simple consumer reaches the end of the Log, it will stop, not waiting for new produced messages")
-        
+
     if(args.length == 0)
       CommandLineUtils.printUsageAndDie(parser, "A low-level tool for fetching data directly from a particular replica.")
 
@@ -116,7 +125,7 @@ object SimpleConsumerShell extends Logging {
 
     val messageFormatterClass = Class.forName(options.valueOf(messageFormatterOpt))
     val formatterArgs = CommandLineUtils.parseKeyValueArgs(options.valuesOf(messageFormatterArgOpt))
-
+    val securityProtocol = SecurityProtocol.valueOf(options.valueOf(securityProtocolOpt).toString)
     val fetchRequestBuilder = new FetchRequestBuilder()
                        .clientId(clientId)
                        .replicaId(Request.DebuggingConsumerId)
@@ -127,8 +136,11 @@ object SimpleConsumerShell extends Logging {
     info("Getting topic metatdata...")
     val brokerList = options.valueOf(brokerListOpt)
     ToolsUtils.validatePortOrDie(parser,brokerList)
+    if (securityProtocol == SecurityProtocol.PLAINTEXTSASL) {
+        LoginManager.init(AuthUtils.LOGIN_CONTEXT_CLIENT)
+    }
     val metadataTargetBrokers = ClientUtils.parseBrokerList(brokerList)
-    val topicsMetadata = ClientUtils.fetchTopicMetadata(Set(topic), metadataTargetBrokers, clientId, maxWaitMs).topicsMetadata
+    val topicsMetadata = ClientUtils.fetchTopicMetadata(Set(topic), metadataTargetBrokers, clientId, maxWaitMs, securityProtocol=securityProtocol).topicsMetadata
     if(topicsMetadata.size != 1 || !topicsMetadata(0).topic.equals(topic)) {
       System.err.println(("Error: no valid topic metadata for topic: %s, " + "what we get from server is only: %s").format(topic, topicsMetadata))
       System.exit(1)
@@ -171,7 +183,7 @@ object SimpleConsumerShell extends Logging {
       val simpleConsumer = new SimpleConsumer(fetchTargetBroker.host,
                                               fetchTargetBroker.port,
                                               ConsumerConfig.SocketTimeout,
-                                              ConsumerConfig.SocketBufferSize, clientId)
+                                              ConsumerConfig.SocketBufferSize, clientId, securityProtocol)
       try {
         startingOffset = simpleConsumer.earliestOrLatestOffset(TopicAndPartition(topic, partitionId), startingOffset,
                                                                Request.DebuggingConsumerId)
@@ -196,7 +208,7 @@ object SimpleConsumerShell extends Logging {
                          fetchTargetBroker.port, startingOffset))
     val simpleConsumer = new SimpleConsumer(fetchTargetBroker.host,
                                             fetchTargetBroker.port,
-                                            10000, 64*1024, clientId)
+                                            10000, 64*1024, clientId, securityProtocol)
     val thread = Utils.newThread("kafka-simpleconsumer-shell", new Runnable() {
       def run() {
         var offset = startingOffset

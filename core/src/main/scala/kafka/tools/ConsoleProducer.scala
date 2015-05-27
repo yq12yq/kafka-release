@@ -28,6 +28,7 @@ import java.io._
 
 import joptsimple._
 import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.clients.CommonClientConfigs
 
 object ConsoleProducer {
 
@@ -92,8 +93,7 @@ object ConsoleProducer {
     props.put("serializer.class", config.valueEncoderClass)
     props.put("send.buffer.bytes", config.socketBuffer.toString)
     props.put("topic.metadata.refresh.interval.ms", config.metadataExpiryMs.toString)
-    if(config.kerberosEnable)
-      props.put("security.protocol", "PLAINTEXTSASL")
+    props.put("security.protocol", config.securityProtocol.toString)
     props.put("client.id", "console-producer")
 
     props
@@ -122,7 +122,7 @@ object ConsoleProducer {
     props.put(ProducerConfig.CLIENT_ID_CONFIG, "console-producer")
     props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer")
     props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer")
-
+    props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, config.securityProtocol.toString)
     props
   }
 
@@ -237,11 +237,11 @@ object ConsoleProducer {
             .withRequiredArg
             .describedAs("producer_prop")
             .ofType(classOf[String])
-    val kerberosEnableOpt = parser.accepts("kerberos-enable", "Enable kerberos.")
-      .withRequiredArg
-      .describedAs("kerberos.enable")
-      .ofType(classOf[java.lang.Boolean])
-      .defaultsTo(false)
+    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
+            .withRequiredArg
+            .describedAs("security-protocol")
+            .ofType(classOf[String])
+            .defaultsTo("PLAINTEXT")
     val useNewProducerOpt = parser.accepts("new-producer", "Use the new producer implementation.")
 
     val options = parser.parse(args : _*)
@@ -280,7 +280,7 @@ object ConsoleProducer {
     val maxPartitionMemoryBytes = options.valueOf(maxPartitionMemoryBytesOpt)
     val metadataExpiryMs = options.valueOf(metadataExpiryMsOpt)
     val metadataFetchTimeoutMs = options.valueOf(metadataFetchTimeoutMsOpt)
-    val kerberosEnable = options.valueOf(kerberosEnableOpt)
+    val securityProtocol = options.valueOf(securityProtocolOpt).toString
   }
 
   trait MessageReader {

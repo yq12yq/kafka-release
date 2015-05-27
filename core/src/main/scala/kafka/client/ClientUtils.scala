@@ -113,7 +113,7 @@ object ClientUtils extends Logging{
      var channel: BlockingChannel = null
      var connected = false
      while (!connected) {
-       val allBrokers = getAllBrokerEndPointsForChannel(zkClient, SecurityProtocol.PLAINTEXT)
+       val allBrokers = getAllBrokerEndPointsForChannel(zkClient, protocol)
        Random.shuffle(allBrokers).find { broker =>
          trace("Connecting to broker %s:%d.".format(broker.host, broker.port))
          try {

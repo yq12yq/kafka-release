@@ -168,10 +168,11 @@ public class SaslServerAuthenticator implements Authenticator {
                 byte[] withHeaderWrapped = response;
                 withHeaderWrapped = addSASLHeader(withHeaderWrapped);
                 netOutBuffer = Utils.ensureCapacity(netOutBuffer, withHeaderWrapped.length);
+                netOutBuffer.clear();
                 netOutBuffer.put(withHeaderWrapped);
                 netOutBuffer.flip();
-                if(write && transportLayer.flush(netOutBuffer))
-                    return SelectionKey.OP_READ;
+                if(!write && !transportLayer.flush(netOutBuffer))
+                    return SelectionKey.OP_WRITE;
             }
         } catch (BufferUnderflowException be) {
             return SelectionKey.OP_READ;

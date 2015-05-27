@@ -19,9 +19,9 @@ package kafka.producer
 
 import kafka.api._
 import kafka.network.{BlockingChannel, BoundedByteBufferSend, Receive}
+
 import kafka.utils._
 import java.util.Random
-import kafka.common.ProtocolAndAuth
 import org.apache.kafka.common.utils.Utils._
 import org.apache.kafka.common.protocol.SecurityProtocol
 

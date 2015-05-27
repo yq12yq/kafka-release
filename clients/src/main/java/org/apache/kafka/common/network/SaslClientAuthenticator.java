@@ -124,7 +124,13 @@ public class SaslClientAuthenticator implements Authenticator {
     }
 
     public int authenticate(boolean read, boolean write) throws IOException {
-        if(saslClient.isComplete()) return 0;
+        if (!transportLayer.flush(netOutBuffer)) {
+            return SelectionKey.OP_WRITE;
+        }
+        if(saslClient.isComplete()) {
+            saslState = SaslState.COMPLETE;
+            return 0;
+        }
         byte[] serverToken = new byte[0];
 
         if(read && saslState == SaslState.INTERMEDIATE) {
@@ -144,8 +150,9 @@ public class SaslClientAuthenticator implements Authenticator {
                     netOutBuffer.clear();
                     netOutBuffer.put(withHeaderWrapped);
                     netOutBuffer.flip();
-                    if(write && transportLayer.flush(netOutBuffer))
-                        return SelectionKey.OP_READ;
+                    if(!write || !transportLayer.flush(netOutBuffer)) {
+                        return SelectionKey.OP_WRITE;
+                    }
                 }
             } catch(BufferUnderflowException be) {
                 return SelectionKey.OP_READ;
@@ -154,11 +161,7 @@ public class SaslClientAuthenticator implements Authenticator {
                 throw new IOException("Unable to authenticate using SASL "+se);
             }
         }
-        if (saslClient.isComplete()) {
-            saslState = SaslState.COMPLETE;
-            return 0;
-        }
-        return (SelectionKey.OP_WRITE | SelectionKey.OP_WRITE);
+        return SelectionKey.OP_READ;
     }
 
     public Principal principal() {
@@ -166,7 +169,7 @@ public class SaslClientAuthenticator implements Authenticator {
     }
 
     public boolean isComplete() {
-        return saslClient.isComplete();
+        return saslClient.isComplete() && saslState == SaslState.COMPLETE;
     }
 
     public void close() throws IOException {

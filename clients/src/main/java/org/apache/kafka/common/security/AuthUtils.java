@@ -85,9 +85,9 @@ public class AuthUtils {
     }
 
     public static String getDefaultRealm()
-      throws ClassNotFoundException, NoSuchMethodException,
-      IllegalArgumentException, IllegalAccessException,
-      InvocationTargetException {
+        throws ClassNotFoundException, NoSuchMethodException,
+               IllegalArgumentException, IllegalAccessException,
+               InvocationTargetException {
         Object kerbConf;
         Class<?> classRef;
         Method getInstanceMethod;

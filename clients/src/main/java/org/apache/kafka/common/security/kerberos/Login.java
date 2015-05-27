@@ -194,8 +194,8 @@ public class Login {
                     }
                     if (isUsingTicketCache) {
                         String cmd = "/usr/bin/kinit";
-                        if (System.getProperty("zookeeper.kinit") != null) {
-                            cmd = System.getProperty("zookeeper.kinit");
+                        if (System.getProperty("kafka.kinit") != null) {
+                            cmd = System.getProperty("kafka.kinit");
                         }
                         String kinitArgs = "-R";
                         int retry = 1;
