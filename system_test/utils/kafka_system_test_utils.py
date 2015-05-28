@@ -1333,7 +1333,7 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
     secureMode = systemTestEnv.SECURE_MODE
     kinitCmd = ("kinit -k -t /etc/security/keytabs/kafka.security.keytab kafka/" + zkHost + ";") if secureMode else ""
 
-    logger.debug("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
+    logger.info("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
     cmdList = ["ssh " + zkHost,
                "'(", kinitCmd,
                "JAVA_HOME=" + javaHome,
@@ -1713,7 +1713,7 @@ def stop_all_remote_running_processes(systemTestEnv, testcaseEnv):
 
     for entityId, brokerParentPid in testcaseEnv.entityBrokerParentPidDict.items():
         stop_remote_entity(systemTestEnv, entityId, brokerParentPid)
-
+    time.sleep(10)
     for entityId, zkParentPid in testcaseEnv.entityZkParentPidDict.items():
         stop_remote_entity(systemTestEnv, entityId, zkParentPid)
 
@@ -1980,6 +1980,7 @@ def validate_broker_log_segment_checksum(systemTestEnv, testcaseEnv, clusterName
     else:
         validationStatusDict["Validate for merged log segment checksum in cluster [" + clusterName + "]"] = "FAILED"
 
+
 def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None):
 
     clusterList        = systemTestEnv.clusterEntityConfigDictList
@@ -2015,8 +2016,10 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
             raise Exception("Empty broker list str")
 
         numPartitions = None
+        numReplicas = None
         try:
             numPartitions = testcaseEnv.testcaseArgumentsDict["num_partition"]
+            numReplicas = testcaseEnv.testcaseArgumentsDict["replica_factor"]
         except:
             pass
 
@@ -2026,24 +2029,29 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
         else:
             numPartitions = int(numPartitions)
 
+        if numReplicas is None:
+            logger.error("Invalid replication factor: " + numReplicas, extra=d)
+            raise Exception("Invalid replication: " + numReplicas)
+        else:
+            numReplicas = int(numReplicas)
+
         secureMode = systemTestEnv.SECURE_MODE
         kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
 
-        replicaIndex   = 1
         startingOffset = -2
-        brokerPortList = brokerListStr.split(',')
-        for brokerPort in brokerPortList:
-
+        #brokerPortList = brokerListStr.split(',')
+        logger.info("num replicas " +  str(numReplicas), extra=d)
+        for replicaIndex in range(1, 3):
             partitionId = 0
+            logger.info("replicaIndex " + str(replicaIndex), extra=d)
             while (partitionId < numPartitions):
-                logger.info("starting debug consumer for replica on [" + brokerPort + "] partition [" + str(partitionId) + "]", extra=d)
-
+                logger.info("starting debug consumer for replica [" + str(replicaIndex) + "], partition [" + str(partitionId) + "]", extra=d)
+                replicaInfo = get_replicas(systemTestEnv, testcaseEnv, topic, partitionId)
                 if minStartingOffsetDict is not None:
                     topicPartition = topic + "-" + str(partitionId)
                     startingOffset = minStartingOffsetDict[topicPartition]
 
-                outputFilePathName = consumerLogPath + "/simple_consumer_" + topic + "-" + str(partitionId) + "_r" + str(replicaIndex) + ".log"
-                brokerPortLabel = brokerPort.replace(":", "_")
+                outputFilePathName = consumerLogPath + "/simple_consumer_" + topic + "-" + str(partitionId) + "_r" + str(replicaInfo[replicaIndex-1]) + ".log"
                 securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
                 cmdList = ["ssh " + host,
                            "'(", kinitCmd,
@@ -2052,7 +2060,7 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
                            "--broker-list " + brokerListStr,
                            "--topic " + topic,
                            "--partition " + str(partitionId),
-                           "--replica " + str(replicaIndex),
+                           "--replica " + str(replicaInfo[replicaIndex-1]),
                            "--offset " + str(startingOffset),
                            "--no-wait-at-logend ",
                            " > " + outputFilePathName,
@@ -2067,9 +2075,8 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
                 for line in subproc_1.stdout.readlines():
                     pass
                 time.sleep(1)
+                partitionId = partitionId + 1
 
-                partitionId += 1
-            replicaIndex += 1
 
 def get_controller_attributes(systemTestEnv, testcaseEnv):
 
@@ -2219,30 +2226,25 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
             # (should be equal to 0 for passing)
             mismatchCounter = 0
 
-            replicaIdxMsgIdList = []
+            replicaIdxMsgIdList = {}
             # replicaIdxMsgIdList :
             # - This is a list of dictionaries of topic-partition (key)
             #   mapping to list of MessageID in that topic-partition (val)
-            # - The list index is mapped to (replicaId - 1)
-            # [
-            #  // list index = 0 => replicaId = idx(0) + 1 = 1
+            # - The dict key is mapped to replicaId
+            # {
+            #  // list index = 0 => replicaId
             #  {
             #      "topic1-0" : [ "0000000001", "0000000002", "0000000003"],
             #      "topic1-1" : [ "0000000004", "0000000005", "0000000006"]
             #  },
-            #  // list index = 1 => replicaId = idx(1) + 1 = 2
+            #  // list index = 1 => replicaId
             #  {
             #      "topic1-0" : [ "0000000001", "0000000002", "0000000003"],
             #      "topic1-1" : [ "0000000004", "0000000005", "0000000006"]
             #  }
-            # ]
+            # }
 
             # initialize replicaIdxMsgIdList
-            j = 0
-            while j < int(replicaFactor):
-                newDict = {}
-                replicaIdxMsgIdList.append(newDict)
-                j += 1
 
             # retrieve MessageID from all simple consumer log4j files
             for logFile in sorted(os.listdir(consumerLogPath)):
@@ -2257,7 +2259,9 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
                     consumerMsgIdList     = get_message_id(consumerLogPathName)
 
                     topicPartition = topic + "-" + str(partitionId)
-                    replicaIdxMsgIdList[replicaIdx - 1][topicPartition] = consumerMsgIdList
+                    if replicaIdx not in replicaIdxMsgIdList:
+                        replicaIdxMsgIdList[replicaIdx] = {}
+                    replicaIdxMsgIdList[replicaIdx][topicPartition] = consumerMsgIdList
 
                     logger.info("no. of messages on topic [" + topic + "] at " + logFile + " : " + str(len(consumerMsgIdList)), extra=d)
                     validationStatusDict["No. of messages from consumer on [" + topic + "] at " + logFile] = str(len(consumerMsgIdList))
@@ -2265,24 +2269,27 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
             # print replicaIdxMsgIdList
 
             # take the first dictionary of replicaIdxMsgIdList and compare with the rest
-            firstMsgIdDict = replicaIdxMsgIdList[0]
+            firstMsgIdDict = replicaIdxMsgIdList[replicaIdxMsgIdList.keys()[0]]
 
             # loop through all 'topic-partition' such as topic1-0, topic1-1, ...
             for topicPartition in sorted(firstMsgIdDict.iterkeys()):
 
                 # compare all replicas' MessageID in corresponding topic-partition
-                for i in range(len(replicaIdxMsgIdList)):
+                i = 0
+                for r in replicaIdxMsgIdList:
                     # skip the first dictionary
-                    if i == 0:
+                    if i == 1:
                         totalMsgCounter += len(firstMsgIdDict[topicPartition])
                         continue
 
-                    totalMsgCounter += len(replicaIdxMsgIdList[i][topicPartition])
+                    if topicPartition not in replicaIdxMsgIdList[r]:
+                        continue
+                    totalMsgCounter += len(replicaIdxMsgIdList[r][topicPartition])
 
                     # get the count of mismatch MessageID between first MessageID list and the other lists
-                    diffCount = system_test_utils.diff_lists(firstMsgIdDict[topicPartition], replicaIdxMsgIdList[i][topicPartition])
+                    diffCount = system_test_utils.diff_lists(firstMsgIdDict[topicPartition], replicaIdxMsgIdList[r][topicPartition])
                     mismatchCounter += diffCount
-                    logger.info("Mismatch count of topic-partition [" + topicPartition + "] in replica id [" + str(i+1) + "] : " + str(diffCount), extra=d)
+                    logger.info("Mismatch count of topic-partition [" + topicPartition + "] in replica id [" + str(r) + "] : " + str(diffCount), extra=d)
 
             if mismatchCounter == 0 and totalMsgCounter > 0:
                 validationStatusDict["Validate for data matched on topic [" + topic + "] across replicas"] = "PASSED"
@@ -2511,6 +2518,7 @@ def get_leader_attributes(systemTestEnv, testcaseEnv):
     topics = producerTopicsString.split(',')
     zkQueryStr = "get /brokers/topics/" + topics[0] + "/partitions/0/state"
     brokerid   = ''
+    replicas = None
 
     cmdStrList = ["ssh " + hostname,
                   "\"JAVA_HOME=" + javaHome,
@@ -2528,8 +2536,10 @@ def get_leader_attributes(systemTestEnv, testcaseEnv):
             for key,val in json_data.items():
                 if key == 'leader':
                     brokerid = str(val)
-
+                elif key == 'isr':
+                    replicas = val
             leaderDict["brokerid"]  = brokerid
+            leaderDict["replicas"]  = replicas
             leaderDict["topic"]     = topics[0]
             leaderDict["partition"] = '0'
             leaderDict["entity_id"] = system_test_utils.get_data_by_lookup_keyval(
@@ -2550,3 +2560,38 @@ def write_consumer_properties(consumerProperties):
     consumer_props_file.close()
     return props_file_path
 
+
+def get_replicas(systemTestEnv, testcaseEnv, topic, partition):
+
+    logger.info("Querying Zookeeper for replica info ...", extra=d)
+
+    clusterConfigsList = systemTestEnv.clusterEntityConfigDictList
+
+    zkDictList         = system_test_utils.get_dict_from_list_of_dicts(clusterConfigsList, "role", "zookeeper")
+    firstZkDict        = zkDictList[0]
+    hostname           = firstZkDict["hostname"]
+    zkEntityId         = firstZkDict["entity_id"]
+    kafkaHome          = system_test_utils.get_data_by_lookup_keyval(clusterConfigsList, "entity_id", zkEntityId, "kafka_home")
+    javaHome           = system_test_utils.get_data_by_lookup_keyval(clusterConfigsList, "entity_id", zkEntityId, "java_home")
+    kafkaRunClassBin   = kafkaHome + "/bin/kafka-run-class.sh"
+
+    zkQueryStr = "get /brokers/topics/" + topic + "/partitions/" + str(partition) + "/state"
+
+    cmdStrList = ["ssh " + hostname,
+                  "\"JAVA_HOME=" + javaHome,
+                  kafkaRunClassBin + " kafka.tools.ZooKeeperMainWrapper ",
+                  "-server " + testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"],
+                  zkQueryStr + " 2> /dev/null | tail -1\""]
+    cmdStr = " ".join(cmdStrList)
+    logger.info("executing command [" + cmdStr + "]", extra=d)
+
+    subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+    for line in subproc.stdout.readlines():
+        if "\"leader\"" in line:
+            line = line.rstrip('\n')
+            json_data = json.loads(line)
+            for key,val in json_data.items():
+                if key == 'isr':
+                    return val
+    logger.error("Replica information not found  for topic %s partition %s" % (topic,partition), extra=d)
+    return None
