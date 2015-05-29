@@ -288,6 +288,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                             self.log_message("Stopping leader broker " + stoppedBrokerEntityId)
                             kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, stoppedBrokerEntityId, self.testcaseEnv.entityBrokerParentPidDict[stoppedBrokerEntityId])
                             time.sleep(30)
+                            kafka_system_test_utils.force_stop_remote_entity(self.systemTestEnv, stoppedBrokerEntityId, self.testcaseEnv.entityBrokerParentPidDict[stoppedBrokerEntityId])
                             #reelectionLatency = kafka_system_test_utils.get_reelection_latency(self.systemTestEnv, self.testcaseEnv, leaderDict, self.leaderAttributesDict)
                             #latencyKeyName = "Leader Election Latency - iter " + str(i) + " brokerid " + leaderDict["brokerid"]
                             #self.testcaseEnv.validationStatusDict[latencyKeyName] = str("{0:.2f}".format(reelectionLatency * 1000)) + " ms"
@@ -297,11 +298,14 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                             # stopping Follower
                             self.log_message("stopping follower with entity id: " + firstFollowerEntityId)
                             kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, firstFollowerEntityId, self.testcaseEnv.entityBrokerParentPidDict[firstFollowerEntityId])
-   
+                            time.sleep(10)
+                            kafka_system_test_utils.force_stop_remote_entity(self.systemTestEnv, firstFollowerEntityId, self.testcaseEnv.entityBrokerParentPidDict[firstFollowerEntityId])
                         elif brokerType == "controller":
                             # stopping Controller
                             self.log_message("stopping controller : " + controllerDict["brokerid"])
                             kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, controllerDict["entity_id"], self.testcaseEnv.entityBrokerParentPidDict[controllerDict["entity_id"]])
+                            time.sleep(10)
+                            kafka_system_test_utils.force_stop_remote_entity(self.systemTestEnv, firstFollowerEntityId, self.testcaseEnv.entityBrokerParentPidDict[firstFollowerEntityId])
 
                         brokerDownTimeInSec = 5
                         try:
@@ -411,6 +415,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 self.log_message("stopping all entities")
                 for entityId, parentPid in self.testcaseEnv.entityBrokerParentPidDict.items():
                     kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, entityId, parentPid)
+
 
                 for entityId, parentPid in self.testcaseEnv.entityZkParentPidDict.items():
                     kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, entityId, parentPid)
