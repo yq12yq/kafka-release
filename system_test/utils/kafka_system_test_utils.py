@@ -438,6 +438,10 @@ def generate_overriden_props_files(testsuitePathname, testcaseEnv, systemTestEnv
                     addedCSVConfig["kafka.csv.metrics.reporter.enabled"] = "true"
                     if systemTestEnv.SECURE_MODE:
                         addedCSVConfig["listeners"] = "PLAINTEXTSASL://" + hostname + ":"+tcCfg["port"]
+                        addedCSVConfig["listeners"] = "PLAINTEXTSASL://" + hostname + ":"+tcCfg["port"]
+                        addedCSVConfig["super.users"] = "kafka"
+                        addedCSVConfig["authorizer.class"] = "kafka.security.auth.SimpleAclAuthorizer"
+                        addedCSVConfig["security.inter.broker.protocol"] = "PLAINTEXTSASL"
                     else:
                         addedCSVConfig["listeners"] = "PLAINTEXT://" + hostname + ":"+tcCfg["port"]
 
@@ -729,7 +733,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
         logPathName    = replace_kafka_home(logPathName, kafkaHome)
 
     if role == "zookeeper":
-        zkEnvSetting = "JVMFLAGS='-Djava.security.auth.login.config=/etc/zookeeper/conf/zookeeper_jaas.conf'" if secureMode else ""
+        zkEnvSetting = "KAFKA_KERBEROS_PARAMS='-Djava.security.auth.login.config=/etc/zookeeper/conf/zookeeper_jaas.conf'" if secureMode else ""
         cmdList = ["ssh " + hostname,
                   "'JAVA_HOME=" + javaHome,
                   "JMX_PORT=" + jmxPort,

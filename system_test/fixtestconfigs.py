@@ -88,23 +88,23 @@ def fix_other_properties_file(directory):
         print os.popen("perl -i -pe 's/zookeeper.connect=localhost:.*/zookeeper.connect=" + zookeepers[0] + ":" + zkPort + "/' " + f).read()
         print os.popen("perl -i -pe 's/zk.connect=localhost:.*/zk.connect=" + zookeepers[0] + ":" + zkPort + "/' " + f).read()
 
-        if re.search("zookeeper_.*properties", f):
+        if re.search("zookeeper.*properties", f):
             print os.popen("perl -i -pe 's/server.1=localhost/server.1=" + zookeepers[0] + "/' " + f).read()
             with open(f, "a") as zkConf:
                 zkConf.write("\nauthProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider")
                 zkConf.write("\njaasLoginRenew=3600000")
                 zkConf.write("\nkerberos.removeHostFromPrincipal=true")
-                zkConf.write("\nkerberos.removeRealmFromPrincipal=true")
+                zkConf.write("\nkerberos.removeRealmFromPrincipal=true\n")
 
 
         if secure and f == "server.properties":
             with open(f, "a") as brokerconf:
                 brokerconf.write("\nsuper.users=kafka")
                 brokerconf.write("\nauthorizer.class=kafka.security.auth.SimpleAclAuthorizer")
-                brokerconf.write("\nsecurity.inter.broker.protocol=PLAINTEXTSASL")
+                brokerconf.write("\nsecurity.inter.broker.protocol=PLAINTEXTSASL\n")
         if secure and (f == "producer.properties" or f == "producer_performance.properties" or f == "consumer.properties"):
             with open(f, "a") as producerconf:
-                producerconf.write("\nsecurity.protocol=PLAINTEXTSASL")
+                producerconf.write("\nsecurity.protocol=PLAINTEXTSASL\n")
 
 def loadClusterProperties(clusterProp):
     inFile = open(clusterProp, "r")
