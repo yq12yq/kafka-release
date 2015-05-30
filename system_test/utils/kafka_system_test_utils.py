@@ -1294,7 +1294,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
         testcaseBaseDir = testcaseEnv.testCaseBaseDir
 
         secureMode = systemTestEnv.SECURE_MODE
-        kinitCmd = "kinit -k -t /etc/security/keytabs/kafka.security.keytab kafka/"+zkHost+";" if secureMode else ""
+        kinitCmd = "kinit -k -t /etc/security/keytabs/kafka.service.keytab kafka/"+zkHost+";" if secureMode else ""
 
         if zkHost != "localhost":
             testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
@@ -1335,7 +1335,7 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
     testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
 
     secureMode = systemTestEnv.SECURE_MODE
-    kinitCmd = ("kinit -k -t /etc/security/keytabs/kafka.security.keytab kafka/" + zkHost + ";") if secureMode else ""
+    kinitCmd = ("kinit -k -t /etc/security/keytabs/kafka.service.keytab kafka/" + zkHost + ";") if secureMode else ""
 
     logger.info("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
     cmdList = ["ssh " + zkHost,
