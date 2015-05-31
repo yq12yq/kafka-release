@@ -155,7 +155,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                    hostname + ":" + rmtLogPathName + "/*",
                    logPathName]
         cmdStr  = " ".join(cmdList)
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
         # ==============================
@@ -165,7 +165,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                    hostname + ":" + rmtMetricsPathName + "/*",
                    metricsPathName]
         cmdStr  = " ".join(cmdList)
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
         # ==============================
@@ -179,7 +179,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                        hostname + ":" + dataLogPathName,
                        logPathName]
             cmdStr  = " ".join(cmdList)
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
         # ==============================
@@ -193,7 +193,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                        hostname + ":" + dataLogPathName,
                        logPathName]
             cmdStr  = " ".join(cmdList)
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
     # ==============================
@@ -209,7 +209,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                hostname + ":" + rmtDashboardsPathName + "/*",
                dashboardsPathName]
     cmdStr  = " ".join(cmdList)
-    logger.debug("executing command [" + cmdStr + "]", extra=d)
+    logger.info("executing command [" + cmdStr + "]", extra=d)
     system_test_utils.sys_call(cmdStr)
 
 
@@ -241,7 +241,7 @@ def generate_testcase_log_dirs_in_remote_hosts(systemTestEnv, testcaseEnv):
                    metricsPathName,
                    dashboardsPathName + "'"]
         cmdStr  = " ".join(cmdList)
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
 
@@ -496,7 +496,7 @@ def scp_file_to_remote_host(clusterEntityConfigDictList, testcaseEnv):
             remoteTestcasePathName = replace_kafka_home(localTestcasePathName, kafkaHome)
 
         cmdStr = "scp " + localTestcasePathName + "/config/* " + hostname + ":" + remoteTestcasePathName + "/config"
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
 
@@ -531,7 +531,7 @@ def start_zookeepers(systemTestEnv, testcaseEnv):
                 zkServerId  = matchObj.group(1)
 
         cmdStr = "ssh " + hostname + " 'mkdir -p " + dataDir + "; echo " + zkServerId + " > " + dataDir + "/myid'"
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(cmdStr)
         for line in subproc.stdout.readlines():
             pass    # dummy loop to wait until producer is completed
@@ -599,7 +599,7 @@ def get_broker_shutdown_log_line(systemTestEnv, testcaseEnv, leaderAttributesDic
                       "sort | tail -1\""]
         cmdStr     = " ".join(cmdStrList)
 
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(cmdStr)
         for line in subproc.stdout.readlines():
 
@@ -633,7 +633,7 @@ def get_broker_shutdown_log_line(systemTestEnv, testcaseEnv, leaderAttributesDic
 
 def get_leader_elected_log_line(systemTestEnv, testcaseEnv, leaderAttributesDict):
 
-    logger.debug("looking up leader...", extra=d)
+    logger.info("looking up leader...", extra=d)
 
     # keep track of leader related data in this dict such as broker id,
     # entity id and timestamp and return it to the caller function
@@ -663,7 +663,7 @@ def get_leader_elected_log_line(systemTestEnv, testcaseEnv, leaderAttributesDict
                       "sort | tail -1\""]
         cmdStr     = " ".join(cmdStrList)
 
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(cmdStr)
         for line in subproc.stdout.readlines():
 
@@ -814,7 +814,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
 
         props_file_path=write_consumer_properties(consumerProperties)
         scpCmdStr = "scp "+ props_file_path +" "+ hostname + ":/tmp/"
-        logger.debug("executing command [" + scpCmdStr + "]", extra=d)
+        logger.info("executing command [" + scpCmdStr + "]", extra=d)
         system_test_utils.sys_call(scpCmdStr)
 
         if len(formatterOption) > 0:
@@ -854,7 +854,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
     time.sleep(5)
 
     pidCmdStr = "ssh " + hostname + " 'cat " + logPathName + "/entity_" + entityId + "_pid' 2> /dev/null"
-    logger.debug("executing command: [" + pidCmdStr + "]", extra=d)
+    logger.info("executing command: [" + pidCmdStr + "]", extra=d)
     subproc = system_test_utils.sys_call_return_subproc(pidCmdStr)
 
     # keep track of the remote entity pid in a dictionary
@@ -949,7 +949,7 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
         consumerProperties["consumer.timeout.ms"] = timeoutMs
         props_file_path=write_consumer_properties(consumerProperties)
         scpCmdStr = "scp "+ props_file_path +" "+ host + ":/tmp/"
-        logger.debug("executing command [" + scpCmdStr + "]", extra=d)
+        logger.info("executing command [" + scpCmdStr + "]", extra=d)
         system_test_utils.sys_call(scpCmdStr)
 
         secureMode = systemTestEnv.SECURE_MODE
@@ -978,7 +978,7 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
         system_test_utils.async_sys_call(cmdStr)
 
         pidCmdStr = "ssh " + host + " 'cat " + consumerLogPath + "/entity_" + entityId + "_pid'"
-        logger.debug("executing command: [" + pidCmdStr + "]", extra=d)
+        logger.info("executing command: [" + pidCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(pidCmdStr)
 
         # keep track of the remote entity pid in a dictionary
@@ -1549,7 +1549,7 @@ def cleanup_data_at_remote_hosts(systemTestEnv, testcaseEnv):
         # ============================
         # cleaning data dir
         # ============================
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
         # ============================
@@ -1558,23 +1558,23 @@ def cleanup_data_at_remote_hosts(systemTestEnv, testcaseEnv):
         if system_test_utils.remote_host_file_exists(hostname, kafkaHome + "/bin/kafka-run-class.sh"):
             # so kafkaHome is a real kafka installation
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*.log' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*_pid' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*.csv' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*.svg' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*.html' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
 def replace_kafka_home(systemTestSubDirPath, kafkaHome):
@@ -1603,7 +1603,7 @@ def ps_grep_terminate_running_entity(systemTestEnv):
                     "| tr -s ' ' | cut -f2 -d ' ' | xargs kill -9" + "\""]
 
         cmdStr = " ".join(cmdList)
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
 
         system_test_utils.sys_call(cmdStr)
 
@@ -1775,7 +1775,7 @@ def start_migration_tool(systemTestEnv, testcaseEnv, onlyThisEntityId=None):
             time.sleep(5)
 
             pidCmdStr = "ssh " + host + " 'cat " + migrationToolLogPath + "/entity_" + entityId + "_pid' 2> /dev/null"
-            logger.debug("executing command: [" + pidCmdStr + "]", extra=d)
+            logger.info("executing command: [" + pidCmdStr + "]", extra=d)
             subproc = system_test_utils.sys_call_return_subproc(pidCmdStr)
 
             # keep track of the remote entity pid in a dictionary
@@ -2108,7 +2108,7 @@ def get_controller_attributes(systemTestEnv, testcaseEnv):
                   "get /controller 2> /dev/null | tail -1\""]
 
     cmdStr = " ".join(cmdStrList)
-    logger.debug("executing command [" + cmdStr + "]", extra=d)
+    logger.info("executing command [" + cmdStr + "]", extra=d)
     subproc = system_test_utils.sys_call_return_subproc(cmdStr)
     for line in subproc.stdout.readlines():
         if "brokerid" in line:
@@ -2219,7 +2219,7 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
         topicList = topicStr.split(',')
 
         for topic in topicList:
-            logger.debug("working on topic : " + topic, extra=d)
+            logger.info("working on topic : " + topic, extra=d)
             consumerLogPath = get_testcase_config_log_dir_pathname(testcaseEnv, "console_consumer", consumerEntityId, "default")
 
             # keep track of total msg count across replicas for each topic-partition
@@ -2254,7 +2254,7 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
             for logFile in sorted(os.listdir(consumerLogPath)):
 
                 if logFile.startswith("simple_consumer_"+topic) and logFile.endswith(".log"):
-                    logger.debug("working on file : " + logFile, extra=d)
+                    logger.info("working on file : " + logFile, extra=d)
                     matchObj    = re.match("simple_consumer_"+topic+"-(\d*)_r(\d*)\.log" , logFile)
                     partitionId = int(matchObj.group(1))
                     replicaIdx  = int(matchObj.group(2))
@@ -2271,7 +2271,7 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
                     validationStatusDict["No. of messages from consumer on [" + topic + "] at " + logFile] = str(len(consumerMsgIdList))
 
             # print replicaIdxMsgIdList
-
+            pprint.pprint(replicaIdxMsgIdList)
             # take the first dictionary of replicaIdxMsgIdList and compare with the rest
             firstMsgIdDict = replicaIdxMsgIdList[replicaIdxMsgIdList.keys()[0]]
 
@@ -2442,7 +2442,7 @@ def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
                                       "--verify-index-only 2>&1"]
                         cmdStr     = " ".join(cmdStrList)
                         showMismatchedIndexOffset = False
-                        logger.debug("executing command [" + cmdStr + "]", extra=d)
+                        logger.info("executing command [" + cmdStr + "]", extra=d)
                         subproc = system_test_utils.sys_call_return_subproc(cmdStr)
                         for line in subproc.stdout.readlines():
                             line = line.rstrip('\n')
