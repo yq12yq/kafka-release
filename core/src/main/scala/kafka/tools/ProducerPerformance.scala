@@ -22,6 +22,7 @@ import kafka.producer.{OldProducer, NewShinyProducer}
 import kafka.utils.{ToolsUtils, VerifiableProperties, Logging, CommandLineUtils}
 import kafka.message.CompressionCodec
 import kafka.serializer._
+import org.apache.kafka.clients.CommonClientConfigs
 
 import java.util.concurrent.{CountDownLatch, Executors}
 import java.util.concurrent.atomic.AtomicLong
@@ -126,6 +127,11 @@ object ProducerPerformance extends Logging {
       .withRequiredArg
       .describedAs("metrics directory")
       .ofType(classOf[java.lang.String])
+    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
+      .withRequiredArg
+      .describedAs("security-protocol")
+      .ofType(classOf[String])
+      .defaultsTo("PLAINTEXT")
     val useNewProducerOpt = parser.accepts("new-producer", "Use the new producer implementation.")
 
     val options = parser.parse(args: _*)
@@ -146,6 +152,7 @@ object ProducerPerformance extends Logging {
     var numThreads = options.valueOf(numThreadsOpt).intValue
     val compressionCodec = CompressionCodec.getCompressionCodec(options.valueOf(compressionCodecOpt).intValue)
     val seqIdMode = options.has(initialMessageIdOpt)
+    val securityProtocol = options.valueOf(securityProtocolOpt)
     var initialMessageId: Int = 0
     if (seqIdMode)
       initialMessageId = options.valueOf(initialMessageIdOpt).intValue()
@@ -202,6 +209,7 @@ object ProducerPerformance extends Logging {
         props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, config.compressionCodec.name)
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer")
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer")
+        props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, config.securityProtocol)
         new NewShinyProducer(props)
       } else {
         props.putAll(config.producerProps)
@@ -220,6 +228,7 @@ object ProducerPerformance extends Logging {
         props.put("retry.backoff.ms", config.producerRetryBackoffMs.toString)
         props.put("serializer.class", classOf[DefaultEncoder].getName)
         props.put("key.serializer.class", classOf[NullEncoder[Long]].getName)
+        props.put("security.protocol", config.securityProtocol)
         new OldProducer(props)
       }
 
