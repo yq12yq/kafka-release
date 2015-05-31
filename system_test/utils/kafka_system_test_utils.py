@@ -2045,7 +2045,7 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
         startingOffset = -2
         #brokerPortList = brokerListStr.split(',')
         logger.info("num replicas " +  str(numReplicas), extra=d)
-        for replicaIndex in range(1, 3):
+        for replicaIndex in range(1, numReplicas):
             partitionId = 0
             logger.info("replicaIndex " + str(replicaIndex), extra=d)
             while (partitionId < numPartitions):
