@@ -1350,6 +1350,9 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
     zkEntityId      = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "entity_id")
     kafkaHome       = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", zkEntityId, "kafka_home")
     javaHome        = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", zkEntityId, "java_home")
+    brokerEntityIdList = system_test_utils.get_data_from_list_of_dicts(clusterEntityConfigDictList, "role", "broker", "entity_id")
+    brokerConfigFile = get_broker_config(systemTestEnv, testcaseEnv, brokerEntityIdList[0])
+    kafkaAclCommand = kafkaHome + "/bin/kafka-acls.sh"
     createTopicBin  = kafkaHome + "/bin/kafka-topics.sh --create"
     zkConnectStr = ""
     zkHost = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "hostname")
@@ -1381,7 +1384,17 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
     cmdStr = " ".join(cmdList)
     logger.info("executing command: [" + cmdStr + "]", extra=d)
     subproc = system_test_utils.sys_call_return_subproc(cmdStr)
-
+    if secureMode:
+        kafkaAclCmdList = ["ssh " + zkHost,
+                           "JAVA_HOME=" + javaHome,
+                           kafkaAclCommand,
+                           " --topic " + topic,
+                           " --add " +
+                           " --allowprincipals " + "User:ambari-qa",
+                           " --config " + brokerConfigFile]
+        kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+        logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+        subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
 
 
 def get_message_id(logPathName, topic=""):
