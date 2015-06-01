@@ -698,6 +698,12 @@ def get_leader_elected_log_line(systemTestEnv, testcaseEnv, leaderAttributesDict
     return leaderDict
 
 
+def get_broker_config(systemTestEnv, testcaseEnv, entityId):
+    testcaseConfigsList = testcaseEnv.testcaseConfigsList
+    configFile = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "config_filename")
+    configPathName = get_testcase_config_log_dir_pathname(testcaseEnv, "broker", entityId, "config")
+    return configPathName + "/" + configFile
+
 def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
 
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
@@ -1131,6 +1137,15 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     # testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]
     kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
     securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
+    if secureMode:
+        kinitCmdList = ["ssh " + host,
+                        kinitCmd]
+        kinitcmdStr = " ".join(kinitCmdList)
+        logger.info("executing command: [" + kinitcmdStr + "]", extra=d)
+        subproc = system_test_utils.sys_call_return_subproc(kinitcmdStr)
+        logger.debug("waiting for kinit to finish", extra=d)
+        subproc.communicate()
+
 
     while 1:
         logger.debug("calling testcaseEnv.lock.acquire()", extra=d)
@@ -1142,8 +1157,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                 + str(noMsgPerBatch) + "] messages with starting message id : [" + str(initMsgId) + "]", extra=d)
 
             cmdList = ["ssh " + host,
-                       "\'(", kinitCmd,
-                       "JAVA_HOME=" + javaHome,
+                       "'JAVA_HOME=" + javaHome,
                        "JMX_PORT=" + jmxPort,
                        "KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%s/config/test-log4j.properties" % kafkaHome,
                        kafkaRunClassBin + " kafka.tools.ProducerPerformance",
@@ -1163,7 +1177,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        boolArgumentsStr,
                        " >> " + producerLogPathName,
                        " & echo $! > " + producerLogPath + "/entity_" + entityId + "_pid",
-                       " & wait)\'"]
+                       " & wait'"]
 
             if kafka07Client:
                 cmdList[:] = []
@@ -1269,6 +1283,8 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
 
     prodPerfCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "producer_performance")
+    brokerEntityIdList = system_test_utils.get_data_from_list_of_dicts(clusterEntityConfigDictList, "role", "broker", "entity_id")
+    brokerConfigFile = get_broker_config(systemTestEnv, testcaseEnv, brokerEntityIdList[0])
 
     for prodPerfCfg in prodPerfCfgList:
         topicsStr       = system_test_utils.get_data_by_lookup_keyval(testcaseEnv.testcaseConfigsList, "entity_id", prodPerfCfg["entity_id"], "topic")
@@ -1295,6 +1311,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
 
         secureMode = systemTestEnv.SECURE_MODE
         kinitCmd = "kinit -k -t /etc/security/keytabs/kafka.service.keytab kafka/"+zkHost+";" if secureMode else ""
+        kafkaAclCommand = kafkaHome + "/bin/kafka-acl.sh"
 
         if zkHost != "localhost":
             testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
@@ -1314,6 +1331,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
             cmdStr = " ".join(cmdList)
             logger.info("executing command: [" + cmdStr + "]", extra=d)
             subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+
 
 def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_partitions):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
@@ -2045,7 +2063,7 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
         startingOffset = -2
         #brokerPortList = brokerListStr.split(',')
         logger.info("num replicas " +  str(numReplicas), extra=d)
-        for replicaIndex in range(1, numReplicas):
+        for replicaIndex in range(1, 3):
             partitionId = 0
             logger.info("replicaIndex " + str(replicaIndex), extra=d)
             while (partitionId < numPartitions):

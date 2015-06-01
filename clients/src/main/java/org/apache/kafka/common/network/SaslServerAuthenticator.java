@@ -154,16 +154,23 @@ public class SaslServerAuthenticator implements Authenticator {
     }
 
     public int authenticate(boolean read, boolean write) throws IOException {
-        if(saslServer.isComplete()) return 0;
-
         if(!transportLayer.flush(netOutBuffer))
             return SelectionKey.OP_WRITE;
+
+        if(saslServer.isComplete()) return 0;
 
         byte[] token = readToken();
         if (token.length == 0)
             return SelectionKey.OP_READ;
         try {
-            byte[] response = saslServer.evaluateResponse(token);
+            byte[] response;
+            try {
+                response = saslServer.evaluateResponse(token);
+            } catch (Exception e ) {
+                LOG.info("remote host " + transportLayer.socketChannel().socket().getInetAddress());
+                LOG.info("token reading "+ isComplete());
+                throw new IOException(e);
+            }
             if (response != null) {
                 byte[] withHeaderWrapped = response;
                 withHeaderWrapped = addSASLHeader(withHeaderWrapped);

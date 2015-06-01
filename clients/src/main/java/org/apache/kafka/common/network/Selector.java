@@ -460,12 +460,12 @@ public class Selector implements Selectable {
             trans.clearSend();
         }
         key.attach(null);
-        key.cancel();
         try {
             channel.close();
         } catch (IOException e) {
             log.error("Exception closing connection to node {}:", trans.id, e);
         }
+        key.cancel();
         this.sensors.connectionClosed.record();
     }
 

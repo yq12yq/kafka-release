@@ -130,10 +130,11 @@ class BlockingChannel( val host: String,
 
     transportLayer = new PlainTextTransportLayer(socketChannel)
 
-    if (protocol == SecurityProtocol.PLAINTEXTSASL)
+    if (protocol == SecurityProtocol.PLAINTEXTSASL) {
       authenticator = new SaslClientAuthenticator(LoginManager.subject, transportLayer, LoginManager.serviceName, host)
-    else
+    } else {
       authenticator = new DefaultAuthenticator(transportLayer, principalBuilder)
+    }
 
     new Channel(transportLayer, authenticator)
   }

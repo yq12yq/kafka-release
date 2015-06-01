@@ -39,9 +39,11 @@ class SimpleConsumer(val host: String,
 
   ConsumerConfig.validateClientId(clientId)
   if (protocol == SecurityProtocol.PLAINTEXTSASL || protocol == SecurityProtocol.SSLSASL) {
-    if (!LoginManager.isStarted.get())
+    if (!LoginManager.isStarted.get()) {
       LoginManager.init(AuthUtils.LOGIN_CONTEXT_CLIENT)
+    }
   }
+
   private val lock = new Object()
   private val blockingChannel = new BlockingChannel(host, port, bufferSize, BlockingChannel.UseDefaultBufferSize, soTimeout, protocol)
   private val fetchRequestAndResponseStats = FetchRequestAndResponseStatsRegistry.getFetchRequestAndResponseStats(clientId)

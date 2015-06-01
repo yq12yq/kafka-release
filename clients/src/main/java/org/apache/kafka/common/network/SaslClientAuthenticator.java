@@ -109,7 +109,7 @@ public class SaslClientAuthenticator implements Authenticator {
         try {
             saslClient = Subject.doAs(subject,new PrivilegedExceptionAction<SaslClient>() {
                     public SaslClient run() throws SaslException {
-                        LOG.info("Client will use GSSAPI as SASL mechanism.");
+                        LOG.debug("Client will use GSSAPI as SASL mechanism.");
                         String[] mechs = {"GSSAPI"};
                         LOG.debug("creating sasl client: client="+clientPrincipalName+";service="+servicePrincipal+";serviceHostname="+host);
                         SaslClient saslClient = Sasl.createSaslClient(mechs,clientPrincipalName,servicePrincipal,host,null,null);
