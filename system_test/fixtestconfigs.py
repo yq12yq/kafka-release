@@ -99,8 +99,9 @@ def fix_other_properties_file(directory):
 
         if secure and f == "server.properties":
             with open(f, "a") as brokerconf:
-                brokerconf.write("\nsuper.users=kafka")
-                brokerconf.write("\nauthorizer.class=kafka.security.auth.SimpleAclAuthorizer")
+                brokerconf.write("\nsuper.users=User:kafka")
+                brokerconf.write("\nprincipal.to.local.class=kafka.security.auth.KerberosPrincipalToLocal")
+                brokerconf.write("\nauthorizer.class.name=kafka.security.auth.SimpleAclAuthorizer")
                 brokerconf.write("\nsecurity.inter.broker.protocol=PLAINTEXTSASL\n")
         if secure and (f == "producer.properties" or f == "producer_performance.properties" or f == "consumer.properties"):
             with open(f, "a") as producerconf:

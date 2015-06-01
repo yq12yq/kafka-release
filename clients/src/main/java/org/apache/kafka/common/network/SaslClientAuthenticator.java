@@ -85,18 +85,23 @@ public class SaslClientAuthenticator implements Authenticator {
     }
 
     private SaslClient createSaslClient() {
-        try {
-            GSSManager manager = GSSManager.getInstance();
-            Oid krb5Mechanism = new Oid("1.2.840.113554.1.2.2");
-            /*GSSCredential cred = manager.createCredential(null,
-                                                          GSSContext.DEFAULT_LIFETIME,
-                                                          krb5Mechanism,
-                                                          GSSCredential.INITIATE_ONLY);*/
-            //subject.getPrivateCredentials().add(cred);
-        } catch (GSSException ex) {
-            LOG.warn("Cannot add private credential to subject; " +
-                     "authentication at the server may fail", ex);
+        boolean usingNativeJgss =
+            Boolean.getBoolean("sun.security.jgss.native");
+        if (usingNativeJgss) {
+            try {
+                GSSManager manager = GSSManager.getInstance();
+                Oid krb5Mechanism = new Oid("1.2.840.113554.1.2.2");
+                GSSCredential cred = manager.createCredential(null,
+                                                              GSSContext.INDEFINITE_LIFETIME,
+                                                              krb5Mechanism,
+                                                              GSSCredential.INITIATE_ONLY);
+                subject.getPrivateCredentials().add(cred);
+            } catch (GSSException ex) {
+                LOG.warn("Cannot add private credential to subject; " +
+                         "authentication at the server may fail", ex);
+            }
         }
+
         final Object[] principals = subject.getPrincipals().toArray();
         // determine client principal from subject.
         final Principal clientPrincipal = (Principal)principals[0];
@@ -228,12 +233,12 @@ public class SaslClientAuthenticator implements Authenticator {
             if (len < 0) {
                 throw new IOException("SASL Token length " + len + " < 0");
             }
-            netInBuffer.clear();
-            netInBuffer = Utils.ensureCapacity(netInBuffer, len);
+            netInBuffer = ByteBuffer.allocate(len);
             transportLayer.read(netInBuffer);
             netInBuffer.flip();
             tokenBytes = new byte[netInBuffer.remaining()];
             netInBuffer.get(tokenBytes);
+            netInBuffer.compact();
         } catch (BufferUnderflowException ex) {
             throw ex;
         }

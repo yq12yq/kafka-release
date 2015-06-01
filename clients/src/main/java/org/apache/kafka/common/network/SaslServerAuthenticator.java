@@ -118,7 +118,7 @@ public class SaslServerAuthenticator implements Authenticator {
                                                                  servicePrincipalName + "@" + serviceHostname,
                                                                  GSSName.NT_HOSTBASED_SERVICE);
                         		GSSCredential cred = manager.createCredential(gssName,
-                                                                          GSSContext.DEFAULT_LIFETIME,
+                                                                          GSSContext.INDEFINITE_LIFETIME,
                                                                           krb5Mechanism,
                                                                           GSSCredential.ACCEPT_ONLY);
                         		subject.getPrivateCredentials().add(cred);
@@ -167,8 +167,6 @@ public class SaslServerAuthenticator implements Authenticator {
             try {
                 response = saslServer.evaluateResponse(token);
             } catch (Exception e ) {
-                LOG.info("remote host " + transportLayer.socketChannel().socket().getInetAddress());
-                LOG.info("token reading "+ isComplete());
                 throw new IOException(e);
             }
             if (response != null) {
@@ -216,12 +214,12 @@ public class SaslServerAuthenticator implements Authenticator {
             if (len < 0) {
                 throw new IOException("Token length " + len + " < 0");
             }
-            netInBuffer.clear();
-            netInBuffer = Utils.ensureCapacity(netInBuffer, len);
+            netInBuffer = ByteBuffer.allocate(len);
             int readToken = transportLayer.read(netInBuffer);
             netInBuffer.flip();
             tokenBytes = new byte[netInBuffer.remaining()];
             netInBuffer.get(tokenBytes);
+            netInBuffer.compact();
         } catch (BufferUnderflowException ex) {
             throw ex;
         }

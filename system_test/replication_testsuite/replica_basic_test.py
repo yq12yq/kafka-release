@@ -185,7 +185,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 kafka_system_test_utils.start_brokers(self.systemTestEnv, self.testcaseEnv)
                 self.anonLogger.info("sleeping for 5s")
                 time.sleep(5)
-
+                
                 if autoCreateTopic.lower() == "false":
                     self.log_message("creating topics")
                     kafka_system_test_utils.create_topic_for_producer_performance(self.systemTestEnv, self.testcaseEnv)

@@ -439,8 +439,9 @@ def generate_overriden_props_files(testsuitePathname, testcaseEnv, systemTestEnv
                     if systemTestEnv.SECURE_MODE:
                         addedCSVConfig["listeners"] = "PLAINTEXTSASL://" + hostname + ":"+tcCfg["port"]
                         addedCSVConfig["listeners"] = "PLAINTEXTSASL://" + hostname + ":"+tcCfg["port"]
-                        addedCSVConfig["super.users"] = "kafka"
-                        addedCSVConfig["authorizer.class"] = "kafka.security.auth.SimpleAclAuthorizer"
+                        addedCSVConfig["super.users"] = "User:kafka"
+                        addedCSVConfig["principal.to.local.class"] = "kafka.security.auth.KerberosPrincipalToLocal"
+                        addedCSVConfig["authorizer.class.name"] = "kafka.security.auth.SimpleAclAuthorizer"
                         addedCSVConfig["security.inter.broker.protocol"] = "PLAINTEXTSASL"
                     else:
                         addedCSVConfig["listeners"] = "PLAINTEXT://" + hostname + ":"+tcCfg["port"]
@@ -1311,7 +1312,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
 
         secureMode = systemTestEnv.SECURE_MODE
         kinitCmd = "kinit -k -t /etc/security/keytabs/kafka.service.keytab kafka/"+zkHost+";" if secureMode else ""
-        kafkaAclCommand = kafkaHome + "/bin/kafka-acl.sh"
+        kafkaAclCommand = kafkaHome + "/bin/kafka-acls.sh"
 
         if zkHost != "localhost":
             testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
@@ -1331,8 +1332,19 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
             cmdStr = " ".join(cmdList)
             logger.info("executing command: [" + cmdStr + "]", extra=d)
             subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+            if secureMode:
+                kafkaAclCmdList = ["ssh " + zkHost,
+                                   "JAVA_HOME=" + javaHome,
+                                   kafkaAclCommand,
+                                   " --topic " + topic,
+                                   " --add " +
+                                   " --allowprincipals " + "User:ambari-qa",
+                                   " --config " + brokerConfigFile]
+                kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+                logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+                subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
 
-
+                
 def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_partitions):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
     zkEntityId      = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "entity_id")
