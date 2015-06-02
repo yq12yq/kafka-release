@@ -701,8 +701,13 @@ def get_leader_elected_log_line(systemTestEnv, testcaseEnv, leaderAttributesDict
 
 def get_broker_config(systemTestEnv, testcaseEnv, entityId):
     testcaseConfigsList = testcaseEnv.testcaseConfigsList
+    clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
+
+    kafkaHome = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", entityId, "kafka_home")
     configFile = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "config_filename")
     configPathName = get_testcase_config_log_dir_pathname(testcaseEnv, "broker", entityId, "config")
+    configPathName = replace_kafka_home(configPathName, kafkaHome)
+
     return configPathName + "/" + configFile
 
 def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
@@ -1344,7 +1349,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                 subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
 
-                
+
 def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_partitions):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
     zkEntityId      = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "entity_id")
