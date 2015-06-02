@@ -12,6 +12,8 @@ brokers    = []
 zookeepers = []
 producers =  []
 consumers =  []
+mirrormakers = []
+
 javaHome = ""
 kafkaHome = ""
 zkPort = ""
@@ -37,6 +39,7 @@ def fix_cluster_config_files(directory):
         brokerIndx = 0
         producerIndx = 0
         consumerIndx = 0
+        mirrormakerIndx = 0
         zkIndx = 0
 
         for entity in data["cluster_config"]:
@@ -52,6 +55,9 @@ def fix_cluster_config_files(directory):
             elif entity["role"] == "console_consumer" and len(consumers)>0:
                 entity["hostname"] = consumers[consumerIndx]
                 consumerIndx = consumerIndx+1 if consumerIndx+1<len(consumers) else 0
+            elif entity["role"] == "mirror_maker" and len(mirrormakers)>0:
+                entity["hostname"] = mirrormakers[mirrormakerIndx]
+                mirrormakerIndx = mirrormakerIndx+1 if mirrormakerIndx+1<len(mirrormakers) else 0
 
             if "java_home" in entity and javaHome!="":
                 entity["java_home"] = javaHome
@@ -131,6 +137,12 @@ def loadClusterProperties(clusterProp):
         for p in data["producers"]:
             producers.append(p)
 
+    if not "mirrormakers" in data:
+        print >> sys.stderr, "'mirrormakers' list not specified"
+    else:
+        for m in data["mirrormakers"]:
+            mirrormakers.append(m)
+
     if not "zkPort" in data:
         print >> sys.stderr, "'zkPort' not specified"
     else:
@@ -179,6 +191,7 @@ print "-ZK port : " + zkPort
 print "-Consumers : " + ",".join( consumers )
 print "-Producers : " + ",".join( producers )
 print "-Brokers : " + ",".join( brokers )
+print "-Mirror Makers : " + ",".join( mirrormakers )
 print "-Zookeepers : " + ",".join( zookeepers )
 print "-Secure : %s " % secure
 

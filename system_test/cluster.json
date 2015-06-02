@@ -4,6 +4,10 @@
         "c6402.ambari.apache.org",
         "c6403.ambari.apache.org"
     ],
+    "mirrormakers": [
+        "c6401.ambari.apache.org",
+        "c6402.ambari.apache.org"
+    ],
     "zookeepers": [
         "c6401.ambari.apache.org"
     ],
