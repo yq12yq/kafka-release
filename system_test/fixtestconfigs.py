@@ -8,11 +8,14 @@ import fileinput
 import re
 
 # Settings loaded from cluster.properties file
-brokers    = []
-zookeepers = []
-producers =  []
-consumers =  []
-mirrormakers = []
+brokers           = []
+brokers_target    = []
+zookeepers        = []
+zookeepers_target = []
+producers         = []
+consumers         = []
+consumers_target  = []
+mirrormakers      = []
 
 javaHome = ""
 kafkaHome = ""
@@ -37,24 +40,49 @@ def fix_cluster_config_files(directory):
         inFile.close()
 
         brokerIndx = 0
+        t_brokerIndx = 0
         producerIndx = 0
         consumerIndx = 0
+        t_consumerIndx = 0
         mirrormakerIndx = 0
         zkIndx = 0
+        t_zkIndx = 0
 
         for entity in data["cluster_config"]:
             if entity["role"] == "broker" and len(brokers)>0:
-                entity["hostname"] = brokers[brokerIndx]
-                brokerIndx = brokerIndx+1 if brokerIndx+1<len(brokers) else 0
+                if "cluster_name" not in entity  or  entity["cluster_name"] == "source":
+                    entity["hostname"] = brokers[brokerIndx]
+                    brokerIndx = brokerIndx+1 if brokerIndx+1<len(brokers) else 0
+                elif entity["cluster_name"] == "target":
+                    entity["hostname"] = brokers_target[t_brokerIndx]
+                    t_brokerIndx = t_brokerIndx+1 if t_brokerIndx+1<len(brokers_target) else 0
+                else:
+                    print "*** UNEXPECTED broker entity:  %s" % entity
+
             elif entity["role"] == "zookeeper" and len(zookeepers)>0:
-                entity["hostname"] = zookeepers[zkIndx]
-                zkIndx = zkIndx+1 if zkIndx+1<len(zookeepers) else 0
+                if "cluster_name" not in entity  or  entity["cluster_name"] == "source":
+                    entity["hostname"] = zookeepers[zkIndx]
+                    zkIndx = zkIndx+1 if zkIndx+1<len(zookeepers) else 0
+                elif entity["cluster_name"] == "target":
+                    entity["hostname"] = zookeepers_target[t_zkIndx]
+                    t_zkIndx = t_zkIndx+1 if t_zkIndx+1<len(zookeepers_target) else 0
+                else:
+                    print "*** UNEXPECTED ZK entity:  %s" % entity
             elif entity["role"] == "producer_performance" and len(producers)>0:
-                entity["hostname"] = producers[producerIndx]
-                producerIndx = producerIndx+1 if producerIndx+1<len(producers) else 0
+                if "cluster_name" not in entity  or  entity["cluster_name"] == "source":
+                    entity["hostname"] = producers[producerIndx]
+                    producerIndx = producerIndx+1 if producerIndx+1<len(producers) else 0
+                elif entity["cluster_name"] == "target":
+                    print "*** UNEXPECTED Target Producer:  %s" % entity
             elif entity["role"] == "console_consumer" and len(consumers)>0:
-                entity["hostname"] = consumers[consumerIndx]
-                consumerIndx = consumerIndx+1 if consumerIndx+1<len(consumers) else 0
+                if "cluster_name" not in entity  or  entity["cluster_name"] == "source":
+                    entity["hostname"] = consumers[consumerIndx]
+                    consumerIndx = consumerIndx+1 if consumerIndx+1<len(consumers) else 0
+                elif entity["cluster_name"] == "target":
+                    entity["hostname"] = consumers_target[t_consumerIndx]
+                    t_consumerIndx = t_consumerIndx+1 if t_consumerIndx+1<len(consumers_target) else 0
+                else:
+                    print "*** UNEXPECTED Consumer entity:  %s" % entity
             elif entity["role"] == "mirror_maker" and len(mirrormakers)>0:
                 entity["hostname"] = mirrormakers[mirrormakerIndx]
                 mirrormakerIndx = mirrormakerIndx+1 if mirrormakerIndx+1<len(mirrormakers) else 0
@@ -89,29 +117,40 @@ def fix_json_properties_files(directory):
 def fix_other_properties_file(directory):
     if len(zookeepers) == 0:
         return
+
+
     for f in find_files("*.properties", directory):
         print "Processing " + f
-        print os.popen("perl -i -pe 's/zookeeper.connect=localhost:.*/zookeeper.connect=" + zookeepers[0] + ":" + zkPort + "/' " + f).read()
-        print os.popen("perl -i -pe 's/zk.connect=localhost:.*/zk.connect=" + zookeepers[0] + ":" + zkPort + "/' " + f).read()
+        fname = os.path.basename(f)
+        if fname == "mirror_consumer.properties":
+            os.popen("perl -i -pe 's/zookeeper.connect=.*/zookeeper.connect=" + zookeepers_target[0] + "/' " + f).read()
+        elif fname == "mirror_producer.properties":
+            os.popen("perl -i -pe 's/metadata.broker.list=.*/metadata.broker.list=" + ",".join(brokers) + "/' " + f ).read()
+            print os.popen("perl -i -pe 's/bootstrap.servers=.*/bootstrap.servers=" + ",".join(brokers) + "/' " + f ).read()
+        else:
+            os.popen("perl -i -pe 's/zookeeper.connect=localhost:.*/zookeeper.connect=" + zookeepers[0] + ":" + zkPort + "/' " + f).read()
+            os.popen("perl -i -pe 's/zk.connect=localhost:.*/zk.connect=" + zookeepers[0] + ":" + zkPort + "/' " + f).read()
 
-        if re.search("zookeeper.*properties", f):
-            print os.popen("perl -i -pe 's/server.1=localhost/server.1=" + zookeepers[0] + "/' " + f).read()
-            with open(f, "a") as zkConf:
-                zkConf.write("\nauthProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider")
-                zkConf.write("\njaasLoginRenew=3600000")
-                zkConf.write("\nkerberos.removeHostFromPrincipal=true")
-                zkConf.write("\nkerberos.removeRealmFromPrincipal=true\n")
+        if re.search("zookeeper.*properties", fname):
+            # print os.popen("perl -i -pe 's/server.1=localhost/server.1=" + zookeepers[0] + "/' " + f).read()
+            if secure:
+                with open(f, "a") as zkConf:
+                    zkConf.write("\nauthProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider")
+                    zkConf.write("\njaasLoginRenew=3600000")
+                    zkConf.write("\nkerberos.removeHostFromPrincipal=true")
+                    zkConf.write("\nkerberos.removeRealmFromPrincipal=true\n")
 
 
-        if secure and f == "server.properties":
+        if secure and fname == "server.properties":
             with open(f, "a") as brokerconf:
                 brokerconf.write("\nsuper.users=User:kafka")
                 brokerconf.write("\nprincipal.to.local.class=kafka.security.auth.KerberosPrincipalToLocal")
                 brokerconf.write("\nauthorizer.class.name=kafka.security.auth.SimpleAclAuthorizer")
                 brokerconf.write("\nsecurity.inter.broker.protocol=PLAINTEXTSASL\n")
-        if secure and (f == "producer.properties" or f == "producer_performance.properties" or f == "consumer.properties"):
+        if secure and (fname == "producer.properties" or fname == "producer_performance.properties" or fname == "consumer.properties"):
             with open(f, "a") as producerconf:
                 producerconf.write("\nsecurity.protocol=PLAINTEXTSASL\n")
+
 
 def loadClusterProperties(clusterProp):
     inFile = open(clusterProp, "r")
@@ -125,11 +164,24 @@ def loadClusterProperties(clusterProp):
         for zk in data["zookeepers"]:
             zookeepers.append(zk)
 
+    if not "zookeepers_target" in data:
+        print >> sys.stderr, "'zookeepers_target' list not specified"
+    else:
+        for zk in data["zookeepers_target"]:
+            zookeepers_target.append(zk)
+
     if not "brokers" in data:
         print >> sys.stderr, "'brokers' list not specified"
     else:
         for b in data["brokers"]:
             brokers.append(b)
+
+    if not "brokers_target" in data:
+        print >> sys.stderr, "'brokers_target' list not specified"
+    else:
+        for b in data["brokers_target"]:
+            brokers_target.append(b)
+
 
     if not "producers" in data:
         print >> sys.stderr, "'producers' list not specified"
@@ -153,6 +205,13 @@ def loadClusterProperties(clusterProp):
     else:
         for c in data["consumers"]:
             consumers.append(c)
+
+    if not "consumers_target" in data:
+        print >> sys.stderr, "'consumers_target' list not specified"
+    else:
+        for c in data["consumers_target"]:
+            consumers_target.append(c)
+
 
     if not "javaHome" in data:
         print >> sys.stderr, "'javaHome' not specified"
@@ -189,10 +248,13 @@ print "-Kafka Home: " + kafkaHome
 print "-Java Home: " + javaHome
 print "-ZK port : " + zkPort
 print "-Consumers : " + ",".join( consumers )
+print "-Consumers (Target): " + ",".join( consumers_target )
 print "-Producers : " + ",".join( producers )
 print "-Brokers : " + ",".join( brokers )
+print "-Brokers (Target): " + ",".join( brokers_target )
 print "-Mirror Makers : " + ",".join( mirrormakers )
 print "-Zookeepers : " + ",".join( zookeepers )
+print "-Zookeepers (Target): " + ",".join( zookeepers_target )
 print "-Secure : %s " % secure
 
 # 1 Update all cluster_config.json files

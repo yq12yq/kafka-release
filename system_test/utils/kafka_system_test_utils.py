@@ -773,7 +773,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                       kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
                       "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
                       "--producer.config " + configPathName + "/" + mmProducerConfigFile,
-                      "--new.producer",
+                      # "--new.producer",
                       "--whitelist=\".*\" >> ",
                       logPathName + "/" + logFile + " & echo pid:$! > ",
                       logPathName + "/entity_" + entityId + "_pid'"]
@@ -1136,8 +1136,8 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     boolArgumentsStr = ""
     if syncMode.lower() == "true":
         boolArgumentsStr = boolArgumentsStr + " --sync"
-    if useNewProducer.lower() == "true":
-        boolArgumentsStr = boolArgumentsStr + " --new-producer"
+    # if useNewProducer.lower() == "true":
+    #     boolArgumentsStr = boolArgumentsStr + " --new-producer"
 
     # keep calling producer until signaled to stop by:
     # testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]
