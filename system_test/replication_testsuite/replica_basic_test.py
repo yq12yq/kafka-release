@@ -305,7 +305,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                             self.log_message("stopping controller : " + controllerDict["brokerid"])
                             kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, controllerDict["entity_id"], self.testcaseEnv.entityBrokerParentPidDict[controllerDict["entity_id"]])
                             time.sleep(10)
-                            kafka_system_test_utils.force_stop_remote_entity(self.systemTestEnv, firstFollowerEntityId, self.testcaseEnv.entityBrokerParentPidDict[firstFollowerEntityId])
+                            kafka_system_test_utils.force_stop_remote_entity(self.systemTestEnv, controllerDict["entity_id"], self.testcaseEnv.entityBrokerParentPidDict[controllerDict["entity_id"]])
 
                         brokerDownTimeInSec = 5
                         try:
