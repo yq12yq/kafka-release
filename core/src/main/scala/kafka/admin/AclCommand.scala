@@ -130,7 +130,7 @@ object AclCommand {
     if(opts.options.has(opts.topicOpt))
       return new Resource(ResourceType.TOPIC, opts.options.valueOf(opts.topicOpt).toString)
     else if(opts.options.has(opts.clusterOpt))
-      return Resource.clusterResource
+      return Resource.ClusterResource
     else if(opts.options.has(opts.groupOpt))
       return new Resource(ResourceType.CONSUMER_GROUP, opts.options.valueOf(opts.groupOpt).toString)
     else

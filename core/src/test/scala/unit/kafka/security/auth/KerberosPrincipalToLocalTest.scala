@@ -26,10 +26,10 @@ class KerberosPrincipalToLocalTest extends JUnit3Suite   {
   def testToLocal(): Unit = {
     val user: String = "test"
     val principalToLocal: KerberosPrincipalToLocal = new KerberosPrincipalToLocal()
-    val principalWithHostAndRealm: Principal = new KafkaPrincipal(KafkaPrincipal.userType, "test/testhost@testRealm.com")
-    val principalWithHostNoRealm: Principal = new KafkaPrincipal(KafkaPrincipal.userType, "test/testhost")
-    val principalWithRealmNoHost: Principal = new KafkaPrincipal(KafkaPrincipal.userType, "test@testRealm.com")
-    val principalWithNoRealmNoHost: Principal = new KafkaPrincipal(KafkaPrincipal.userType, "test")
+    val principalWithHostAndRealm: Principal = new KafkaPrincipal(KafkaPrincipal.UserType, "test/testhost@testRealm.com")
+    val principalWithHostNoRealm: Principal = new KafkaPrincipal(KafkaPrincipal.UserType, "test/testhost")
+    val principalWithRealmNoHost: Principal = new KafkaPrincipal(KafkaPrincipal.UserType, "test@testRealm.com")
+    val principalWithNoRealmNoHost: Principal = new KafkaPrincipal(KafkaPrincipal.UserType, "test")
 
     Assert.assertEquals(user, principalToLocal.toLocal(principalWithHostAndRealm))
     Assert.assertEquals(user, principalToLocal.toLocal(principalWithHostNoRealm))

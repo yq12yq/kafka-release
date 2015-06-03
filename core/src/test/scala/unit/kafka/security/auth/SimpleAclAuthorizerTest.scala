@@ -52,9 +52,9 @@ class SimpleAclAuthorizerTest extends JUnit3Suite with ZooKeeperTestHarness {
   }
 
   def testTopicAcl(): Unit = {
-    val user1: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.userType, username)
-    val user2: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.userType, "bob")
-    val user3: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.userType, "batman")
+    val user1: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.UserType, username)
+    val user2: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.UserType, "bob")
+    val user3: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.UserType, "batman")
     val host1: String = "host1"
     val host2: String = "host2"
 
@@ -101,7 +101,7 @@ class SimpleAclAuthorizerTest extends JUnit3Suite with ZooKeeperTestHarness {
   }
 
   def testPrinciplaToLocalPluginUsage(): Unit = {
-    val user1: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.userType, username)
+    val user1: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.UserType, username)
     val host1: String = "host1"
     val host2: String = "host2"
 
@@ -120,8 +120,8 @@ class SimpleAclAuthorizerTest extends JUnit3Suite with ZooKeeperTestHarness {
     simpleAclAuthorizer.addAcls(Set[Acl](acl1, acl2, acl3, acl4), resource)
 
     //now add session with host and realm , and only realm.
-    val host1Session: Session = new Session(new KafkaPrincipal(KafkaPrincipal.userType, username +"/somehost@someRealm.com"), host1)
-    val host2Session: Session = new Session(new KafkaPrincipal(KafkaPrincipal.userType, username +"@someRealm.com"), host2)
+    val host1Session: Session = new Session(new KafkaPrincipal(KafkaPrincipal.UserType, username +"/somehost@someRealm.com"), host1)
+    val host2Session: Session = new Session(new KafkaPrincipal(KafkaPrincipal.UserType, username +"@someRealm.com"), host2)
 
     //all assertion should pass even thought the principal in session has an extra host@realm or @realm.
     assertTrue("User1 should have READ access from host2", simpleAclAuthorizer.authorize(host2Session, Operation.READ, resource))
@@ -135,7 +135,7 @@ class SimpleAclAuthorizerTest extends JUnit3Suite with ZooKeeperTestHarness {
   }
 
   def testDenyTakesPrecedence(): Unit = {
-    val user: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.userType, username)
+    val user: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.UserType, username)
     val host: String = "random-host"
     val session: Session = new Session(user, host)
 
@@ -187,8 +187,8 @@ class SimpleAclAuthorizerTest extends JUnit3Suite with ZooKeeperTestHarness {
   }
 
   def testAclManagementAPIs(): Unit = {
-    val user1: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.userType, username)
-    val user2: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.userType, "bob")
+    val user1: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.UserType, username)
+    val user2: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.UserType, "bob")
     val host1: String = "host1"
     val host2: String = "host2"
 

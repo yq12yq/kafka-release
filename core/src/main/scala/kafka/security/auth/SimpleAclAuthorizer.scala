@@ -92,10 +92,10 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
       return true
     }
 
-    val principal: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.userType, session.principal.getName)
+    val principal: KafkaPrincipal = new KafkaPrincipal(KafkaPrincipal.UserType, session.principal.getName)
     val remoteAddress: String = session.host
     val localUserName: Option[KafkaPrincipal] = if(principalToLocalPlugin.isDefined)
-      Some(new KafkaPrincipal(KafkaPrincipal.userType, principalToLocalPlugin.get.toLocal(session.principal)))
+      Some(new KafkaPrincipal(KafkaPrincipal.UserType, principalToLocalPlugin.get.toLocal(session.principal)))
     else
       None
 
