@@ -1646,7 +1646,7 @@ def ps_grep_terminate_running_entity(systemTestEnv):
     for clusterEntityConfigDict in systemTestEnv.clusterEntityConfigDictList:
         hostname = clusterEntityConfigDict["hostname"]
         cmdList  = ["ssh " + hostname,
-                    "\"ps auxw | grep -v grep | grep -v Bootstrap | grep -v vim | grep ^" + username,
+                    "\"ps auxw | grep -v grep | grep -v Bootstrap | grep -v vim | grep -v python | grep -v scp | grep -v tee | grep ^" + username,
                     "| grep -i 'java\|server\-start\|run\-\|producer\|consumer\|jmxtool' | grep kafka",
                     "| tr -s ' ' | cut -f2 -d ' ' | xargs kill -9" + "\""]
 
