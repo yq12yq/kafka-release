@@ -24,6 +24,8 @@ import java.util.Random
 import java.util.Properties
 import charset.Charset
 
+import org.apache.hadoop.minikdc.MiniKdc
+import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.common.protocol.SecurityProtocol
 import org.apache.kafka.common.utils.Utils._
 
@@ -138,7 +140,7 @@ object TestUtils extends Logging {
   }
 
   def getBrokerListStrFromServers(servers: Seq[KafkaServer]): String = {
-    servers.map(s => formatAddress(s.config.hostName, s.boundPort())).mkString(",")
+    servers.map(s => formatAddress(s.config.hostName, s.boundPort(s.config.interBrokerSecurityProtocol))).mkString(",")
   }
 
   /**
@@ -147,7 +149,8 @@ object TestUtils extends Logging {
   def createBrokerConfig(nodeId: Int, zkConnect: String,
     enableControlledShutdown: Boolean = true,
     enableDeleteTopic: Boolean = false,
-    port: Int = RandomPort): Properties = {
+    port: Int = RandomPort,
+    enableKerberos: Boolean = false): Properties = {
     val props = new Properties
     if (nodeId >= 0) props.put("broker.id", nodeId.toString)
     props.put("listeners", "PLAINTEXT://localhost:"+port.toString)
@@ -158,6 +161,12 @@ object TestUtils extends Logging {
     props.put("controlled.shutdown.enable", enableControlledShutdown.toString)
     props.put("delete.topic.enable", enableDeleteTopic.toString)
     props.put("controlled.shutdown.retry.backoff.ms", "100")
+    props.put(KafkaConfig.BrokerAuthenticationEnableProp, enableKerberos.toString)
+    if(enableKerberos) {
+      props.put("listeners", "PLAINTEXTSASL://localhost:"+port.toString)
+      props.put(KafkaConfig.HostNameProp, "localhost")
+      props.put(KafkaConfig.InterBrokerSecurityProtocolProp, SecurityProtocol.PLAINTEXTSASL.toString)
+    }
     props
   }
 
@@ -359,18 +368,22 @@ object TestUtils extends Logging {
                            encoder: String = classOf[DefaultEncoder].getName,
                            keyEncoder: String = classOf[DefaultEncoder].getName,
                            partitioner: String = classOf[DefaultPartitioner].getName,
-                           producerProps: Properties = null): Producer[K, V] = {
+                           producerProps: Properties = null,
+                           enableKerberos: Boolean = false): Producer[K, V] = {
     val props: Properties = getProducerConfig(brokerList)
 
     //override any explicitly specified properties
     if (producerProps != null)
       props.putAll(producerProps)
 
+    if(enableKerberos) {
+      props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.PLAINTEXTSASL.toString)
+    }
+
     props.put("serializer.class", encoder)
     props.put("key.serializer.class", keyEncoder)
     props.put("partitioner.class", partitioner)
-    new Producer[K, V](new ProducerConfig(props))
-  }
+    new Producer[K, V](new ProducerConfig(props))  }
 
   /**
    * Create a (new) producer with a few pre-configured properties.

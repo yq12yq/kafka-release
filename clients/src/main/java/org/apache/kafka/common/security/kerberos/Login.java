@@ -39,6 +39,9 @@ import org.slf4j.LoggerFactory;
 
 import javax.security.auth.kerberos.KerberosTicket;
 import javax.security.auth.Subject;
+import java.io.File;
+import java.security.NoSuchAlgorithmException;
+import java.security.URIParameter;
 import java.util.Date;
 import java.util.Random;
 import java.util.Set;
@@ -287,6 +290,20 @@ public class Login {
                     ") and your " + AuthUtils.LOGIN_CONTEXT_SERVER + "(=" +
                     System.getProperty(AuthUtils.LOGIN_CONTEXT_CLIENT, "Client") + ")");
         }
+
+        if (System.getProperty("java.security.auth.login.config") == null) {
+            throw new IllegalArgumentException("You must pass java.security.auth.login.config in secure mode.");
+        }
+        
+        File config_file = new File(System.getProperty("java.security.auth.login.config"));
+        Configuration loginConf = null;
+        try {
+            loginConf = Configuration.getInstance("JavaLoginConfig", new URIParameter(config_file.toURI()));
+            Configuration.setConfiguration(loginConf);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+        
         LoginContext loginContext = new LoginContext(loginContextName);
         loginContext.login();
         log.info("successfully logged in.");
