@@ -1991,6 +1991,8 @@ def validate_broker_log_segment_checksum(systemTestEnv, testcaseEnv, clusterName
 
         # loop through all topicPartition directories such as : test_1-0, test_1-1, ...
         for topicPartition in os.listdir(localLogSegmentPath):
+            if topicPartition.startswith("t001-"):
+                continue
             # found a topic-partition directory
             if os.path.isdir(localLogSegmentPath + "/" + topicPartition):
                 # md5 hasher
@@ -2517,6 +2519,8 @@ def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
         # loop through all topicPartition directories such as : test_1-0, test_1-1, ...
         for topicPartition in os.listdir(localLogSegmentPath):
             # found a topic-partition directory
+            if topicPartition.startswith("t001-"):
+                continue
             if os.path.isdir(localLogSegmentPath + "/" + topicPartition):
 
                 # log segment files are located in : localLogSegmentPath + "/" + topicPartition
@@ -2537,13 +2541,13 @@ def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
                         for line in subproc.stdout.readlines():
                             line = line.rstrip('\n')
                             if showMismatchedIndexOffset:
-                                logger.debug("#### [" + line + "]", extra=d)
+                                logger.error("#### [" + line + "]", extra=d)
                             elif "Mismatches in :" in line:
-                                logger.debug("#### error found [" + line + "]", extra=d)
+                                logger.error("#### error found [" + line + "]", extra=d)
                                 failureCount += 1
                                 showMismatchedIndexOffset = True
                         if subproc.wait() != 0:
-                            logger.debug("#### error found [DumpLogSegments exited abnormally]", extra=d)
+                            logger.error("#### error found [DumpLogSegments exited abnormally]", extra=d)
                             failureCount += 1
 
     if failureCount == 0:
