@@ -18,8 +18,9 @@
 package kafka.network
 
 import java.net.InetSocketAddress
+import java.net.SocketTimeoutException;
 import java.nio.channels._
-import kafka.utils.{nonthreadsafe, Logging}
+import kafka.utils.{nonthreadsafe, Logging, SystemTime}
 import kafka.api.RequestOrResponse
 import kafka.common.security.LoginManager
 import org.apache.kafka.common.security.kerberos.Login
@@ -53,6 +54,7 @@ class BlockingChannel( val host: String,
   private var writeChannel: GatheringByteChannel = null
   private val lock = new Object()
   private val connectTimeoutMs = readTimeoutMs
+  private val handshakeTimeoutMs = readTimeoutMs
 
   def connect() = lock synchronized  {
     if(!connected) {
@@ -68,7 +70,15 @@ class BlockingChannel( val host: String,
         socketChannel.socket.setTcpNoDelay(true)
         socketChannel.socket.connect(new InetSocketAddress(host, port), connectTimeoutMs)
         channel = createChannel(protocol, socketChannel)
-        while(!channel.isReady) channel.connect(true, true);
+
+        val handshakeInterval = SystemTime.milliseconds
+        while(!channel.isReady) {
+          channel.connect(true, true);
+          if (!channel.isReady && ((SystemTime.milliseconds - handshakeInterval) > handshakeTimeoutMs)) {
+            throw new SocketTimeoutException("Socket timeout during handshake")
+          }
+        }
+
         writeChannel = channel
         readChannel = Channels.newChannel(channel.socketChannel().socket().getInputStream)
         connected = true
