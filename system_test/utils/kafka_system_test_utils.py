@@ -1136,8 +1136,9 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     boolArgumentsStr = ""
     if syncMode.lower() == "true":
         boolArgumentsStr = boolArgumentsStr + " --sync"
-    # if useNewProducer.lower() == "true":
-    #     boolArgumentsStr = boolArgumentsStr + " --new-producer"
+
+    if useNewProducer.lower() == "true":
+        boolArgumentsStr = boolArgumentsStr + " --new-producer"
 
     # keep calling producer until signaled to stop by:
     # testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]
@@ -1423,12 +1424,12 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
         kafkaAclCmdStr = " ".join(kafkaAclCmdList)
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
-        
+
         prodPerfCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "producer_performance")
         for prodPerfCfg in prodPerfCfgList:
             topicsStr       = system_test_utils.get_data_by_lookup_keyval(testcaseEnv.testcaseConfigsList, "entity_id", prodPerfCfg["entity_id"], "topic")
             topicsList   = topicsStr.split(',')
-            
+
             for topic in topicsList:
                 logger.info("issuing permissions on topic: [" + topic + "]", extra=d)
                 if secureMode:
@@ -2362,8 +2363,6 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
                     logger.info("no. of messages on topic [" + topic + "] at " + logFile + " : " + str(len(consumerMsgIdList)), extra=d)
                     validationStatusDict["No. of messages from consumer on [" + topic + "] at " + logFile] = str(len(consumerMsgIdList))
 
-            # print replicaIdxMsgIdList
-            pprint.pprint(replicaIdxMsgIdList)
             # take the first dictionary of replicaIdxMsgIdList and compare with the rest
             firstMsgIdDict = replicaIdxMsgIdList[replicaIdxMsgIdList.keys()[0]]
 
