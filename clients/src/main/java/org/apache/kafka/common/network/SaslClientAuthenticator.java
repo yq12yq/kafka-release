@@ -19,6 +19,7 @@
 package org.apache.kafka.common.network;
 
 import java.io.IOException;
+import java.io.EOFException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.BufferOverflowException;
@@ -229,6 +230,8 @@ public class SaslClientAuthenticator implements Authenticator {
             int readLen = transportLayer.read(saslTokenHeader);
             if(readLen == 0)
                 return new byte[0];
+            else if (readLen < 0)
+                throw new EOFException();
             int len = Utils.toInt(saslTokenHeader.array(), 0);
             if (len < 0) {
                 throw new IOException("SASL Token length " + len + " < 0");
