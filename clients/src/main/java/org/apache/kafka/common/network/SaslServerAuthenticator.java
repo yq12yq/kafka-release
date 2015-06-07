@@ -18,6 +18,7 @@
 package org.apache.kafka.common.network;
 
 import java.io.IOException;
+import java.io.EOFException;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
