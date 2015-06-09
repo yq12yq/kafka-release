@@ -193,7 +193,8 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                     kafka_system_test_utils.create_topic_for_producer_performance(self.systemTestEnv, self.testcaseEnv)
                     self.anonLogger.info("sleeping for 5s")
                     time.sleep(5)
-                elif secureMode:
+                
+                if secureMode:
                     self.log_message("Issuing cluster level permissions")
                     kafka_system_test_utils.give_permissions_to_user_on_cluster(self.systemTestEnv, self.testcaseEnv)
                     self.anonLogger.info("sleeping for 5s")
@@ -216,7 +217,6 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 msgProducingFreeTimeSec = self.testcaseEnv.testcaseArgumentsDict["message_producing_free_time_sec"]
                 self.anonLogger.info("sleeping for " + msgProducingFreeTimeSec + " sec to produce some messages")
                 time.sleep(int(msgProducingFreeTimeSec))
-
                 # =============================================
                 # A while-loop to bounce leader as specified
                 # by "num_iterations" in testcase_n_properties.json
