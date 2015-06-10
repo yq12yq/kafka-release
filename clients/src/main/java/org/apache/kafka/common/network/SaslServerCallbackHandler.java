@@ -42,9 +42,6 @@ import org.apache.kafka.common.security.AuthUtils;
 public class SaslServerCallbackHandler implements CallbackHandler {
     private static final String USER_PREFIX = "user_";
     private static final Logger LOG = LoggerFactory.getLogger(SaslServerCallbackHandler.class);
-    private static final String SYSPROP_SUPER_PASSWORD = "zookeeper.SASLAuthenticationProvider.superPassword";
-    private static final String SYSPROP_REMOVE_HOST = "zookeeper.kerberos.removeHostFromPrincipal";
-    private static final String SYSPROP_REMOVE_REALM = "zookeeper.kerberos.removeRealmFromPrincipal";
 
     private String userName;
     private final Map<String,String> credentials = new HashMap<String,String>();
@@ -99,10 +96,7 @@ public class SaslServerCallbackHandler implements CallbackHandler {
     }
 
     private void handlePasswordCallback(PasswordCallback pc) {
-        if ("super".equals(this.userName) && System.getProperty(SYSPROP_SUPER_PASSWORD) != null) {
-            // superuser: use Java system property for password, if available.
-            pc.setPassword(System.getProperty(SYSPROP_SUPER_PASSWORD).toCharArray());
-        } else if (credentials.containsKey(userName) ) {
+        if (credentials.containsKey(userName) ) {
             pc.setPassword(credentials.get(userName).toCharArray());
         } else {
             LOG.warn("No password found for user: " + userName);
@@ -125,25 +119,11 @@ public class SaslServerCallbackHandler implements CallbackHandler {
         KerberosName kerberosName = new KerberosName(authenticationID);
         try {
             StringBuilder userNameBuilder = new StringBuilder(kerberosName.getShortName());
-            if (shouldAppendHost(kerberosName)) {
-                userNameBuilder.append("/").append(kerberosName.getHostName());
-            }
-            if (shouldAppendRealm(kerberosName)) {
-                userNameBuilder.append("@").append(kerberosName.getRealm());
-            }
             LOG.info("Setting authorizedID: " + userNameBuilder);
             ac.setAuthorizedID(userNameBuilder.toString());
         } catch (IOException e) {
             LOG.error("Failed to set name based on Kerberos authentication rules.");
         }
-    }
-
-    private boolean shouldAppendRealm(KerberosName kerberosName) {
-        return !isSystemPropertyTrue(SYSPROP_REMOVE_REALM) && kerberosName.getRealm() != null;
-    }
-
-    private boolean shouldAppendHost(KerberosName kerberosName) {
-        return !isSystemPropertyTrue(SYSPROP_REMOVE_HOST) && kerberosName.getHostName() != null;
     }
 
     private boolean isSystemPropertyTrue(String propertyName) {

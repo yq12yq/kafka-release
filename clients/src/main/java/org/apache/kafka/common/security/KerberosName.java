@@ -16,13 +16,7 @@
  * limitations under the License.
  */
 
- /* This file copied from Hadoop's security branch,
-  * with the following changes:
-  * 1. package changed from org.apache.hadoop.security to
-  *    org.apache.zookeeper.server.auth.
-  * 2. Usage of Hadoop's Configuration class removed since
-  *    it is not available in Zookeeper: instead, system property
-  *    "zookeeper.security.auth_to_local" is used.
+ /* This file copied from Hadoop's security branch
   */
 
 package org.apache.kafka.common.security;
@@ -355,7 +349,7 @@ public class KerberosName {
    * @throws IOException
    */
   public static void setConfiguration() throws IOException {
-    String ruleString = System.getProperty("zookeeper.security.auth_to_local", "DEFAULT");
+    String ruleString = System.getProperty("kafka.security.auth_to_local", "DEFAULT");
     rules = parseRules(ruleString);
   }
 

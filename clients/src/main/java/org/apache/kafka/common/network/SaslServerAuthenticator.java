@@ -62,9 +62,9 @@ public class SaslServerAuthenticator implements Authenticator {
     private SaslServer saslServer;
     private Subject subject;
     private TransportLayer transportLayer;
-    private ByteBuffer saslTokenHeader = ByteBuffer.allocate(4);
-    private ByteBuffer netInBuffer = ByteBuffer.allocate(0);
-    private ByteBuffer netOutBuffer = ByteBuffer.allocate(0);
+    private int node = 0;
+    private NetworkReceive netInBuffer;
+    private NetworkSend netOutBuffer;
     private SaslServerCallbackHandler saslServerCallbackHandler;
 
     public enum SaslState {
@@ -155,94 +155,52 @@ public class SaslServerAuthenticator implements Authenticator {
     }
 
     public int authenticate(boolean read, boolean write) throws IOException {
-        if(!transportLayer.flush(netOutBuffer))
+        if (netOutBuffer != null && !flushNetOutBuffer()) {
             return SelectionKey.OP_WRITE;
+        }
 
         if(saslServer.isComplete()) return 0;
 
-        byte[] token = readToken();
-        if (token.length == 0)
+        byte[] clientToken = new byte[0];
+
+        if (netInBuffer == null) netInBuffer = new NetworkReceive(node);
+
+        long readLen = netInBuffer.readFrom(transportLayer);
+        if (readLen == 0 || !netInBuffer.complete()) {
             return SelectionKey.OP_READ;
+        } else {
+            netInBuffer.payload().rewind();
+            clientToken = new byte[netInBuffer.payload().remaining()];
+            netInBuffer.payload().get(clientToken, 0, clientToken.length);
+            netInBuffer = null; // reset the networkReceive as we read all the data.
+        }
+
         try {
             byte[] response;
-            try {
-                response = saslServer.evaluateResponse(token);
-            } catch (Exception e ) {
-                throw new IOException(e);
-            }
+            response = saslServer.evaluateResponse(clientToken);
             if (response != null) {
-                byte[] withHeaderWrapped = response;
-                withHeaderWrapped = addSASLHeader(withHeaderWrapped);
-                netOutBuffer = Utils.ensureCapacity(netOutBuffer, withHeaderWrapped.length);
-                netOutBuffer.clear();
-                netOutBuffer.put(withHeaderWrapped);
-                netOutBuffer.flip();
-                if(!write && !transportLayer.flush(netOutBuffer))
+                netOutBuffer = new NetworkSend(node, ByteBuffer.wrap(response));
+                if(!write || !flushNetOutBuffer()) {
                     return SelectionKey.OP_WRITE;
+                }
             }
         } catch (BufferUnderflowException be) {
             return SelectionKey.OP_READ;
+        } catch (Exception e ) {
+            throw new IOException(e);
         }
 
-        if(saslServer.isComplete()) {
-            if(!transportLayer.flush(netOutBuffer))
+        if (saslServer.isComplete()) {
+            if (!flushNetOutBuffer()) {
                 return SelectionKey.OP_WRITE;
-            else
+            } else {
                 return 0;
+            }
         }
 
         return (SelectionKey.OP_READ | SelectionKey.OP_WRITE);
     }
 
-
-    /**
-     * @param in ByteBuffer containing network data.
-     * @return handshake token to be consumed by GSSContext handshake
-     *         operation or null if not enough data to produce it.
-     * @throws BufferUnderflowException If not all the bytes needed to
-     *         decipher a handshake token are present
-     * @throws IOException Packet is malformed
-     */
-    private byte[] readToken()
-        throws IOException {
-        byte[] tokenBytes = null;
-        try {
-            saslTokenHeader.clear();
-            int readLen = transportLayer.read(saslTokenHeader);
-            if(readLen == 0)
-                return new byte[0];
-            else if (readLen < 0)
-                throw new EOFException();
-
-            int len = Utils.toInt(saslTokenHeader.array(), 0);
-            if (len < 0) {
-                throw new IOException("Token length " + len + " < 0");
-            }
-            netInBuffer = ByteBuffer.allocate(len);
-            int readToken = transportLayer.read(netInBuffer);
-            netInBuffer.flip();
-            tokenBytes = new byte[netInBuffer.remaining()];
-            netInBuffer.get(tokenBytes);
-            netInBuffer.compact();
-        } catch (BufferUnderflowException ex) {
-            throw ex;
-        }
-        return tokenBytes;
-    }
-
-    /**
-     * Add additional SASL header information
-     * @param content byte array with token data
-     * @return byte array with SASL header + token data
-     */
-    private static byte [] addSASLHeader(final byte [] content) {
-        byte [] header = new byte[4];
-        Utils.writeInt(header, 0, content.length);
-        byte [] result = new byte[header.length + content.length];
-        System.arraycopy(header, 0, result, 0, header.length);
-        System.arraycopy(content, 0, result, header.length, content.length);
-        return result;
-    }
 
     public Principal principal() {
         return new UserPrincipal(saslServer.getAuthorizationID());
@@ -256,4 +214,10 @@ public class SaslServerAuthenticator implements Authenticator {
         saslServer.dispose();
     }
 
+    private boolean flushNetOutBuffer() throws IOException {
+        if (!netOutBuffer.completed()) {
+            netOutBuffer.writeTo(transportLayer);
+        }
+        return netOutBuffer.completed();
+    }
  }

@@ -65,10 +65,10 @@ public class SaslClientAuthenticator implements Authenticator {
     private Subject subject;
     private String servicePrincipal;
     private String host;
+    private int node = 0;
     private TransportLayer transportLayer;
-    private ByteBuffer saslTokenHeader = ByteBuffer.allocate(4);
-    private ByteBuffer netInBuffer = ByteBuffer.allocate(0);
-    private ByteBuffer netOutBuffer = ByteBuffer.allocate(0);
+    private NetworkReceive netInBuffer;
+    private NetworkSend netOutBuffer;
     private byte[] saslToken = new byte[0];
 
     public enum SaslState {
@@ -118,7 +118,7 @@ public class SaslClientAuthenticator implements Authenticator {
                         LOG.debug("Client will use GSSAPI as SASL mechanism.");
                         String[] mechs = {"GSSAPI"};
                         LOG.debug("creating sasl client: client="+clientPrincipalName+";service="+servicePrincipal+";serviceHostname="+host);
-                        SaslClient saslClient = Sasl.createSaslClient(mechs,clientPrincipalName,servicePrincipal,host,null,null);
+                        SaslClient saslClient = Sasl.createSaslClient(mechs,clientPrincipalName,servicePrincipal,host,null,new ClientCallbackHandler(null));
                         return saslClient;
                     }
                 });
@@ -130,19 +130,28 @@ public class SaslClientAuthenticator implements Authenticator {
     }
 
     public int authenticate(boolean read, boolean write) throws IOException {
-        if (!transportLayer.flush(netOutBuffer)) {
+        if (netOutBuffer != null && !flushNetOutBuffer()) {
             return SelectionKey.OP_WRITE;
         }
+
         if(saslClient.isComplete()) {
             saslState = SaslState.COMPLETE;
             return 0;
         }
+
         byte[] serverToken = new byte[0];
 
         if(read && saslState == SaslState.INTERMEDIATE) {
-            serverToken = readSASLToken();
-            if (serverToken.length == 0) //server yet to return a token.
+            if (netInBuffer == null) netInBuffer = new NetworkReceive(node);
+            long readLen = netInBuffer.readFrom(transportLayer);
+            if (readLen == 0 || !netInBuffer.complete()) {
                 return SelectionKey.OP_READ;
+            } else {
+                netInBuffer.payload().rewind();
+                serverToken = new byte[netInBuffer.payload().remaining()];
+                netInBuffer.payload().get(serverToken, 0, serverToken.length);
+                netInBuffer = null; // reset the networkReceive as we read all the data.
+            }
         } else if(saslState == SaslState.INITIAL) {
             saslState = SaslState.INTERMEDIATE;
         }
@@ -151,12 +160,8 @@ public class SaslClientAuthenticator implements Authenticator {
             try {
                 saslToken = createSaslToken(serverToken);
                 if (saslToken != null) {
-                    byte[] withHeaderWrapped = addSASLHeader(saslToken);
-                    netOutBuffer = Utils.ensureCapacity(netOutBuffer, withHeaderWrapped.length);
-                    netOutBuffer.clear();
-                    netOutBuffer.put(withHeaderWrapped);
-                    netOutBuffer.flip();
-                    if(!write || !transportLayer.flush(netOutBuffer)) {
+                    netOutBuffer = new NetworkSend(node, ByteBuffer.wrap(saslToken));
+                    if(!write || !flushNetOutBuffer()) {
                         return SelectionKey.OP_WRITE;
                     }
                 }
@@ -203,7 +208,7 @@ public class SaslClientAuthenticator implements Authenticator {
             final String UNKNOWN_SERVER_ERROR_TEXT =
                 "(Mechanism level: Server not found in Kerberos database (7) - UNKNOWN_SERVER)";
             if (e.toString().indexOf(UNKNOWN_SERVER_ERROR_TEXT) > -1) {
-                error += " This may be caused by Java's being unable to resolve the Zookeeper Quorum Member's" +
+                error += " This may be caused by Java's being unable to resolve the Kafka Broker's" +
                     " hostname correctly. You may want to try to adding" +
                     " '-Dsun.net.spi.nameservice.provider.1=dns,sun' to your client's JVMFLAGS environment.";
             }
@@ -213,53 +218,67 @@ public class SaslClientAuthenticator implements Authenticator {
         }
     }
 
-
-    /**
-     * @param in ByteBuffer containing network data.
-     * @return handshake token to be consumed by GSSContext handshake
-     *         operation or null if not enough data to produce it.
-     * @throws BufferUnderflowException If not all the bytes needed to
-     *         decipher a handshake token are present
-     * @throws IOException Packet is malformed
-     */
-    private byte[] readSASLToken()
-        throws IOException {
-        byte[] tokenBytes = null;
-        try {
-            saslTokenHeader.clear();
-            int readLen = transportLayer.read(saslTokenHeader);
-            if(readLen == 0)
-                return new byte[0];
-            else if (readLen < 0)
-                throw new EOFException();
-            int len = Utils.toInt(saslTokenHeader.array(), 0);
-            if (len < 0) {
-                throw new IOException("SASL Token length " + len + " < 0");
-            }
-            netInBuffer = ByteBuffer.allocate(len);
-            transportLayer.read(netInBuffer);
-            netInBuffer.flip();
-            tokenBytes = new byte[netInBuffer.remaining()];
-            netInBuffer.get(tokenBytes);
-            netInBuffer.compact();
-        } catch (BufferUnderflowException ex) {
-            throw ex;
+    private boolean flushNetOutBuffer() throws IOException {
+        if (!netOutBuffer.completed()) {
+            netOutBuffer.writeTo(transportLayer);
         }
-        return tokenBytes;
+        return netOutBuffer.completed();
     }
 
-    /**
-     * Add additional SASL header information
-     * @param content byte array with token data
-     * @return byte array with SASL header + token data
-     */
-    private static byte [] addSASLHeader(final byte [] content) {
-        byte [] header = new byte[4];
-        Utils.writeInt(header, 0, content.length);
-        int len = Utils.toInt(header, 0);
-        byte [] result = new byte[header.length + content.length];
-        System.arraycopy(header, 0, result, 0, header.length);
-        System.arraycopy(content, 0, result, header.length, content.length);
-        return result;
+    public static class ClientCallbackHandler implements CallbackHandler {
+        private String password = null;
+
+        public ClientCallbackHandler(String password) {
+            this.password = password;
+        }
+
+        public void handle(Callback[] callbacks) throws
+          UnsupportedCallbackException {
+            for (Callback callback : callbacks) {
+                if (callback instanceof NameCallback) {
+                    NameCallback nc = (NameCallback) callback;
+                    nc.setName(nc.getDefaultName());
+                }
+                else {
+                    if (callback instanceof PasswordCallback) {
+                        PasswordCallback pc = (PasswordCallback)callback;
+                        if (password != null) {
+                            pc.setPassword(this.password.toCharArray());
+                        } else {
+                            LOG.warn("Could not login: the client is being asked for a password, but the Kafka" +
+                              " client code does not currently support obtaining a password from the user." +
+                              " Make sure that the client is configured to use a ticket cache (using" +
+                              " the JAAS configuration setting 'useTicketCache=true)' and restart the client. Make sure you are using" +
+                              " FQDN of the Kafka broker you are trying to connect to. ");
+                        }
+                    }
+                    else {
+                        if (callback instanceof RealmCallback) {
+                            RealmCallback rc = (RealmCallback) callback;
+                            rc.setText(rc.getDefaultText());
+                        }
+                        else {
+                            if (callback instanceof AuthorizeCallback) {
+                                AuthorizeCallback ac = (AuthorizeCallback) callback;
+                                String authid = ac.getAuthenticationID();
+                                String authzid = ac.getAuthorizationID();
+                                if (authid.equals(authzid)) {
+                                    ac.setAuthorized(true);
+                                } else {
+                                    ac.setAuthorized(false);
+                                }
+                                if (ac.isAuthorized()) {
+                                    ac.setAuthorizedID(authzid);
+                                }
+                            }
+                            else {
+                                throw new UnsupportedCallbackException(callback,"Unrecognized SASL ClientCallback");
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
+
 }

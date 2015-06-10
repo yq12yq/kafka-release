@@ -23,6 +23,9 @@ package org.apache.kafka.common.network;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.ScatteringByteChannel;
+import java.nio.channels.GatheringByteChannel;
+
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -31,35 +34,7 @@ import javax.net.ssl.SSLSession;
 import java.security.Principal;
 
 
-public interface TransportLayer {
-
-    /**
-     * Closes this channel
-     *
-     * @throws IOException If and I/O error occurs
-     */
-    void close() throws IOException;
-
-
-    /**
-     * Tells wheather or not this channel is open.
-     */
-    boolean isOpen();
-
-    /**
-     * Writes a sequence of bytes to this channel from the given buffer.
-     */
-    int write(ByteBuffer src) throws IOException;
-
-    long write(ByteBuffer[] srcs) throws IOException;
-
-    long write(ByteBuffer[] srcs, int offset, int length) throws IOException;
-
-    int read(ByteBuffer dst) throws IOException;
-
-    long read(ByteBuffer[] dsts) throws IOException;
-
-    long read(ByteBuffer[] dsts, int offset, int length) throws IOException;
+public interface TransportLayer extends ScatteringByteChannel, GatheringByteChannel {
 
     boolean isReady();
 
