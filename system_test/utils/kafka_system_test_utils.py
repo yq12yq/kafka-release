@@ -1417,7 +1417,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
     createTopicBin  = kafkaHome + "/bin/kafka-topics.sh --create"
     testcaseBaseDir = testcaseEnv.testCaseBaseDir
     testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
-
+    testcaseDirName = testcaseEnv.testcaseResultsDict["_test_case_name"]
     zkConnectStr = ""
     zkHost = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "hostname")
     if len(testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"]) > 0:
@@ -1459,29 +1459,29 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                     subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
                     
 
-
-        if secureMode:
+                    
             # get optional testcase arguments
-            numTopicsForAutoGenString = -1
-            try:
-                numTopicsForAutoGenString = int(testcaseEnv.testcaseArgumentsDict["num_topics_for_auto_generated_string"])
-            except:
-                pass
-            if (numTopicsForAutoGenString > 0):
-                topicsStr = generate_topics_string("topic", numTopicsForAutoGenString)
-                logger.info("issuing permissions on " + topicsStr, extra=d)
-                topicsList = topicsStr.split(',')
-                for topic in topicsList:
-                    kafkaAclCmdList = ["ssh " + zkHost,
-                                       "JAVA_HOME=" + javaHome,
-                                       kafkaAclCommand,
-                                       " --topic " + topic,
-                                       " --add " +
-                                       " --allowprincipals " + "User:ambari-qa",
-                                       " --config " + brokerConfigFile]
-                    kafkaAclCmdStr = " ".join(kafkaAclCmdList)
-                    logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
-                    subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+        numTopicsForAutoGenString = -1
+        try:
+            numTopicsForAutoGenString = int(testcaseEnv.testcaseArgumentsDict["num_topics_for_auto_generated_string"])
+        except:
+            pass
+        if (numTopicsForAutoGenString > 0):
+            topicsStr = generate_topics_string("topic", numTopicsForAutoGenString)
+            logger.info("issuing permissions on " + topicsStr, extra=d)
+            topicsList = topicsStr.split(',')
+            for topic in topicsList:
+                kafkaAclCmdList = ["ssh " + zkHost,
+                                   "JAVA_HOME=" + javaHome,
+                                   kafkaAclCommand,
+                                   " --topic " + topic,
+                                   " --add " +
+                                   " --allowprincipals " + "User:ambari-qa",
+                                   " --config " + brokerConfigFile]
+                kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+                logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+                subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+
                 logger.info("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
                 cmdList = ["ssh " + zkHost,
                            "'(", kinitCmd,
@@ -1489,13 +1489,14 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                            createTopicBin,
                            " --topic "     + topic,
                            " --zookeeper " + zkConnectStr,
-                           " --replication-factor 1"  ,
-                           " --partitions 5"  + " >> ",
+                           " --replication-factor " + testcaseEnv.testcaseArgumentsDict["replica_factor"]  ,
+                           " --partitions " + testcaseEnv.testcaseArgumentsDict["num_partition"]  + " >> ",
                            testcaseBaseDir + "/logs/create_source_cluster_topic.log)'"]
 
                 cmdStr = " ".join(cmdList)
                 logger.info("executing command: [" + cmdStr + "]", extra=d)
                 csubproc = system_test_utils.sys_call_return_subproc(cmdStr)
+                time.sleep(5)
 
         
 def get_message_id(logPathName, topic=""):
