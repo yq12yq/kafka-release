@@ -1457,9 +1457,9 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                     kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                     logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                     subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
-                    
 
-                    
+
+
             # get optional testcase arguments
         numTopicsForAutoGenString = -1
         try:
@@ -1498,7 +1498,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                 csubproc = system_test_utils.sys_call_return_subproc(cmdStr)
                 time.sleep(5)
 
-        
+
 def get_message_id(logPathName, topic=""):
     logLines      = open(logPathName, "r").readlines()
     messageIdList = []
@@ -2214,8 +2214,8 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
                            "--replica " + str(replicaInfo[replicaIndex-1]),
                            "--offset " + str(startingOffset),
                            "--no-wait-at-logend ",
-                           " > " + outputFilePathName,
                            securityProtocol,
+                           " > " + outputFilePathName,
                            " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid)'"]
 
                 cmdStr = " ".join(cmdList)
