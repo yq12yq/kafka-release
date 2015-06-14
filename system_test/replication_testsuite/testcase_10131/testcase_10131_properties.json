@@ -87,6 +87,7 @@
       "request-num-acks": "-1",
       "producer-retry-backoff-ms": "300",
       "sync":"true",
+      "new-producer":"true",
       "log_filename": "producer_performance_5.log",
       "config_filename": "producer_performance_5.properties"
     },
