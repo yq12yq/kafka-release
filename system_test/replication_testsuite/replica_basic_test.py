@@ -51,7 +51,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
 
         # SystemTestEnv - provides cluster level environment settings
         #     such as entity_id, hostname, kafka_home, java_home which
-        #     are available in a list of dictionary named 
+        #     are available in a list of dictionary named
         #     "clusterEntityConfigDictList"
         self.systemTestEnv = systemTestEnv
 
@@ -66,7 +66,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
         # perform the necessary cleanup here when user presses Ctrl+c and it may be product specific
         self.log_message("stopping all entities - please wait ...")
         kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)
-        sys.exit(1) 
+        sys.exit(1)
 
     def runTest(self):
 
@@ -86,7 +86,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
 
             skipThisTestCase = False
 
-            try: 
+            try:
                 # ======================================================================
                 # A new instance of TestcaseEnv to keep track of this testcase's env vars
                 # and initialize some env vars as testCasePathName is available now
@@ -145,7 +145,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
 
                 # initialize signal handler
                 signal.signal(signal.SIGINT, self.signal_handler)
-    
+
                 # TestcaseEnv.testcaseConfigsList initialized by reading testcase properties file:
                 #   system_test/<suite_name>_testsuite/testcase_<n>/testcase_<n>_properties.json
                 self.testcaseEnv.testcaseConfigsList = system_test_utils.get_json_list_data(
@@ -157,22 +157,22 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 # create "LOCAL" log directories for metrics, dashboards for each entity under this testcase
                 # for collecting logs from remote machines
                 kafka_system_test_utils.generate_testcase_log_dirs(self.systemTestEnv, self.testcaseEnv)
-   
+
                 # TestcaseEnv - initialize producer & consumer config / log file pathnames
                 kafka_system_test_utils.init_entity_props(self.systemTestEnv, self.testcaseEnv)
 
                 # generate remote hosts log/config dirs if not exist
                 kafka_system_test_utils.generate_testcase_log_dirs_in_remote_hosts(self.systemTestEnv, self.testcaseEnv)
-    
+
                 # generate properties files for zookeeper, kafka, producer, consumer:
-                # 1. copy system_test/<suite_name>_testsuite/config/*.properties to 
+                # 1. copy system_test/<suite_name>_testsuite/config/*.properties to
                 #    system_test/<suite_name>_testsuite/testcase_<n>/config/
                 # 2. update all properties files in system_test/<suite_name>_testsuite/testcase_<n>/config
                 #    by overriding the settings specified in:
                 #    system_test/<suite_name>_testsuite/testcase_<n>/testcase_<n>_properties.json
                 kafka_system_test_utils.generate_overriden_props_files(self.testSuiteAbsPathName,
                     self.testcaseEnv, self.systemTestEnv)
-   
+
                 # =============================================
                 # preparing all entities to start the test
                 # =============================================
@@ -180,37 +180,37 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 kafka_system_test_utils.start_zookeepers(self.systemTestEnv, self.testcaseEnv)
                 self.anonLogger.info("sleeping for 2s")
                 time.sleep(2)
-        
+
                 self.log_message("starting brokers")
                 kafka_system_test_utils.start_brokers(self.systemTestEnv, self.testcaseEnv)
                 self.anonLogger.info("sleeping for 5s")
                 time.sleep(5)
-                
-                secureMode = self.systemTestEnv.SECURE_MODE 
+
+                secureMode = self.systemTestEnv.SECURE_MODE
 
                 if autoCreateTopic.lower() == "false":
                     self.log_message("creating topics")
                     kafka_system_test_utils.create_topic_for_producer_performance(self.systemTestEnv, self.testcaseEnv)
                     self.anonLogger.info("sleeping for 5s")
                     time.sleep(5)
-                
+
                 if secureMode:
                     self.log_message("Issuing cluster level permissions")
                     kafka_system_test_utils.give_permissions_to_user_on_cluster(self.systemTestEnv, self.testcaseEnv)
                     self.anonLogger.info("sleeping for 5s")
                     time.sleep(5)
-                
+
 
                 # =============================================
-                # start ConsoleConsumer if this is a Log Retention test                
+                # start ConsoleConsumer if this is a Log Retention test
                 # =============================================
                 if logRetentionTest.lower() == "true":
                     self.log_message("starting consumer in the background")
                     kafka_system_test_utils.start_console_consumer(self.systemTestEnv, self.testcaseEnv)
-                    time.sleep(1)
+                    time.sleep(30)
 
                 # =============================================
-                # starting producer 
+                # starting producer
                 # =============================================
                 self.log_message("starting producer in the background")
                 kafka_system_test_utils.start_producer_performance(self.systemTestEnv, self.testcaseEnv, False)
@@ -225,7 +225,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 numIterations    = int(self.testcaseEnv.testcaseArgumentsDict["num_iteration"])
                 brokerType       = self.testcaseEnv.testcaseArgumentsDict["broker_type"]
                 bounceBrokerFlag = self.testcaseEnv.testcaseArgumentsDict["bounce_broker"]
-                
+
                 while i <= numIterations:
                     self.log_message("Iteration " + str(i) + " of " + str(numIterations))
                     self.log_message("bounce_broker flag : " + bounceBrokerFlag)
@@ -291,7 +291,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                             # validate to see if leader election is successful
                             self.log_message("validating leader election")
                             kafka_system_test_utils.validate_leader_election_successful(self.testcaseEnv, leaderDict, self.testcaseEnv.validationStatusDict)
-                
+
                             # trigger leader re-election by stopping leader to get re-election latency
                             self.log_message("Stopping leader broker " + stoppedBrokerEntityId)
                             kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, stoppedBrokerEntityId, self.testcaseEnv.entityBrokerParentPidDict[stoppedBrokerEntityId])
@@ -322,13 +322,13 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                             pass # take default
                         time.sleep(brokerDownTimeInSec)
 
-                        # starting previously terminated broker 
+                        # starting previously terminated broker
                         self.log_message("starting the previously terminated broker")
                         kafka_system_test_utils.start_entity_in_background(self.systemTestEnv, self.testcaseEnv, stoppedBrokerEntityId)
 
                     else:
                         # GC Pause simulation
-                        pauseTime = None 
+                        pauseTime = None
                         try:
                             hostname  = leaderDict["hostname"]
                             pauseTime = self.testcaseEnv.testcaseArgumentsDict["pause_time_in_seconds"]
@@ -420,7 +420,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                     self.log_message("starting consumer in the background")
                     kafka_system_test_utils.start_console_consumer(self.systemTestEnv, self.testcaseEnv)
                     time.sleep(10)
-                    
+
                 # =============================================
                 # this testcase is completed - stop all entities
                 # =============================================
@@ -456,14 +456,14 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                     kafka_system_test_utils.validate_data_matched(self.systemTestEnv, self.testcaseEnv, replicationUtils)
 
                 kafka_system_test_utils.validate_index_log(self.systemTestEnv, self.testcaseEnv)
- 
+
                 # =============================================
                 # draw graphs
                 # =============================================
-#                metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME, 
-#                                        self.testcaseEnv, 
+#                metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME,
+#                                        self.testcaseEnv,
 #                                        self.systemTestEnv.clusterEntityConfigDictList)
-                
+
                 # build dashboard, one for each role
 #                metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
 #                                             self.testcaseEnv.testCaseDashboardsDir,
@@ -478,4 +478,3 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 if not skipThisTestCase and not self.systemTestEnv.printTestDescriptionsOnly:
                     self.log_message("stopping all entities - please wait ...")
                     kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)
-
