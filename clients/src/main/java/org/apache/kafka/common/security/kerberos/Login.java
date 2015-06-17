@@ -28,11 +28,13 @@ import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
+import javax.security.auth.callback.CallbackHandler;
 
-import org.apache.kafka.common.utils.SystemTime;
+import org.apache.kafka.common.network.SaslClientAuthenticator.ClientCallbackHandler;
 import org.apache.kafka.common.Shell;
 import org.apache.kafka.common.security.AuthUtils;
 import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.common.utils.SystemTime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,7 +82,7 @@ public class Login {
     private Time time = new SystemTime();
     // Initialize 'lastLogin' to do a login at first time
     private long lastLogin = time.currentElapsedTime() - MIN_TIME_BEFORE_RElogIN;
-
+    public CallbackHandler callbackHandler = new ClientCallbackHandler(null);
     /**
      * LoginThread constructor. The constructor starts the thread used
      * to periodically re-login to the Kerberos Ticket Granting Server.
@@ -294,7 +296,7 @@ public class Login {
         if (System.getProperty("java.security.auth.login.config") == null) {
             throw new IllegalArgumentException("You must pass java.security.auth.login.config in secure mode.");
         }
-        
+
         File config_file = new File(System.getProperty("java.security.auth.login.config"));
         Configuration loginConf = null;
         try {
@@ -303,8 +305,8 @@ public class Login {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
-        
-        LoginContext loginContext = new LoginContext(loginContextName);
+
+        LoginContext loginContext = new LoginContext(loginContextName, callbackHandler);
         loginContext.login();
         log.info("successfully logged in.");
         return loginContext;

@@ -247,8 +247,9 @@ public class SaslClientAuthenticator implements Authenticator {
                         } else {
                             LOG.warn("Could not login: the client is being asked for a password, but the Kafka" +
                               " client code does not currently support obtaining a password from the user." +
-                              " Make sure that the client is configured to use a ticket cache (using" +
-                              " the JAAS configuration setting 'useTicketCache=true)' and restart the client. Make sure you are using" +
+                              " Make sure -Djava.security.auth.login.config property passed to JVM and " +
+                              " the client is configured to use a ticket cache (using" +
+                              " the JAAS configuration setting 'useTicketCache=true)'. Make sure you are using" +
                               " FQDN of the Kafka broker you are trying to connect to. ");
                         }
                     }

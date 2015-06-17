@@ -124,6 +124,11 @@ fi
 #JAAS config file params
 if [ -z "$KAFKA_KERBEROS_PARAMS" ]; then
     KAFKA_KERBEROS_PARAMS=""
+else
+    # check client kerberos params present than it takes precedence
+    if [ ! -z "$KAFKA_KERBEROS_PARAMS" ] && [ ! -z "$KAFKA_CLIENT_KERBEROS_PARAMS" ]; then
+        KAFKA_KERBEROS_PARAMS=$KAFKA_CLIENT_KERBEROS_PARAMS
+    fi
 fi
 
 while [ $# -gt 0 ]; do
