@@ -162,14 +162,24 @@ class Log(val dir: File,
       } else if(filename.endsWith(LogFileSuffix)) {
         // if its a log file, load the corresponding log segment
         val start = filename.substring(0, filename.length - LogFileSuffix.length).toLong
-        val hasIndex = Log.indexFilename(dir, start).exists
-        val segment = new LogSegment(dir = dir, 
+        val indexFile = Log.indexFilename(dir, start)
+        val segment = new LogSegment(dir = dir,
                                      startOffset = start,
-                                     indexIntervalBytes = config.indexInterval, 
+                                     indexIntervalBytes = config.indexInterval,
                                      maxIndexSize = config.maxIndexSize,
                                      rollJitterMs = config.randomSegmentJitter,
                                      time = time)
-        if(!hasIndex) {
+
+        if(indexFile.exists()) {
+          try {
+              segment.index.sanityCheck()
+          } catch {
+            case e: java.lang.IllegalArgumentException =>
+              warn("Found an corrupted index file, %s, deleting and rebuilding index...".format(indexFile.getAbsolutePath))
+              indexFile.delete()
+              segment.recover(config.maxMessageSize)
+          }
+        } else {
           error("Could not find index file corresponding to log file %s, rebuilding index...".format(segment.log.file.getAbsolutePath))
           segment.recover(config.maxMessageSize)
         }
@@ -212,9 +222,6 @@ class Log(val dir: File,
       activeSegment.index.resize(config.maxIndexSize)
     }
 
-    // sanity check the index file of every segment to ensure we don't proceed with a corrupt segment
-    for (s <- logSegments)
-      s.index.sanityCheck()
   }
 
   private def updateLogEndOffset(messageOffset: Long) {
