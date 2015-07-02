@@ -285,8 +285,14 @@ object ZkUtils extends Logging {
    *  make sure a persistent path exists in ZK. Create the path if not exist.
    */
   def makeSurePersistentPathExists(client: ZkClient, path: String, acls: List[ACL] = DefaultAcls) {
+    var acl = acls
+    if(path == null || path.isEmpty || path.equals(ConsumersPath)) {
+      import scala.collection.JavaConversions._
+      acl = ZooDefs.Ids.OPEN_ACL_UNSAFE.toList
+    }
+
     if (!client.exists(path))
-      ZkPath.createPersistent(client, path, true, acls) //won't throw NoNodeException or NodeExistsException
+      ZkPath.createPersistent(client, path, true, acl) //won't throw NoNodeException or NodeExistsException
   }
 
   /**
