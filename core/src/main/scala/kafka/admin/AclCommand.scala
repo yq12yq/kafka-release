@@ -34,10 +34,12 @@ object AclCommand {
   def main(args: Array[String]): Unit = {
 
     val opts = new AclCommandOptions(args)
-    
+    opts.checkArgs()
+
     if(args.length == 0) {
       CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --list, --describe, --create, --alter or --delete")
     }
+
 
     val props: Properties = new Properties()
     props.load(new FileInputStream(new File(opts.options.valueOf(opts.config))))
@@ -48,8 +50,6 @@ object AclCommand {
     val actions = Seq(opts.addOpt, opts.removeOpt).count(opts.options.has _)
     if(actions != 1)
       CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --list, --add, --remove.")
-
-    opts.checkArgs()
 
     try {
       if(opts.options.has(opts.addOpt))
@@ -173,22 +173,24 @@ object AclCommand {
       .withRequiredArg
       .ofType(classOf[String])
 
-    val allowPrincipalsOpt = parser.accepts("allowprincipals", "comma separated list of principals where principal is in principalType: name format")
+    val allowPrincipalsOpt = parser.accepts("allowprincipals", "comma separated list of principals where principal is in principalType:principalName format " +
+      "i.e. user:bob@EXAMPLE.COM. Specifying user:* will allow access to all users.")
       .withRequiredArg
       .describedAs("allowprincipals")
       .ofType(classOf[String])
 
-    val denyPrincipalsOpt = parser.accepts("denyprincipals", "comma separated list of principals where principal is in principalType: name format")
+    val denyPrincipalsOpt = parser.accepts("denyprincipals", "comma separated list of principals where principal is in principalType:principalName format " +
+      "i.e. user:bob@EXAMPLE.COM. Specifying usre:* will deny access to all users.")
       .withRequiredArg
       .describedAs("denyPrincipalsOpt")
       .ofType(classOf[String])
 
-    val allowHostsOpt = parser.accepts("allowhosts", "comma separated list of principals where principal is in principalType: name format")
+    val allowHostsOpt = parser.accepts("allowhosts", "comma separated list of hosts , * indicates all hosts.")
       .withRequiredArg
       .describedAs("allowhosts")
       .ofType(classOf[String])
 
-    val denyHostssOpt = parser.accepts("denyhosts", "comma separated list of principals where principal is in principalType: name format")
+    val denyHostssOpt = parser.accepts("denyhosts", "comma separated list of hosts , * indicates all hosts.")
       .withRequiredArg
       .describedAs("denyhosts")
       .ofType(classOf[String])
