@@ -27,7 +27,6 @@ class KafkaServerStartable(val serverConfig: KafkaConfig) extends Logging {
   def startup() {
     try {
       server.startup()
-      AppInfo.registerInfo()
     }
     catch {
       case e: Throwable =>
@@ -56,9 +55,7 @@ class KafkaServerStartable(val serverConfig: KafkaConfig) extends Logging {
     server.brokerState.newState(newState)
   }
 
-  def awaitShutdown() = 
+  def awaitShutdown() =
     server.awaitShutdown
 
 }
-
-

@@ -5,7 +5,7 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
- * 
+ *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -23,10 +23,11 @@ import metrics.KafkaMetricsReporter
 import server.{KafkaConfig, KafkaServerStartable, KafkaServer}
 import kafka.utils.{VerifiableProperties, CommandLineUtils, Logging}
 import org.apache.kafka.common.utils.Utils
+import java.util.Properties
 
 object Kafka extends Logging {
 
-  def getKafkaConfigFromArgs(args: Array[String]): KafkaConfig = {
+  def getPropertiesFromArgs(args: Array[String]): Properties = {
     val optionParser = new OptionParser
     val overrideOpt = optionParser.accepts("override", "Optional property that should override values set in server.properties file")
       .withRequiredArg()
@@ -47,14 +48,18 @@ object Kafka extends Logging {
 
       props.putAll(CommandLineUtils.parseKeyValueArgs(options.valuesOf(overrideOpt)))
     }
+    props
+  }
 
-    KafkaConfig.fromProps(props)
+  def getKafkaConfigFromArgs(args: Array[String]): KafkaConfig = {
+    KafkaConfig.fromProps(getPropertiesFromArgs(args))
   }
 
   def main(args: Array[String]): Unit = {
     try {
       val serverConfig = getKafkaConfigFromArgs(args)
-      KafkaMetricsReporter.startReporters(new VerifiableProperties(serverConfig.toProps))
+      val serverProperties = getPropertiesFromArgs(args)
+      KafkaMetricsReporter.startReporters(new VerifiableProperties(serverProperties))
       val kafkaServerStartable = new KafkaServerStartable(serverConfig)
 
       // attach shutdown handler to catch control-c
