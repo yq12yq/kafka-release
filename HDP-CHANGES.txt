@@ -1,0 +1,80 @@
+Changes only in Hortonworks github and not in Apache Storm release 0.8.2.1
+
+Kafka-1688: Adding all public entities for adding a pluggable authorizer to kafka.
+KAFKA-1683: add Session concept in SocketServer.PlainTextTransportLayer fixes.
+KAFKA-1684: Kerberos/SASL implementation.
+kafka-2118: Cleaner cannot clean after shutdown during replaceSegments.
+KAFKA-2114: Unable to change min.insync.replicas default.
+KAFKA-2128: kafka.Kafka should return non-zero exit code when caught exception.
+KAFKA-2140: follow up, checking in newly renamed file ConsumerRebalanceFailedException.
+KAFKA-2122: Remove controller.message.queue.size Config
+KAFKA-2140: Improve code readability
+KAFKA-2034: sourceCompatibility not set in Kafka build.gradle
+KAFKA-2138: Fix producer to honor retry backoff; reviewed by Joel Koshy and Guozhang Wang
+KAFKA-2121: Close internnal modules upon client shutdown
+DelayedOperationTest.testRequestExpiry transient failure
+TopicConfigManager javadoc references incorrect paths
+kafka-1990: Add unlimited time-based log retention
+kafka-2131: Update new producer javadocs with correct documentation links
+kafka-1982: (add missing files) change kafka.examples.Producer to use the new java producer
+kafka-1982: change kafka.examples.Producer to use the new java producer
+kafka-1994: Evaluate performance effect of chroot check on Topic creation
+kafka-2088: kafka-console-consumer.sh should not create zookeeper path when no brokers found and chroot was set in zookeeper.connect.
+kafka-2119: ConsumerRecord key() and value() methods should not have throws Exception
+kafka-2113: TestPurgatoryPerformance does not compile using IBM JDK
+KAFKA-2056: Fix transient testRangePartitionAssignor failure
+KAFKA-1416: Unify sendMessages in TestUtils
+KAFKA-2117: Use the correct metadata field for reading offset struct
+kafka-2115: Error updating metrics in RequestChannel
+kafka-2112; make overflowWheel volatile
+kafka-2090: Remove duplicate check to metadataFetchInProgress
+kafka-2096: Enable keepalive socket option for broker to prevent socket leak
+kafka-1989: New purgatory design; patched by Yasuhiro Matsuda
+kafka-2109: Support retries in KafkaLog4jAppender
+kafka-2104; testDuplicateListeners() has a typo
+kafka-1517: Messages is a required argument to Producer Performance Test
+kafka-1973: Remove the accidentally created LogCleanerManager.scala.orig
+KAFKA-1910 Follow-up; Revert the no-offset-committed error code
+KAFKA-1461; Implement per-partition back-off for replica fetcher
+kafka-1992; checkEnoughReplicasReachOffset doesn't need to get requiredAcks
+kafka-2033; Small typo in documentation
+kafka-2099; BrokerEndPoint file, methods and object names should match
+kafka-2043; CompressionType is passed in each RecordAccumulator append
+kafka-1926; Replace kafka.utils.Utils with o.a.k.common.utils.Utils
+kafka-1809; Refactor brokers to allow listening on multiple ports and IPs
+KAFKA-1005 Shutdown consumer at the end of consumer performance test.
+KAFKA-1996 Fix scaladoc error.
+KAFKA-2024 Log compaction can generate unindexable segments.
+KAFKA-2002: Mx4JLoader doesn't disable when kafka_mx4jenable=false.
+KAFKA-2050 Avoid calling .size() on linked list.
+KAFKA-1501 Let the OS choose the port in unit tests to avoid collisions
+KAFKA-1546; Automate replica lag tuning;
+KAFKA-1961 Prevent deletion of _consumer_offsets topic
+kafka-2016; RollingBounceTest takes long
+kafka-2013; benchmark test for the purgatory
+kafka-2039; Update Scala to 2.10.5 and 2.11.6
+kafka-2044; Support requests and responses from o.a.k.common in KafkaApis
+KAFKA-1634; Bump up Offset Commit Request to v2 to add global retention and remove per-partition commit timestamp
+KAFKA-527; Use in-place decompression enabled inner iterator to replace old decompress function
+KAFKA-2047; Move the stream creation into concurrent mirror maker threads
+kafka-527; Compression support does numerous byte copies;
+KAFKA-2048; Change lock synchronized to inLock() for partitionMapCond
+KAFKA-2042; Update topic list of the metadata regardless of cluster information;
+KAFKA-1910; Fix two bugs on MemoryRecords and KafkaConsumer;
+KAFKA-1997; Hopefully last follow-up fix to get messageHandlerArgs right
+KAFKA-1997; Follow-up to add the shutdown hook before starting the consumers;
+KAFKA-1863; Add docs for possible thrown exception in Callback;
+KAFKA-1997; Refactor MirrorMaker based on KIP-3;
+kafka-1461; Replica fetcher thread does not implement any back-off behavior
+KAFKA-1910; Refactor new consumer and fixed a bunch of corner cases / unit tests
+KAFKA-2009 Fix two minor bugs in mirror maker.
+KAFKA-1845 KafkaConfig should use ConfigDef
+KAFKA-1988; Fix org.apache.kafka.common.utils.Utils.abs and add Partitioner.toPositive
+KAFKA-1986; Request failure rate should not include invalid message size and offset out of range
+KAFKA-1499; trivial follow-up (remove unnecessary parentheses)
+KAFKA-1852; Reject offset commits to unknown topics
+KAFKA-1755; Reject compressed and unkeyed messages sent to compacted topics
+KAFKA-1865 Add a flush() method to the producer.
+KAFKA-1824 ConsoleProducer - properties key.separator and parse.key no longer work
+KAFKA-1866 LogStartOffset gauge throws exceptions after log.delete()
+KAFKA-1664 Kafka does not properly parse multiple ZK nodes with non-root chroot
