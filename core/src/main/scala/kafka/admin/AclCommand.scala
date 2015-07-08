@@ -47,7 +47,7 @@ object AclCommand {
     val authZ: Authorizer = CoreUtils.createObject(kafkaConfig.authorizerClassName)
     authZ.initialize(kafkaConfig)
 
-    val actions = Seq(opts.addOpt, opts.removeOpt).count(opts.options.has _)
+    val actions = Seq(opts.addOpt, opts.removeOpt, opts.listOpt).count(opts.options.has _)
     if(actions != 1)
       CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --list, --add, --remove.")
 
