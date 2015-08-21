@@ -88,7 +88,9 @@ if [ -z "$KAFKA_JMX_OPTS" ]; then
 fi
 
 # JMX port to use
-if [  $JMX_PORT ]; then
+if [  $CLIENT_JMX_PORT ]; then
+  KAFKA_JMX_OPTS="$KAFKA_JMX_OPTS -Dcom.sun.management.jmxremote.port=$CLIENT_JMX_PORT "
+elif [  $JMX_PORT ]; then
   KAFKA_JMX_OPTS="$KAFKA_JMX_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT "
 fi
 
