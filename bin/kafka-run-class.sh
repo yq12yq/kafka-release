@@ -20,6 +20,20 @@ then
   exit 1
 fi
 
+# need to check if its called from kafka-server-start.sh
+# to correctly decide about JMX_PORT
+ISKAFKASERVER="false"
+numargs=$#
+for ((i=1 ; i <= numargs ; i++))
+do
+    if [ ${!i} = "-name" ]; then
+        j=$(( i + 1 ))
+        if [ ${!j} = "kafkaServer" ]; then
+            ISKAFKASERVER="true"
+        fi
+    fi
+done
+
 base_dir=$(dirname $0)/..
 
 # create logs directory
@@ -88,12 +102,14 @@ if [ -z "$KAFKA_JMX_OPTS" ]; then
 fi
 
 # JMX port to use
-if [  $CLIENT_JMX_PORT ]; then
-  JMX_PORT=$CLIENT_JMX_PORT
+if [ $ISKAFKASERVER = "true" ]; then
+    JMX_REMOTE_PORT=$JMX_PORT
+else
+    JMX_REMOTE_PORT=$CLIENT_JMX_PORT
 fi
 
-if [  $JMX_PORT ]; then
-  KAFKA_JMX_OPTS="$KAFKA_JMX_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT "
+if [ $JMX_REMOTE_PORT ]; then
+  KAFKA_JMX_OPTS="$KAFKA_JMX_OPTS -Dcom.sun.management.jmxremote.port=$JMX_REMOTE_PORT "
 fi
 
 # Log4j settings
