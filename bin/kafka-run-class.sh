@@ -23,16 +23,9 @@ fi
 # need to check if its called from kafka-server-start.sh
 # to correctly decide about JMX_PORT
 ISKAFKASERVER="false"
-numargs=$#
-for ((i=1 ; i <= numargs ; i++))
-do
-    if [ ${!i} = "-name" ]; then
-        j=$(( i + 1 ))
-        if [ ${!j} = "kafkaServer" ]; then
-            ISKAFKASERVER="true"
-        fi
-    fi
-done
+if [[ "$*" =~ "kafka.Kafka" ]]; then
+    ISKAFKASERVER="true"
+fi
 
 base_dir=$(dirname $0)/..
 
