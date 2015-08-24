@@ -18,6 +18,8 @@
  */
 package kafka.tools
 
+import org.apache.kafka.common.protocol.SecurityProtocol
+
 import kafka.consumer._
 import joptsimple._
 import kafka.api.{PartitionOffsetRequestInfo, OffsetRequest}
@@ -57,7 +59,12 @@ object GetOffsetShell {
                            .describedAs("ms")
                            .ofType(classOf[java.lang.Integer])
                            .defaultsTo(1000)
-                           
+    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
+                                    .withRequiredArg
+                                    .describedAs("security-protocol")
+                                    .ofType(classOf[String])
+                                    .defaultsTo("PLAINTEXT")
+
    if(args.length == 0)
       CommandLineUtils.printUsageAndDie(parser, "An interactive shell for getting consumer offsets.")
 
@@ -74,8 +81,9 @@ object GetOffsetShell {
     var time = options.valueOf(timeOpt).longValue
     val nOffsets = options.valueOf(nOffsetsOpt).intValue
     val maxWaitMs = options.valueOf(maxWaitMsOpt).intValue()
+    val securityProtocol = SecurityProtocol.valueOf(options.valueOf(securityProtocolOpt).toString)
 
-    val topicsMetadata = ClientUtils.fetchTopicMetadata(Set(topic), metadataTargetBrokers, clientId, maxWaitMs).topicsMetadata
+    val topicsMetadata = ClientUtils.fetchTopicMetadata(Set(topic), metadataTargetBrokers, clientId, maxWaitMs, securityProtocol = securityProtocol).topicsMetadata
     if(topicsMetadata.size != 1 || !topicsMetadata(0).topic.equals(topic)) {
       System.err.println(("Error: no valid topic metadata for topic: %s, " + " probably the topic does not exist, run ").format(topic) +
         "kafka-list-topic.sh to verify")
@@ -93,7 +101,7 @@ object GetOffsetShell {
         case Some(metadata) =>
           metadata.leader match {
             case Some(leader) =>
-              val consumer = new SimpleConsumer(leader.host, leader.port, 10000, 100000, clientId)
+              val consumer = new SimpleConsumer(leader.host, leader.port, 10000, 100000, clientId, securityProtocol)
               val topicAndPartition = TopicAndPartition(topic, partitionId)
               val request = OffsetRequest(Map(topicAndPartition -> PartitionOffsetRequestInfo(time, nOffsets)))
               val offsets = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets
