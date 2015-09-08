@@ -109,7 +109,7 @@ class SocketServer(val brokerId: Int,
 
     this.synchronized {
       endpoints.values.foreach(endpoint => {
-        val acceptor = new Acceptor(endpoint.host, endpoint.port, processors, sendBufferSize, recvBufferSize, quotas, endpoint.protocolType, portToProtocol)
+        val acceptor = new Acceptor(endpoint.host, endpoint.port, processors, sendBufferSize, recvBufferSize, maxRequestSize, quotas, endpoint.protocolType, portToProtocol)
         acceptors.put(endpoint, acceptor)
         Utils.newThread("kafka-socket-acceptor-%s-%d".format(endpoint.protocolType.toString, endpoint.port), acceptor, false).start()
         acceptor.awaitStartup
@@ -239,6 +239,7 @@ private[kafka] class Acceptor(val host: String,
                               private val processors: Array[Processor],
                               val sendBufferSize: Int,
                               val recvBufferSize: Int,
+                              val maxRequestSize: Int,
                               connectionQuotas: ConnectionQuotas,
                               protocol: SecurityProtocol,
                               portToProtocol: ConcurrentHashMap[Int, SecurityProtocol]) extends AbstractServerThread(connectionQuotas) {
@@ -332,16 +333,13 @@ private[kafka] class Acceptor(val host: String,
 
   private def createChannel(protocol: SecurityProtocol, socketChannel: SocketChannel) : Channel = {
     var transportLayer: TransportLayer = null
-    if (protocol == SecurityProtocol.SSL)
-      info("create ssl ")
-    else
-      transportLayer = new PlainTextTransportLayer(socketChannel)
+    transportLayer = new PlainTextTransportLayer(socketChannel)
 
     val principalBuilder = new DefaultPrincipalBuilder()
     var authenticator: Authenticator = null
 
     if (protocol == SecurityProtocol.PLAINTEXTSASL)
-      authenticator = new SaslServerAuthenticator(LoginManager.subject, transportLayer)
+      authenticator = new SaslServerAuthenticator(LoginManager.subject, transportLayer, maxRequestSize)
     else
       authenticator = new DefaultAuthenticator(transportLayer, principalBuilder)
 

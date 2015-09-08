@@ -63,6 +63,7 @@ public class SaslServerAuthenticator implements Authenticator {
     private Subject subject;
     private TransportLayer transportLayer;
     private int node = 0;
+    private int maxSize = NetworkReceive.UNLIMITED;
     private NetworkReceive netInBuffer;
     private NetworkSend netOutBuffer;
     private SaslServerCallbackHandler saslServerCallbackHandler;
@@ -73,10 +74,11 @@ public class SaslServerAuthenticator implements Authenticator {
 
     private SaslState saslState = SaslState.INITIAL;
 
-    public SaslServerAuthenticator(final Subject subject, TransportLayer transportLayer) throws IOException {
+    public SaslServerAuthenticator(final Subject subject, TransportLayer transportLayer, int maxSize) throws IOException {
         this.transportLayer = transportLayer;
         this.subject = subject;
         saslServer = createSaslServer();
+        this.maxSize = maxSize;
     }
 
     private SaslServer createSaslServer() throws IOException {
@@ -163,7 +165,7 @@ public class SaslServerAuthenticator implements Authenticator {
 
         byte[] clientToken = new byte[0];
 
-        if (netInBuffer == null) netInBuffer = new NetworkReceive(node);
+        if (netInBuffer == null) netInBuffer = new NetworkReceive(maxSize, node);
 
         long readLen = netInBuffer.readFrom(transportLayer);
         if (readLen == 0 || !netInBuffer.complete()) {
