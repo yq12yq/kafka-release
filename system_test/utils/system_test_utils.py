@@ -360,19 +360,23 @@ def setup_remote_hosts(systemTestEnv):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
 
     localKafkaHome = os.path.abspath(systemTestEnv.SYSTEM_TEST_BASE_DIR + "/..")
-    localJavaBin   = ""
-    localJavaHome  = ""
 
-    subproc = sys_call_return_subproc("which java")
-    for line in subproc.stdout.readlines():
-        if line.startswith("which: no "):
-            logger.error("No Java binary found in local host", extra=d)
-            return False
-        else:
-            line = line.rstrip('\n')
-            localJavaBin = line
-            matchObj = re.match("(.*)\/bin\/java$", line)
-            localJavaHome = matchObj.group(1)
+    # when configuring "default" java_home, use JAVA_HOME environment variable, if exists
+    # otherwise, use the directory with the java binary
+    localJavaHome  = os.environ.get('JAVA_HOME')
+    if localJavaHome is not None:
+        localJavaBin   = localJavaHome + '/bin/java'
+    else:
+        subproc = sys_call_return_subproc("which java")
+        for line in subproc.stdout.readlines():
+            if line.startswith("which: no "):
+                logger.error("No Java binary found in local host", extra=d)
+                return False
+            else:
+                line = line.rstrip('\n')
+                localJavaBin = line
+                matchObj = re.match("(.*)\/bin\/java$", line)
+                localJavaHome = matchObj.group(1)
 
     listIndex = -1
     for clusterEntityConfigDict in clusterEntityConfigDictList:
@@ -393,6 +397,7 @@ def setup_remote_hosts(systemTestEnv):
         kafkaHome = clusterEntityConfigDict["kafka_home"]
         javaHome  = clusterEntityConfigDict["java_home"]
 
+        remote_mkdir(hostname, kafkaHome + "/system_test/replication_testsuite/")
         logger.debug("checking java binary [" + localJavaBin + "] in host [" + hostname + "]", extra=d)
         if not remote_host_directory_exists(hostname, javaHome):
             logger.error("Directory not found: [" + javaHome + "] in host [" + hostname + "]", extra=d)
@@ -435,6 +440,12 @@ def remove_kafka_home_dir_at_remote_hosts(hostname, kafkaHome):
         logger.warn("check config file: system_test/cluster_config.properties", extra=d)
         logger.warn("aborting test...", extra=d)
         sys.exit(1)
+
+def remote_mkdir(hostname, dirpath):
+    cmdStr  = "ssh " + hostname + " 'mkdir -p " + dirpath + "'"
+    logger.info("executing command [" + cmdStr + "]", extra=d)
+    sys_call(cmdStr)
+
 
 def get_md5_for_file(filePathName, blockSize=8192):
     md5 = hashlib.md5()
@@ -620,6 +631,7 @@ def diff_lists(a, b):
     mismatchCount = 0
     d = difflib.Differ()
     diff = d.compare(a,b)
+
     for item in diff:
         result = item[0:1].strip()
         if len(result) > 0:

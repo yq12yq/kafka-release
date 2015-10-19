@@ -1,7 +1,23 @@
 # ==========================
-# Known Issues:
+# Quick Start
 # ==========================
-1. This test framework currently doesn't support MacOS due to different "ps" argument options from Linux. The correct ps execution is required to terminate the background running processes properly.
+
+* Please note that the following commands should be executed after downloading the kafka source code to build all the required binaries:
+  1. <kafka install dir>/ $ ./gradlew jar
+
+  Now you are ready to follow the steps below.
+  1. Update system_test/cluster_config.json for "kafka_home" & "java_home" specific to your environment
+  2. Edit system_test/replication_testsuite/testcase_1/testcase_1_properties.json and update "broker-list" to the proper settings of your environment. (If this test is to be run in a single localhost, no change is required for this.)
+  3. Create testcase_to_run.json file with the tests you wish to run. You can start by just copying one of our preset test suites. For example:
+    cp testcase_to_run_sanity.json testcase_to_run.json
+  4. To run the test, go to <kafka_home>/system_test and run the following command:
+     $ python -u -B system_test_runner.py 2>&1 | tee system_test_output.log
+  5. To turn on debugging, update system_test/logging.conf by changing the level in handlers session from INFO to DEBUG.
+
+  We also have three built-in test suites you can use after you set your environment (steps 1 and 2 above):
+  * run_sanity.sh - will run a single basic replication test
+  * run_all_replica.sh - will run all replication tests
+  * run_all.sh - will run all replication and mirror_maker tests
 
 # ==========================
 # Overview
@@ -44,21 +60,6 @@ The framework has the following levels:
    ** Please note the test framework will look for a specific prefix of the directories under system_test/<test suite dir>/ to determine what test cases are available. The prefix of <testcase directory name> can be defined in SystemTestEnv class (system_test_env.py)
 
 # ==========================
-# Quick Start
-# ==========================
-
-* Please note that the following commands should be executed after downloading the kafka source code to build all the required binaries:
-  1. <kafka install dir>/ $ ./sbt update package
-
-  Now you are ready to follow the steps below.
-  1. Update system_test/cluster_config.json for "kafka_home" & "java_home" specific to your environment
-  2. Edit system_test/replication_testsuite/testcase_1/testcase_1_properties.json and update "broker-list" to the proper settings of your environment. (If this test is to be run in a single localhost, no change is required for this.)
-  3. To run the test, go to <kafka_home>/system_test and run the following command:
-     $ python -B system_test_runner.py 
-  4. To turn on debugging, update system_test/system_test_runner.py and uncomment the following line:
-         namedLogger.setLevel(logging.DEBUG)
-
-# ==========================
 # Adding Test Case
 # ==========================
 
@@ -76,4 +77,7 @@ To create a new test case under "replication_testsuite", please do the following
   2. Rename system_test/replication_testsuite/testcase_2/testcase_1_properties.json => system_test/replication_testsuite/testcase_2/testcase_2_properties.json
   3. Update system_test/replication_testsuite/testcase_2/testcase_2_properties.json with the corresponding settings for testcase 2.
 
-
+Note:
+The following testcases are for the old producer and the old mirror maker. We can remove them once we phase out the old producer client.
+  replication_testsuite: testcase_{10101 - 10110} testcase_{10131 - 10134}
+  mirror_maker_testsuite: testcase_{15001 - 15006}

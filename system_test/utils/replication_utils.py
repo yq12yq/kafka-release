@@ -66,5 +66,5 @@ class ReplicationUtils(object):
             self.controllerAttributesDict["CONTROLLER_STARTUP_COMPLETE_MSG"]
 
         # Data Loss Percentage Threshold in Ack = 1 cases
-        self.ackOneDataLossThresholdPercent = 10.0
+        self.ackOneDataLossThresholdPercent = 5.0
 

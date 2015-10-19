@@ -36,7 +36,7 @@ import time
 import traceback
 
 import system_test_utils
-#import metrics
+# import metrics
 
 from datetime  import datetime
 from time      import mktime
@@ -155,7 +155,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                    hostname + ":" + rmtLogPathName + "/*",
                    logPathName]
         cmdStr  = " ".join(cmdList)
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
         # ==============================
@@ -165,7 +165,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                    hostname + ":" + rmtMetricsPathName + "/*",
                    metricsPathName]
         cmdStr  = " ".join(cmdList)
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
         # ==============================
@@ -179,7 +179,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                        hostname + ":" + dataLogPathName,
                        logPathName]
             cmdStr  = " ".join(cmdList)
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
         # ==============================
@@ -193,7 +193,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                        hostname + ":" + dataLogPathName,
                        logPathName]
             cmdStr  = " ".join(cmdList)
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
     # ==============================
@@ -209,7 +209,7 @@ def collect_logs_from_remote_hosts(systemTestEnv, testcaseEnv):
                hostname + ":" + rmtDashboardsPathName + "/*",
                dashboardsPathName]
     cmdStr  = " ".join(cmdList)
-    logger.debug("executing command [" + cmdStr + "]", extra=d)
+    logger.info("executing command [" + cmdStr + "]", extra=d)
     system_test_utils.sys_call(cmdStr)
 
 
@@ -241,7 +241,7 @@ def generate_testcase_log_dirs_in_remote_hosts(systemTestEnv, testcaseEnv):
                    metricsPathName,
                    dashboardsPathName + "'"]
         cmdStr  = " ".join(cmdList)
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
 
@@ -402,7 +402,7 @@ def generate_overriden_props_files(testsuitePathname, testcaseEnv, systemTestEnv
     # for each entity in the cluster config
     for clusterCfg in clusterConfigsList:
         cl_entity_id = clusterCfg["entity_id"]
-
+        hostname = clusterCfg["hostname"]
         # loop through testcase config list 'tcConfigsList' for a matching cluster entity_id
         for tcCfg in tcConfigsList:
             if (tcCfg["entity_id"] == cl_entity_id):
@@ -436,6 +436,15 @@ def generate_overriden_props_files(testsuitePathname, testcaseEnv, systemTestEnv
                     addedCSVConfig["kafka.metrics.polling.interval.secs"] = "5"
                     addedCSVConfig["kafka.metrics.reporters"] = "kafka.metrics.KafkaCSVMetricsReporter"
                     addedCSVConfig["kafka.csv.metrics.reporter.enabled"] = "true"
+                    if systemTestEnv.SECURE_MODE:
+                        addedCSVConfig["listeners"] = "PLAINTEXTSASL://" + hostname + ":"+tcCfg["port"]
+                        addedCSVConfig["listeners"] = "PLAINTEXTSASL://" + hostname + ":"+tcCfg["port"]
+                        addedCSVConfig["super.users"] = "User:kafka"
+                        addedCSVConfig["principal.to.local.class"] = "kafka.security.auth.KerberosPrincipalToLocal"
+                        addedCSVConfig["authorizer.class.name"] = "kafka.security.auth.SimpleAclAuthorizer"
+                        addedCSVConfig["security.inter.broker.protocol"] = "PLAINTEXTSASL"
+                    else:
+                        addedCSVConfig["listeners"] = "PLAINTEXT://" + hostname + ":"+tcCfg["port"]
 
                     if brokerVersion == "0.7":
                         addedCSVConfig["brokerid"] = tcCfg["brokerid"]
@@ -458,6 +467,7 @@ def generate_overriden_props_files(testsuitePathname, testcaseEnv, systemTestEnv
 
                 elif ( clusterCfg["role"] == "mirror_maker"):
                     tcCfg["metadata.broker.list"] = testcaseEnv.userDefinedEnvVarDict["targetBrokerList"]
+                    tcCfg["bootstrap.servers"] = testcaseEnv.userDefinedEnvVarDict["targetBrokerList"] # for new producer
                     copy_file_with_dict_values(cfgTemplatePathname + "/mirror_producer.properties",
                         cfgDestPathname + "/" + tcCfg["mirror_producer_config_filename"], tcCfg, None)
 
@@ -487,7 +497,7 @@ def scp_file_to_remote_host(clusterEntityConfigDictList, testcaseEnv):
             remoteTestcasePathName = replace_kafka_home(localTestcasePathName, kafkaHome)
 
         cmdStr = "scp " + localTestcasePathName + "/config/* " + hostname + ":" + remoteTestcasePathName + "/config"
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
 
@@ -522,7 +532,7 @@ def start_zookeepers(systemTestEnv, testcaseEnv):
                 zkServerId  = matchObj.group(1)
 
         cmdStr = "ssh " + hostname + " 'mkdir -p " + dataDir + "; echo " + zkServerId + " > " + dataDir + "/myid'"
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(cmdStr)
         for line in subproc.stdout.readlines():
             pass    # dummy loop to wait until producer is completed
@@ -538,6 +548,17 @@ def start_brokers(systemTestEnv, testcaseEnv):
 
     for brokerEntityId in brokerEntityIdList:
         start_entity_in_background(systemTestEnv, testcaseEnv, brokerEntityId)
+
+def start_console_consumers(systemTestEnv, testcaseEnv, onlyThisEntityId=None):
+
+    if onlyThisEntityId is not None:
+        start_entity_in_background(systemTestEnv, testcaseEnv, onlyThisEntityId)
+    else:
+        clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
+        consoleConsumerEntityIdList = system_test_utils.get_data_from_list_of_dicts(
+            clusterEntityConfigDictList, "role", "console_consumer", "entity_id")
+        for entityId in consoleConsumerEntityIdList:
+            start_entity_in_background(systemTestEnv, testcaseEnv, entityId)
 
 
 def start_mirror_makers(systemTestEnv, testcaseEnv, onlyThisEntityId=None):
@@ -579,7 +600,7 @@ def get_broker_shutdown_log_line(systemTestEnv, testcaseEnv, leaderAttributesDic
                       "sort | tail -1\""]
         cmdStr     = " ".join(cmdStrList)
 
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(cmdStr)
         for line in subproc.stdout.readlines():
 
@@ -613,7 +634,7 @@ def get_broker_shutdown_log_line(systemTestEnv, testcaseEnv, leaderAttributesDic
 
 def get_leader_elected_log_line(systemTestEnv, testcaseEnv, leaderAttributesDict):
 
-    logger.debug("looking up leader...", extra=d)
+    logger.info("looking up leader...", extra=d)
 
     # keep track of leader related data in this dict such as broker id,
     # entity id and timestamp and return it to the caller function
@@ -643,7 +664,7 @@ def get_leader_elected_log_line(systemTestEnv, testcaseEnv, leaderAttributesDict
                       "sort | tail -1\""]
         cmdStr     = " ".join(cmdStrList)
 
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(cmdStr)
         for line in subproc.stdout.readlines():
 
@@ -678,6 +699,17 @@ def get_leader_elected_log_line(systemTestEnv, testcaseEnv, leaderAttributesDict
     return leaderDict
 
 
+def get_broker_config(systemTestEnv, testcaseEnv, entityId):
+    testcaseConfigsList = testcaseEnv.testcaseConfigsList
+    clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
+
+    kafkaHome = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", entityId, "kafka_home")
+    configFile = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "config_filename")
+    configPathName = get_testcase_config_log_dir_pathname(testcaseEnv, "broker", entityId, "config")
+    configPathName = replace_kafka_home(configPathName, kafkaHome)
+
+    return configPathName + "/" + configFile
+
 def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
 
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
@@ -689,6 +721,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
     javaHome  = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", entityId, "java_home")
     jmxPort   = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", entityId, "jmx_port")
     clusterName = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", entityId, "cluster_name")
+    secureMode = systemTestEnv.SECURE_MODE
 
     # testcase configurations:
     testcaseConfigsList = testcaseEnv.testcaseConfigsList
@@ -696,6 +729,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
     configFile = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "config_filename")
     logFile    = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "log_filename")
 
+    useNewProducer = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "new-producer")
     mmConsumerConfigFile = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId,
                            "mirror_consumer_config_filename")
     mmProducerConfigFile = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId,
@@ -711,9 +745,11 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
         logPathName    = replace_kafka_home(logPathName, kafkaHome)
 
     if role == "zookeeper":
+        zkEnvSetting = "KAFKA_KERBEROS_PARAMS='-Djava.security.auth.login.config=/etc/zookeeper/conf/zookeeper_jaas.conf'" if secureMode else ""
         cmdList = ["ssh " + hostname,
                   "'JAVA_HOME=" + javaHome,
                   "JMX_PORT=" + jmxPort,
+                  zkEnvSetting,
                   kafkaHome + "/bin/zookeeper-server-start.sh ",
                   configPathName + "/" + configFile + " &> ",
                   logPathName + "/" + logFile + " & echo pid:$! > ",
@@ -722,31 +758,115 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
     elif role == "broker":
         cmdList = ["ssh " + hostname,
                   "'JAVA_HOME=" + javaHome,
-                 "JMX_PORT=" + jmxPort,
+                  "JMX_PORT=" + jmxPort,
+                  "KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%s/config/log4j.properties" % kafkaHome,
                   kafkaHome + "/bin/kafka-run-class.sh kafka.Kafka",
                   configPathName + "/" + configFile + " >> ",
                   logPathName + "/" + logFile + " & echo pid:$! > ",
                   logPathName + "/entity_" + entityId + "_pid'"]
 
     elif role == "mirror_maker":
+        if useNewProducer.lower() == "true":
+            cmdList = ["ssh " + hostname,
+                      "'JAVA_HOME=" + javaHome,
+                      "JMX_PORT=" + jmxPort,
+                      kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
+                      "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
+                      "--producer.config " + configPathName + "/" + mmProducerConfigFile,
+                      # "--new.producer",
+                      "--whitelist=\".*\" >> ",
+                      logPathName + "/" + logFile + " & echo pid:$! > ",
+                      logPathName + "/entity_" + entityId + "_pid'"]
+        else:
+            cmdList = ["ssh " + hostname,
+                      "'JAVA_HOME=" + javaHome,
+                      "JMX_PORT=" + jmxPort,
+                      kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
+                      "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
+                      "--producer.config " + configPathName + "/" + mmProducerConfigFile,
+                      "--whitelist=\".*\" >> ",
+                      logPathName + "/" + logFile + " & echo pid:$! > ",
+                      logPathName + "/entity_" + entityId + "_pid'"]
+
+    elif role == "console_consumer":
+        clusterToConsumeFrom = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "cluster_name")
+        numTopicsForAutoGenString = -1
+        try:
+            numTopicsForAutoGenString = int(testcaseEnv.testcaseArgumentsDict["num_topics_for_auto_generated_string"])
+        except:
+            pass
+
+        topic = ""
+        if numTopicsForAutoGenString < 0:
+            topic = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "topic")
+        else:
+            topic = generate_topics_string("topic", numTopicsForAutoGenString)
+
+        # update this variable and will be used by data validation functions
+        testcaseEnv.consumerTopicsString = topic
+
+        # 2. consumer timeout
+        timeoutMs = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "consumer-timeout-ms")
+
+        # 3. consumer formatter
+        formatterOption = ""
+        try:
+            formatterOption = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "formatter")
+        except:
+            pass
+
+        # 4. consumer config
+        consumerProperties = {}
+        consumerProperties["consumer.timeout.ms"] = timeoutMs
+        try:
+            groupOption = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "group.id")
+            consumerProperties["group.id"] = groupOption
+        except:
+            pass
+
+        props_file_path=write_consumer_properties(consumerProperties)
+        scpCmdStr = "scp "+ props_file_path +" "+ hostname + ":/tmp/"
+        logger.info("executing command [" + scpCmdStr + "]", extra=d)
+        system_test_utils.sys_call(scpCmdStr)
+
+        if len(formatterOption) > 0:
+            formatterOption = " --formatter " + formatterOption + " "
+
+        # get zookeeper connect string
+        zkConnectStr = ""
+        if clusterName == "source":
+            zkConnectStr = testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"]
+        elif clusterName == "target":
+            zkConnectStr = testcaseEnv.userDefinedEnvVarDict["targetZkConnectStr"]
+        else:
+            logger.error("Invalid cluster name : " + clusterName, extra=d)
+            sys.exit(1)
+        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
+        securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
         cmdList = ["ssh " + hostname,
-                  "'JAVA_HOME=" + javaHome,
-                 "JMX_PORT=" + jmxPort,
-                  kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
-                  "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
-                  "--producer.config " + configPathName + "/" + mmProducerConfigFile,
-                  "--whitelist=\".*\" >> ",
-                  logPathName + "/" + logFile + " & echo pid:$! > ",
-                  logPathName + "/entity_" + entityId + "_pid'"]
+                   "'(", kinitCmd,
+                   "JAVA_HOME=" + javaHome,
+                   "JMX_PORT=" + jmxPort,
+                   kafkaHome + "/bin/kafka-run-class.sh kafka.tools.ConsoleConsumer",
+                   "--zookeeper " + zkConnectStr,
+                   "--topic " + topic,
+                   "--consumer.config /tmp/consumer.properties",
+                   "--csv-reporter-enabled",
+                   securityProtocol,
+                   formatterOption,
+                   "--from-beginning",
+                   " >> " + logPathName + "/" + logFile + " & echo pid:$! > ",
+                   logPathName + "/entity_" + entityId + "_pid)'"]
 
     cmdStr = " ".join(cmdList)
 
-    logger.debug("executing command: [" + cmdStr + "]", extra=d)
+    logger.info("executing command: [" + cmdStr + "]", extra=d)
     system_test_utils.async_sys_call(cmdStr)
+    logger.info("sleeping for 5 seconds.", extra=d)
     time.sleep(5)
 
     pidCmdStr = "ssh " + hostname + " 'cat " + logPathName + "/entity_" + entityId + "_pid' 2> /dev/null"
-    logger.debug("executing command: [" + pidCmdStr + "]", extra=d)
+    logger.info("executing command: [" + pidCmdStr + "]", extra=d)
     subproc = system_test_utils.sys_call_return_subproc(pidCmdStr)
 
     # keep track of the remote entity pid in a dictionary
@@ -761,6 +881,8 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                 testcaseEnv.entityBrokerParentPidDict[entityId] = tokens[1]
             elif role == "mirror_maker":
                 testcaseEnv.entityMirrorMakerParentPidDict[entityId] = tokens[1]
+            elif role == "console_consumer":
+                testcaseEnv.entityConsoleConsumerParentPidDict[entityId] = tokens[1]
 
 
 def start_console_consumer(systemTestEnv, testcaseEnv):
@@ -835,19 +957,32 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
             logger.error("Invalid cluster name : " + clusterName, extra=d)
             sys.exit(1)
 
+        consumerProperties = {}
+        consumerProperties["consumer.timeout.ms"] = timeoutMs
+        props_file_path=write_consumer_properties(consumerProperties)
+        scpCmdStr = "scp "+ props_file_path +" "+ host + ":/tmp/"
+        logger.info("executing command [" + scpCmdStr + "]", extra=d)
+        system_test_utils.sys_call(scpCmdStr)
+
+        secureMode = systemTestEnv.SECURE_MODE
+        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
+        securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
+
         cmdList = ["ssh " + host,
-                   "'JAVA_HOME=" + javaHome,
+                   "'(", kinitCmd,
+                   "JAVA_HOME=" + javaHome,
                    "JMX_PORT=" + jmxPort,
-                   kafkaRunClassBin + " kafka.consumer.ConsoleConsumer",
+                   kafkaRunClassBin + " kafka.tools.ConsoleConsumer",
                    "--zookeeper " + zkConnectStr,
                    "--topic " + topic,
-                   "--consumer-timeout-ms " + timeoutMs,
+                   "--consumer.config /tmp/consumer.properties",
                    "--csv-reporter-enabled",
                    #"--metrics-dir " + metricsDir,
                    formatterOption,
                    "--from-beginning ",
+                   securityProtocol,
                    " >> " + consumerLogPathName,
-                   " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid'"]
+                   " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid)'"]
 
         cmdStr = " ".join(cmdList)
 
@@ -855,7 +990,7 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
         system_test_utils.async_sys_call(cmdStr)
 
         pidCmdStr = "ssh " + host + " 'cat " + consumerLogPath + "/entity_" + entityId + "_pid'"
-        logger.debug("executing command: [" + pidCmdStr + "]", extra=d)
+        logger.info("executing command: [" + pidCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(pidCmdStr)
 
         # keep track of the remote entity pid in a dictionary
@@ -871,7 +1006,7 @@ def start_producer_performance(systemTestEnv, testcaseEnv, kafka07Client):
     entityConfigList     = systemTestEnv.clusterEntityConfigDictList
     testcaseConfigsList  = testcaseEnv.testcaseConfigsList
     brokerListStr = ""
-
+    secureMode = systemTestEnv.SECURE_MODE
     # construct "broker-list" for producer
     for entityConfig in entityConfigList:
         entityRole = entityConfig["role"]
@@ -887,11 +1022,13 @@ def start_producer_performance(systemTestEnv, testcaseEnv, kafka07Client):
         jmxPort           = producerConfig["jmx_port"]
         role              = producerConfig["role"]
 
-        thread.start_new_thread(start_producer_in_thread, (testcaseEnv, entityConfigList, producerConfig, kafka07Client))
+        thread.start_new_thread(start_producer_in_thread, (testcaseEnv, entityConfigList, producerConfig, kafka07Client, secureMode))
+        logger.debug("calling testcaseEnv.lock.acquire()", extra=d)
         testcaseEnv.lock.acquire()
         testcaseEnv.numProducerThreadsRunning += 1
         logger.debug("testcaseEnv.numProducerThreadsRunning : " + str(testcaseEnv.numProducerThreadsRunning), extra=d)
         time.sleep(1)
+        logger.debug("calling testcaseEnv.lock.release()", extra=d)
         testcaseEnv.lock.release()
 
 def generate_topics_string(topicPrefix, numOfTopics):
@@ -922,7 +1059,7 @@ def generate_topics_string(topicPrefix, numOfTopics):
         counter += 1
     return topicsStr
 
-def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafka07Client):
+def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafka07Client, secureMode):
     host              = producerConfig["hostname"]
     entityId          = producerConfig["entity_id"]
     jmxPort           = producerConfig["jmx_port"]
@@ -932,6 +1069,9 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     javaHome          = system_test_utils.get_data_by_lookup_keyval(entityConfigList, "entity_id", entityId, "java_home")
     jmxPort           = system_test_utils.get_data_by_lookup_keyval(entityConfigList, "entity_id", entityId, "jmx_port")
     kafkaRunClassBin  = kafkaHome + "/bin/kafka-run-class.sh"
+
+    # first keep track of its pid
+    testcaseEnv.producerHostParentPidDict[entityId] = os.getpid()
 
     # get optional testcase arguments
     numTopicsForAutoGenString = -1
@@ -957,6 +1097,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     noMsgPerBatch  = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "message")
     requestNumAcks = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "request-num-acks")
     syncMode       = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "sync")
+    useNewProducer = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "new-producer")
     retryBackoffMs = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "producer-retry-backoff-ms")
     numOfRetries   = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "producer-num-retries")
 
@@ -996,8 +1137,23 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     if syncMode.lower() == "true":
         boolArgumentsStr = boolArgumentsStr + " --sync"
 
+    if useNewProducer.lower() == "true":
+        boolArgumentsStr = boolArgumentsStr + " --new-producer"
+
     # keep calling producer until signaled to stop by:
     # testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]
+    kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
+    securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
+    if secureMode:
+        kinitCmdList = ["ssh " + host,
+                        kinitCmd]
+        kinitcmdStr = " ".join(kinitCmdList)
+        logger.info("executing command: [" + kinitcmdStr + "]", extra=d)
+        subproc = system_test_utils.sys_call_return_subproc(kinitcmdStr)
+        logger.debug("waiting for kinit to finish", extra=d)
+        subproc.communicate()
+
+
     while 1:
         logger.debug("calling testcaseEnv.lock.acquire()", extra=d)
         testcaseEnv.lock.acquire()
@@ -1011,7 +1167,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        "'JAVA_HOME=" + javaHome,
                        "JMX_PORT=" + jmxPort,
                        "KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%s/config/test-log4j.properties" % kafkaHome,
-                       kafkaRunClassBin + " kafka.perf.ProducerPerformance",
+                       kafkaRunClassBin + " kafka.tools.ProducerPerformance",
                        "--broker-list " + brokerListStr,
                        "--initial-message-id " + str(initMsgId),
                        "--messages " + noMsgPerBatch,
@@ -1024,9 +1180,11 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        "--producer-num-retries " + numOfRetries,
                        "--csv-reporter-enabled",
                        "--metrics-dir " + metricsDir,
+                       securityProtocol,
                        boolArgumentsStr,
                        " >> " + producerLogPathName,
-                       " & echo pid:$! > " + producerLogPath + "/entity_" + entityId + "_pid'"]
+                       " & echo $! > " + producerLogPath + "/entity_" + entityId + "_pid",
+                       " & wait'"]
 
             if kafka07Client:
                 cmdList[:] = []
@@ -1044,10 +1202,11 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                 brokerInfoStr = "broker.list=" + brokerInfoStr
 
                 cmdList = ["ssh " + host,
-                       "'JAVA_HOME=" + javaHome,
+                       "'(", kinitCmd,
+                       "JAVA_HOME=" + javaHome,
                        "JMX_PORT=" + jmxPort,
                        "KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%s/config/test-log4j.properties" % kafkaHome,
-                       kafkaRunClassBin + " kafka.perf.ProducerPerformance",
+                       kafkaRunClassBin + " kafka.tools.ProducerPerformance",
                        "--brokerinfo " + brokerInfoStr,
                        "--initial-message-id " + str(initMsgId),
                        "--messages " + noMsgPerBatch,
@@ -1056,18 +1215,22 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        "--compression-codec " + compCodec,
                        "--message-size " + messageSize,
                        "--vary-message-size --async",
+                       securityProtocol,
                        " >> " + producerLogPathName,
-                       " & echo pid:$! > " + producerLogPath + "/entity_" + entityId + "_pid'"]
+                       " & echo $! > " + producerLogPath + "/entity_" + entityId + "_pid",
+                       " & wait)'"]
 
             cmdStr = " ".join(cmdList)
-            logger.debug("executing command: [" + cmdStr + "]", extra=d)
+            logger.info("executing command: [" + cmdStr + "]", extra=d)
 
             subproc = system_test_utils.sys_call_return_subproc(cmdStr)
-            for line in subproc.stdout.readlines():
-                pass    # dummy loop to wait until producer is completed
+            logger.debug("waiting for producer to finish", extra=d)
+            subproc.communicate()
+            logger.debug("producer finished", extra=d)
         else:
             testcaseEnv.numProducerThreadsRunning -= 1
             logger.debug("testcaseEnv.numProducerThreadsRunning : " + str(testcaseEnv.numProducerThreadsRunning), extra=d)
+            logger.debug("calling testcaseEnv.lock.release()", extra=d)
             testcaseEnv.lock.release()
             break
 
@@ -1079,16 +1242,22 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     # wait until other producer threads also stops and
     # let the main testcase know all producers have stopped
     while 1:
+        logger.debug("calling testcaseEnv.lock.acquire()", extra=d)
         testcaseEnv.lock.acquire()
         time.sleep(1)
         if testcaseEnv.numProducerThreadsRunning == 0:
             testcaseEnv.userDefinedEnvVarDict["backgroundProducerStopped"] = True
+            logger.debug("calling testcaseEnv.lock.release()", extra=d)
             testcaseEnv.lock.release()
             break
         else:
             logger.debug("waiting for TRUE of testcaseEnv.userDefinedEnvVarDict['backgroundProducerStopped']", extra=d)
+            logger.debug("calling testcaseEnv.lock.release()", extra=d)
             testcaseEnv.lock.release()
         time.sleep(1)
+
+    # finally remove itself from the tracking pids
+    del testcaseEnv.producerHostParentPidDict[entityId]
 
 def stop_remote_entity(systemTestEnv, entityId, parentPid, signalType="SIGTERM"):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
@@ -1096,7 +1265,7 @@ def stop_remote_entity(systemTestEnv, entityId, parentPid, signalType="SIGTERM")
     hostname  = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", entityId, "hostname")
     pidStack  = system_test_utils.get_remote_child_processes(hostname, parentPid)
 
-    logger.debug("terminating (" + signalType + ") process id: " + parentPid + " in host: " + hostname, extra=d)
+    logger.info("terminating (" + signalType + ") process id: " + parentPid + " in host: " + hostname, extra=d)
 
     if signalType.lower() == "sigterm":
         system_test_utils.sigterm_remote_process(hostname, pidStack)
@@ -1117,10 +1286,12 @@ def force_stop_remote_entity(systemTestEnv, entityId, parentPid):
     system_test_utils.sigkill_remote_process(hostname, pidStack)
 
 
-def create_topic(systemTestEnv, testcaseEnv):
+def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
 
     prodPerfCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "producer_performance")
+    brokerEntityIdList = system_test_utils.get_data_from_list_of_dicts(clusterEntityConfigDictList, "role", "broker", "entity_id")
+    brokerConfigFile = get_broker_config(systemTestEnv, testcaseEnv, brokerEntityIdList[0])
 
     for prodPerfCfg in prodPerfCfgList:
         topicsStr       = system_test_utils.get_data_by_lookup_keyval(testcaseEnv.testcaseConfigsList, "entity_id", prodPerfCfg["entity_id"], "topic")
@@ -1145,23 +1316,187 @@ def create_topic(systemTestEnv, testcaseEnv):
 
         testcaseBaseDir = testcaseEnv.testCaseBaseDir
 
+        secureMode = systemTestEnv.SECURE_MODE
+        kinitCmd = "kinit -k -t /etc/security/keytabs/kafka.service.keytab kafka/"+zkHost+";" if secureMode else ""
+        kafkaAclCommand = kafkaHome + "/bin/kafka-acls.sh"
+
         if zkHost != "localhost":
             testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
 
         for topic in topicsList:
             logger.info("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
             cmdList = ["ssh " + zkHost,
-                       "'JAVA_HOME=" + javaHome,
+                       "'(", kinitCmd,
+                       "JAVA_HOME=" + javaHome,
                        createTopicBin,
                        " --topic "     + topic,
                        " --zookeeper " + zkConnectStr,
                        " --replication-factor "   + testcaseEnv.testcaseArgumentsDict["replica_factor"],
                        " --partitions " + testcaseEnv.testcaseArgumentsDict["num_partition"] + " >> ",
-                       testcaseBaseDir + "/logs/create_source_cluster_topic.log'"]
+                       testcaseBaseDir + "/logs/create_source_cluster_topic.log)'"]
 
             cmdStr = " ".join(cmdList)
-            logger.debug("executing command: [" + cmdStr + "]", extra=d)
+            logger.info("executing command: [" + cmdStr + "]", extra=d)
             subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+            if secureMode:
+                kafkaAclCmdList = ["ssh " + zkHost,
+                                   "JAVA_HOME=" + javaHome,
+                                   kafkaAclCommand,
+                                   " --topic " + topic,
+                                   " --add " +
+                                   " --allowprincipals " + "User:ambari-qa",
+                                   " --config " + brokerConfigFile]
+                kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+                logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+                subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+
+
+def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_partitions):
+    clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
+    zkEntityId      = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "entity_id")
+    kafkaHome       = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", zkEntityId, "kafka_home")
+    javaHome        = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", zkEntityId, "java_home")
+    brokerEntityIdList = system_test_utils.get_data_from_list_of_dicts(clusterEntityConfigDictList, "role", "broker", "entity_id")
+    brokerConfigFile = get_broker_config(systemTestEnv, testcaseEnv, brokerEntityIdList[0])
+    kafkaAclCommand = kafkaHome + "/bin/kafka-acls.sh"
+    createTopicBin  = kafkaHome + "/bin/kafka-topics.sh --create"
+    zkConnectStr = ""
+    zkHost = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "hostname")
+    if len(testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"]) > 0:
+        zkConnectStr = testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"]
+    elif len(testcaseEnv.userDefinedEnvVarDict["targetZkConnectStr"]) > 0:
+        zkConnectStr = testcaseEnv.userDefinedEnvVarDict["targetZkConnectStr"]
+    else:
+        raise Exception("Empty zkConnectStr found")
+
+    testcaseBaseDir = testcaseEnv.testCaseBaseDir
+
+    testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
+
+    secureMode = systemTestEnv.SECURE_MODE
+    kinitCmd = ("kinit -k -t /etc/security/keytabs/kafka.service.keytab kafka/" + zkHost + ";") if secureMode else ""
+
+    logger.info("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
+    cmdList = ["ssh " + zkHost,
+               "'(", kinitCmd,
+               "JAVA_HOME=" + javaHome,
+               createTopicBin,
+               " --topic "     + topic,
+               " --zookeeper " + zkConnectStr,
+               " --replication-factor "   + str(replication_factor),
+               " --partitions " + str(num_partitions) + " >> ",
+               testcaseBaseDir + "/logs/create_source_cluster_topic.log)'"]
+
+    cmdStr = " ".join(cmdList)
+    logger.info("executing command: [" + cmdStr + "]", extra=d)
+    subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+    if secureMode:
+        kafkaAclCmdList = ["ssh " + zkHost,
+                           "JAVA_HOME=" + javaHome,
+                           kafkaAclCommand,
+                           " --topic " + topic,
+                           " --add " +
+                           " --allowprincipals " + "User:ambari-qa",
+                           " --config " + brokerConfigFile]
+        kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+        logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+        subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+
+
+def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
+    clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
+    zkEntityId      = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "entity_id")
+    kafkaHome       = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", zkEntityId, "kafka_home")
+    javaHome        = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", zkEntityId, "java_home")
+    brokerEntityIdList = system_test_utils.get_data_from_list_of_dicts(clusterEntityConfigDictList, "role", "broker", "entity_id")
+    brokerConfigFile = get_broker_config(systemTestEnv, testcaseEnv, brokerEntityIdList[0])
+    kafkaAclCommand = kafkaHome + "/bin/kafka-acls.sh"
+    zkHost = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "hostname")
+    secureMode = systemTestEnv.SECURE_MODE
+    kinitCmd = ("kinit -k -t /etc/security/keytabs/kafka.service.keytab kafka/" + zkHost + ";") if secureMode else ""
+    createTopicBin  = kafkaHome + "/bin/kafka-topics.sh --create"
+    testcaseBaseDir = testcaseEnv.testCaseBaseDir
+    testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
+    testcaseDirName = testcaseEnv.testcaseResultsDict["_test_case_name"]
+    zkConnectStr = ""
+    zkHost = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "hostname")
+    if len(testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"]) > 0:
+        zkConnectStr = testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"]
+    elif len(testcaseEnv.userDefinedEnvVarDict["targetZkConnectStr"]) > 0:
+        zkConnectStr = testcaseEnv.userDefinedEnvVarDict["targetZkConnectStr"]
+    else:
+        raise Exception("Empty zkConnectStr found")
+
+    if secureMode:
+        kafkaAclCmdList = ["ssh " + zkHost,
+                           "JAVA_HOME=" + javaHome,
+                           kafkaAclCommand,
+                           " --cluster ",
+                           " --add " +
+                           " --allowprincipals " + "User:ambari-qa",
+                           " --config " + brokerConfigFile]
+        kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+        logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+        subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+
+        prodPerfCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "producer_performance")
+        for prodPerfCfg in prodPerfCfgList:
+            topicsStr       = system_test_utils.get_data_by_lookup_keyval(testcaseEnv.testcaseConfigsList, "entity_id", prodPerfCfg["entity_id"], "topic")
+            topicsList   = topicsStr.split(',')
+
+            for topic in topicsList:
+                logger.info("issuing permissions on topic: [" + topic + "]", extra=d)
+                if secureMode:
+                    kafkaAclCmdList = ["ssh " + zkHost,
+                                       "JAVA_HOME=" + javaHome,
+                                       kafkaAclCommand,
+                                       " --topic " + topic,
+                                       " --add " +
+                                       " --allowprincipals " + "User:ambari-qa",
+                                       " --config " + brokerConfigFile]
+                    kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+                    logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+                    subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+
+
+
+            # get optional testcase arguments
+        numTopicsForAutoGenString = -1
+        try:
+            numTopicsForAutoGenString = int(testcaseEnv.testcaseArgumentsDict["num_topics_for_auto_generated_string"])
+        except:
+            pass
+        if (numTopicsForAutoGenString > 0):
+            topicsStr = generate_topics_string("topic", numTopicsForAutoGenString)
+            logger.info("issuing permissions on " + topicsStr, extra=d)
+            topicsList = topicsStr.split(',')
+            for topic in topicsList:
+                kafkaAclCmdList = ["ssh " + zkHost,
+                                   "JAVA_HOME=" + javaHome,
+                                   kafkaAclCommand,
+                                   " --topic " + topic,
+                                   " --add " +
+                                   " --allowprincipals " + "User:ambari-qa",
+                                   " --config " + brokerConfigFile]
+                kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+                logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+                subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+
+                logger.info("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
+                cmdList = ["ssh " + zkHost,
+                           "'(", kinitCmd,
+                           "JAVA_HOME=" + javaHome,
+                           createTopicBin,
+                           " --topic "     + topic,
+                           " --zookeeper " + zkConnectStr,
+                           " --replication-factor " + testcaseEnv.testcaseArgumentsDict["replica_factor"]  ,
+                           " --partitions " + testcaseEnv.testcaseArgumentsDict["num_partition"]  + " >> ",
+                           testcaseBaseDir + "/logs/create_source_cluster_topic.log)'"]
+
+                cmdStr = " ".join(cmdList)
+                logger.info("executing command: [" + cmdStr + "]", extra=d)
+                csubproc = system_test_utils.sys_call_return_subproc(cmdStr)
+                time.sleep(5)
 
 
 def get_message_id(logPathName, topic=""):
@@ -1200,7 +1535,7 @@ def get_message_checksum(logPathName):
 
 
 def validate_data_matched(systemTestEnv, testcaseEnv, replicationUtils):
-    logger.debug("#### Inside validate_data_matched", extra=d)
+    logger.info("#### Inside validate_data_matched", extra=d)
 
     validationStatusDict        = testcaseEnv.validationStatusDict
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
@@ -1224,11 +1559,11 @@ def validate_data_matched(systemTestEnv, testcaseEnv, replicationUtils):
             consumerTopic = system_test_utils.get_data_by_lookup_keyval(testcaseEnv.testcaseConfigsList, "entity_id", consumerEntityId, "topic")
             if consumerTopic in topic:
                 matchingConsumerEntityId = consumerEntityId
-                logger.debug("matching consumer entity id found", extra=d)
+                logger.info("matching consumer entity id found", extra=d)
                 break
 
         if matchingConsumerEntityId is None:
-            logger.debug("matching consumer entity id NOT found", extra=d)
+            logger.info("matching consumer entity id NOT found", extra=d)
             break
 
         msgIdMissingInConsumerLogPathName = get_testcase_config_log_dir_pathname( \
@@ -1238,10 +1573,7 @@ def validate_data_matched(systemTestEnv, testcaseEnv, replicationUtils):
 
         consumerLogPath     = get_testcase_config_log_dir_pathname(testcaseEnv, "console_consumer", matchingConsumerEntityId, "default")
         consumerLogPathName = consumerLogPath + "/console_consumer.log"
-        logger.info("producer log ", extra=d)
-        logger.info(producerLogPathName, extra=d)
-        logger.info("consumer log ", extra=d)
-        logger.info(consumerLogPathName, extra=d)
+
         producerMsgIdList  = get_message_id(producerLogPathName)
         consumerMsgIdList  = get_message_id(consumerLogPathName)
         producerMsgIdSet   = set(producerMsgIdList)
@@ -1278,6 +1610,7 @@ def validate_data_matched(systemTestEnv, testcaseEnv, replicationUtils):
         else:
             validationStatusDict["Validate for data matched on topic [" + topic + "]"] = "FAILED"
             logger.info("See " + msgIdMissingInConsumerLogPathName + " for missing MessageID", extra=d)
+
 
 def validate_leader_election_successful(testcaseEnv, leaderDict, validationStatusDict):
     logger.debug("#### Inside validate_leader_election_successful", extra=d)
@@ -1318,7 +1651,7 @@ def cleanup_data_at_remote_hosts(systemTestEnv, testcaseEnv):
     logger.info("cleaning up test case dir: [" + testCaseBaseDir + "]", extra=d)
 
     if "system_test" not in testCaseBaseDir:
-        logger.warn("possible destructive command [" + cmdStr + "]", extra=d)
+        # logger.warn("possible destructive command [" + cmdStr + "]", extra=d)
         logger.warn("check config file: system_test/cluster_config.properties", extra=d)
         logger.warn("aborting test...", extra=d)
         sys.exit(1)
@@ -1341,8 +1674,6 @@ def cleanup_data_at_remote_hosts(systemTestEnv, testcaseEnv):
         else:
             remoteTestCaseBaseDir = replace_kafka_home(testCaseBaseDir, kafkaHome)
 
-        logger.info("cleaning up data dir on host: [" + hostname + "]", extra=d)
-
         if role == 'zookeeper':
             dataDir = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "dataDir")
         elif role == 'broker':
@@ -1351,6 +1682,7 @@ def cleanup_data_at_remote_hosts(systemTestEnv, testcaseEnv):
             logger.info("skipping role [" + role + "] on host : [" + hostname + "]", extra=d)
             continue
 
+        logger.info("cleaning up data dir on host: [" + hostname + "] : " + dataDir, extra=d)
         cmdStr  = "ssh " + hostname + " 'rm -rf " + dataDir + "'"
 
         if not dataDir.startswith("/tmp"):
@@ -1362,7 +1694,7 @@ def cleanup_data_at_remote_hosts(systemTestEnv, testcaseEnv):
         # ============================
         # cleaning data dir
         # ============================
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
         system_test_utils.sys_call(cmdStr)
 
         # ============================
@@ -1371,23 +1703,23 @@ def cleanup_data_at_remote_hosts(systemTestEnv, testcaseEnv):
         if system_test_utils.remote_host_file_exists(hostname, kafkaHome + "/bin/kafka-run-class.sh"):
             # so kafkaHome is a real kafka installation
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*.log' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*_pid' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*.csv' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*.svg' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
             cmdStr = "ssh " + hostname + " \"find " + remoteTestCaseBaseDir + " -name '*.html' | xargs rm 2> /dev/null\""
-            logger.debug("executing command [" + cmdStr + "]", extra=d)
+            logger.info("executing command [" + cmdStr + "]", extra=d)
             system_test_utils.sys_call(cmdStr)
 
 def replace_kafka_home(systemTestSubDirPath, kafkaHome):
@@ -1411,12 +1743,12 @@ def ps_grep_terminate_running_entity(systemTestEnv):
     for clusterEntityConfigDict in systemTestEnv.clusterEntityConfigDictList:
         hostname = clusterEntityConfigDict["hostname"]
         cmdList  = ["ssh " + hostname,
-                    "\"ps auxw | grep -v grep | grep -v Bootstrap | grep -v vim | grep ^" + username,
+                    "\"ps auxw | grep -v grep | grep -v Bootstrap | grep -v vim | grep -v python | grep -v scp | grep -v tee | grep ^" + username,
                     "| grep -i 'java\|server\-start\|run\-\|producer\|consumer\|jmxtool' | grep kafka",
                     "| tr -s ' ' | cut -f2 -d ' ' | xargs kill -9" + "\""]
 
         cmdStr = " ".join(cmdList)
-        logger.debug("executing command [" + cmdStr + "]", extra=d)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
 
         system_test_utils.sys_call(cmdStr)
 
@@ -1483,9 +1815,36 @@ def stop_all_remote_running_processes(systemTestEnv, testcaseEnv):
 
     entityConfigs = systemTestEnv.clusterEntityConfigDictList
 
-    for hostname, producerPPid in testcaseEnv.producerHostParentPidDict.items():
-        producerEntityId = system_test_utils.get_data_by_lookup_keyval(entityConfigs, "hostname", hostname, "entity_id")
-        stop_remote_entity(systemTestEnv, producerEntityId, producerPPid)
+    # If there are any alive local threads that keep starting remote producer performance, we need to kill them;
+    # note we do not need to stop remote processes since they will terminate themselves eventually.
+    if len(testcaseEnv.producerHostParentPidDict) != 0:
+        # =============================================
+        # tell producer to stop
+        # =============================================
+        logger.debug("calling testcaseEnv.lock.acquire()", extra=d)
+        testcaseEnv.lock.acquire()
+        testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"] = True
+        logger.debug("calling testcaseEnv.lock.release()", extra=d)
+        testcaseEnv.lock.release()
+
+        # =============================================
+        # wait for producer thread's update of
+        # "backgroundProducerStopped" to be "True"
+        # =============================================
+        while 1:
+            logger.debug("calling testcaseEnv.lock.acquire()", extra=d)
+            testcaseEnv.lock.acquire()
+            logger.debug("status of backgroundProducerStopped : [" + \
+                str(testcaseEnv.userDefinedEnvVarDict["backgroundProducerStopped"]) + "]", extra=d)
+            if testcaseEnv.userDefinedEnvVarDict["backgroundProducerStopped"]:
+                logger.debug("calling testcaseEnv.lock.release()", extra=d)
+                testcaseEnv.lock.release()
+                logger.info("all producer threads completed", extra=d)
+                break
+            logger.debug("calling testcaseEnv.lock.release()", extra=d)
+            testcaseEnv.lock.release()
+
+        testcaseEnv.producerHostParentPidDict.clear()
 
     for hostname, consumerPPid in testcaseEnv.consumerHostParentPidDict.items():
         consumerEntityId = system_test_utils.get_data_by_lookup_keyval(entityConfigs, "hostname", hostname, "entity_id")
@@ -1498,9 +1857,12 @@ def stop_all_remote_running_processes(systemTestEnv, testcaseEnv):
     for entityId, mirrorMakerParentPid in testcaseEnv.entityMirrorMakerParentPidDict.items():
         stop_remote_entity(systemTestEnv, entityId, mirrorMakerParentPid)
 
+    for entityId, consumerParentPid in testcaseEnv.entityConsoleConsumerParentPidDict.items():
+        stop_remote_entity(systemTestEnv, entityId, consumerParentPid)
+
     for entityId, brokerParentPid in testcaseEnv.entityBrokerParentPidDict.items():
         stop_remote_entity(systemTestEnv, entityId, brokerParentPid)
-
+    time.sleep(10)
     for entityId, zkParentPid in testcaseEnv.entityZkParentPidDict.items():
         stop_remote_entity(systemTestEnv, entityId, zkParentPid)
 
@@ -1553,12 +1915,12 @@ def start_migration_tool(systemTestEnv, testcaseEnv, onlyThisEntityId=None):
                        " & echo pid:$! > " + migrationToolLogPath + "/entity_" + entityId + "_pid'"]
 
             cmdStr = " ".join(cmdList)
-            logger.debug("executing command: [" + cmdStr + "]", extra=d)
+            logger.info("executing command: [" + cmdStr + "]", extra=d)
             system_test_utils.async_sys_call(cmdStr)
             time.sleep(5)
 
             pidCmdStr = "ssh " + host + " 'cat " + migrationToolLogPath + "/entity_" + entityId + "_pid' 2> /dev/null"
-            logger.debug("executing command: [" + pidCmdStr + "]", extra=d)
+            logger.info("executing command: [" + pidCmdStr + "]", extra=d)
             subproc = system_test_utils.sys_call_return_subproc(pidCmdStr)
 
             # keep track of the remote entity pid in a dictionary
@@ -1684,6 +2046,8 @@ def validate_broker_log_segment_checksum(systemTestEnv, testcaseEnv, clusterName
 
         # loop through all topicPartition directories such as : test_1-0, test_1-1, ...
         for topicPartition in os.listdir(localLogSegmentPath):
+            if topicPartition.startswith("t001-"):
+                continue
             # found a topic-partition directory
             if os.path.isdir(localLogSegmentPath + "/" + topicPartition):
                 # md5 hasher
@@ -1767,6 +2131,7 @@ def validate_broker_log_segment_checksum(systemTestEnv, testcaseEnv, clusterName
     else:
         validationStatusDict["Validate for merged log segment checksum in cluster [" + clusterName + "]"] = "FAILED"
 
+
 def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None):
 
     clusterList        = systemTestEnv.clusterEntityConfigDictList
@@ -1802,8 +2167,10 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
             raise Exception("Empty broker list str")
 
         numPartitions = None
+        numReplicas = None
         try:
             numPartitions = testcaseEnv.testcaseArgumentsDict["num_partition"]
+            numReplicas = testcaseEnv.testcaseArgumentsDict["replica_factor"]
         except:
             pass
 
@@ -1813,32 +2180,43 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
         else:
             numPartitions = int(numPartitions)
 
-        replicaIndex   = 1
+        if numReplicas is None:
+            logger.error("Invalid replication factor: " + numReplicas, extra=d)
+            raise Exception("Invalid replication: " + numReplicas)
+        else:
+            numReplicas = int(numReplicas)
+
+        secureMode = systemTestEnv.SECURE_MODE
+        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
+
         startingOffset = -2
-        brokerPortList = brokerListStr.split(',')
-        for brokerPort in brokerPortList:
-
+        #brokerPortList = brokerListStr.split(',')
+        logger.info("num replicas " +  str(numReplicas), extra=d)
+        for replicaIndex in range(1, 3):
             partitionId = 0
+            logger.info("replicaIndex " + str(replicaIndex), extra=d)
             while (partitionId < numPartitions):
-                logger.info("starting debug consumer for replica on [" + brokerPort + "] partition [" + str(partitionId) + "]", extra=d)
-
+                logger.info("starting debug consumer for replica [" + str(replicaIndex) + "], partition [" + str(partitionId) + "]", extra=d)
+                replicaInfo = get_replicas(systemTestEnv, testcaseEnv, topic, partitionId)
                 if minStartingOffsetDict is not None:
                     topicPartition = topic + "-" + str(partitionId)
                     startingOffset = minStartingOffsetDict[topicPartition]
 
-                outputFilePathName = consumerLogPath + "/simple_consumer_" + topic + "-" + str(partitionId) + "_r" + str(replicaIndex) + ".log"
-                brokerPortLabel = brokerPort.replace(":", "_")
+                outputFilePathName = consumerLogPath + "/simple_consumer_" + topic + "-" + str(partitionId) + "_r" + str(replicaInfo[replicaIndex-1]) + ".log"
+                securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
                 cmdList = ["ssh " + host,
-                           "'JAVA_HOME=" + javaHome,
+                           "'(", kinitCmd,
+                           "JAVA_HOME=" + javaHome,
                            kafkaRunClassBin + " kafka.tools.SimpleConsumerShell",
                            "--broker-list " + brokerListStr,
                            "--topic " + topic,
                            "--partition " + str(partitionId),
-                           "--replica " + str(replicaIndex),
+                           "--replica " + str(replicaInfo[replicaIndex-1]),
                            "--offset " + str(startingOffset),
                            "--no-wait-at-logend ",
+                           securityProtocol,
                            " > " + outputFilePathName,
-                           " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid'"]
+                           " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid)'"]
 
                 cmdStr = " ".join(cmdList)
 
@@ -1848,9 +2226,8 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
                 for line in subproc_1.stdout.readlines():
                     pass
                 time.sleep(1)
+                partitionId = partitionId + 1
 
-                partitionId += 1
-            replicaIndex += 1
 
 def get_controller_attributes(systemTestEnv, testcaseEnv):
 
@@ -1873,12 +2250,12 @@ def get_controller_attributes(systemTestEnv, testcaseEnv):
 
     cmdStrList = ["ssh " + hostname,
                   "\"JAVA_HOME=" + javaHome,
-                  kafkaRunClassBin + " kafka.tools.ZooKeeperMainWrapper",
+                  kafkaRunClassBin + " kafka.tools.ZooKeeperMainWrapper ",
                   "-server " + testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"],
                   "get /controller 2> /dev/null | tail -1\""]
 
     cmdStr = " ".join(cmdStrList)
-    logger.debug("executing command [" + cmdStr + "]", extra=d)
+    logger.info("executing command [" + cmdStr + "]", extra=d)
     subproc = system_test_utils.sys_call_return_subproc(cmdStr)
     for line in subproc.stdout.readlines():
         if "brokerid" in line:
@@ -1989,7 +2366,7 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
         topicList = topicStr.split(',')
 
         for topic in topicList:
-            logger.debug("working on topic : " + topic, extra=d)
+            logger.info("working on topic : " + topic, extra=d)
             consumerLogPath = get_testcase_config_log_dir_pathname(testcaseEnv, "console_consumer", consumerEntityId, "default")
 
             # keep track of total msg count across replicas for each topic-partition
@@ -2000,36 +2377,31 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
             # (should be equal to 0 for passing)
             mismatchCounter = 0
 
-            replicaIdxMsgIdList = []
+            replicaIdxMsgIdList = {}
             # replicaIdxMsgIdList :
             # - This is a list of dictionaries of topic-partition (key)
             #   mapping to list of MessageID in that topic-partition (val)
-            # - The list index is mapped to (replicaId - 1)
-            # [
-            #  // list index = 0 => replicaId = idx(0) + 1 = 1
+            # - The dict key is mapped to replicaId
+            # {
+            #  // list index = 0 => replicaId
             #  {
             #      "topic1-0" : [ "0000000001", "0000000002", "0000000003"],
             #      "topic1-1" : [ "0000000004", "0000000005", "0000000006"]
             #  },
-            #  // list index = 1 => replicaId = idx(1) + 1 = 2
+            #  // list index = 1 => replicaId
             #  {
             #      "topic1-0" : [ "0000000001", "0000000002", "0000000003"],
             #      "topic1-1" : [ "0000000004", "0000000005", "0000000006"]
             #  }
-            # ]
+            # }
 
             # initialize replicaIdxMsgIdList
-            j = 0
-            while j < int(replicaFactor):
-                newDict = {}
-                replicaIdxMsgIdList.append(newDict)
-                j += 1
 
             # retrieve MessageID from all simple consumer log4j files
             for logFile in sorted(os.listdir(consumerLogPath)):
 
                 if logFile.startswith("simple_consumer_"+topic) and logFile.endswith(".log"):
-                    logger.debug("working on file : " + logFile, extra=d)
+                    logger.info("working on file : " + logFile, extra=d)
                     matchObj    = re.match("simple_consumer_"+topic+"-(\d*)_r(\d*)\.log" , logFile)
                     partitionId = int(matchObj.group(1))
                     replicaIdx  = int(matchObj.group(2))
@@ -2038,30 +2410,35 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
                     consumerMsgIdList     = get_message_id(consumerLogPathName)
 
                     topicPartition = topic + "-" + str(partitionId)
-                    replicaIdxMsgIdList[replicaIdx - 1][topicPartition] = consumerMsgIdList
+                    if replicaIdx not in replicaIdxMsgIdList:
+                        replicaIdxMsgIdList[replicaIdx] = {}
+                    replicaIdxMsgIdList[replicaIdx][topicPartition] = consumerMsgIdList
 
                     logger.info("no. of messages on topic [" + topic + "] at " + logFile + " : " + str(len(consumerMsgIdList)), extra=d)
                     validationStatusDict["No. of messages from consumer on [" + topic + "] at " + logFile] = str(len(consumerMsgIdList))
 
-            # print replicaIdxMsgIdList
-
             # take the first dictionary of replicaIdxMsgIdList and compare with the rest
-            firstMsgIdDict = replicaIdxMsgIdList[0]
+            firstMsgIdDict = replicaIdxMsgIdList[replicaIdxMsgIdList.keys()[0]]
+
             # loop through all 'topic-partition' such as topic1-0, topic1-1, ...
             for topicPartition in sorted(firstMsgIdDict.iterkeys()):
 
                 # compare all replicas' MessageID in corresponding topic-partition
-                for i in range(len(replicaIdxMsgIdList)):
+                i = 0
+                for r in replicaIdxMsgIdList:
                     # skip the first dictionary
-                    if i == 0:
+                    if i == 1:
                         totalMsgCounter += len(firstMsgIdDict[topicPartition])
                         continue
 
-                    totalMsgCounter += len(replicaIdxMsgIdList[i][topicPartition])
+                    if topicPartition not in replicaIdxMsgIdList[r]:
+                        continue
+                    totalMsgCounter += len(replicaIdxMsgIdList[r][topicPartition])
+
                     # get the count of mismatch MessageID between first MessageID list and the other lists
-                    diffCount = system_test_utils.diff_lists(firstMsgIdDict[topicPartition], replicaIdxMsgIdList[i][topicPartition])
+                    diffCount = system_test_utils.diff_lists(firstMsgIdDict[topicPartition], replicaIdxMsgIdList[r][topicPartition])
                     mismatchCounter += diffCount
-                    logger.info("Mismatch count of topic-partition [" + topicPartition + "] in replica id [" + str(i+1) + "] : " + str(diffCount), extra=d)
+                    logger.info("Mismatch count of topic-partition [" + topicPartition + "] in replica id [" + str(r) + "] : " + str(diffCount), extra=d)
 
             if mismatchCounter == 0 and totalMsgCounter > 0:
                 validationStatusDict["Validate for data matched on topic [" + topic + "] across replicas"] = "PASSED"
@@ -2076,7 +2453,6 @@ def validate_data_matched_in_multi_topics_from_single_consumer_producer(systemTe
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
 
     prodPerfCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "producer_performance")
-    consumerCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "console_consumer")
 
     for prodPerfCfg in prodPerfCfgList:
         producerEntityId = prodPerfCfg["entity_id"]
@@ -2120,8 +2496,11 @@ def validate_data_matched_in_multi_topics_from_single_consumer_producer(systemTe
                 outfile.write(id + "\n")
             outfile.close()
 
+            logger.info("Producer entity id " + producerEntityId, extra=d)
+            logger.info("Consumer entity id " + matchingConsumerEntityId, extra=d)
             logger.info("no. of unique messages on topic [" + topic + "] sent from publisher  : " + str(len(producerMsgIdSet)), extra=d)
             logger.info("no. of unique messages on topic [" + topic + "] received by consumer : " + str(len(consumerMsgIdSet)), extra=d)
+            logger.info("no. of duplicate messages on topic [" + topic + "] received by consumer: " + str(consumerDuplicateCount), extra=d)
             validationStatusDict["Unique messages from producer on [" + topic + "]"] = str(len(producerMsgIdSet))
             validationStatusDict["Unique messages from consumer on [" + topic + "]"] = str(len(consumerMsgIdSet))
 
@@ -2167,6 +2546,7 @@ def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
         logPathName              = get_testcase_config_log_dir_pathname(testcaseEnv, "broker", brokerEntityId, "default")
         localLogSegmentPath      = logPathName + "/" + remoteLogSegmentDir
         kafkaHome                = system_test_utils.get_data_by_lookup_keyval(clusterConfigList, "entity_id", brokerEntityId, "kafka_home")
+        javaHome                 = system_test_utils.get_data_by_lookup_keyval(clusterConfigList, "entity_id", brokerEntityId, "java_home")
         hostname                 = system_test_utils.get_data_by_lookup_keyval(clusterConfigList, "entity_id", brokerEntityId, "hostname")
         kafkaRunClassBin         = kafkaHome + "/bin/kafka-run-class.sh"
 
@@ -2185,9 +2565,15 @@ def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
         #        |- 00000000000000000020.log
         #        |- . . .
 
+        clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
+
+        # cluster configurations:
+
         # loop through all topicPartition directories such as : test_1-0, test_1-1, ...
         for topicPartition in os.listdir(localLogSegmentPath):
             # found a topic-partition directory
+            if topicPartition.startswith("t001-"):
+                continue
             if os.path.isdir(localLogSegmentPath + "/" + topicPartition):
 
                 # log segment files are located in : localLogSegmentPath + "/" + topicPartition
@@ -2195,30 +2581,69 @@ def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
                 for logFile in sorted(os.listdir(localLogSegmentPath + "/" + topicPartition)):
                     # only process index file: *.index
                     if logFile.endswith(".index"):
-                        offsetLogSegmentPathName = localLogSegmentPath + "/" + topicPartition + "/" + logFile
+                        offsetLogSegmentPathName = remoteLogSegmentPathName + "/" + topicPartition + "/" + logFile
                         cmdStrList = ["ssh " + hostname,
+                                      "JAVA_HOME=" + javaHome,
                                       kafkaRunClassBin + " kafka.tools.DumpLogSegments",
                                       " --file " + offsetLogSegmentPathName,
                                       "--verify-index-only 2>&1"]
                         cmdStr     = " ".join(cmdStrList)
-
                         showMismatchedIndexOffset = False
-
-                        logger.debug("executing command [" + cmdStr + "]", extra=d)
+                        logger.info("executing command [" + cmdStr + "]", extra=d)
                         subproc = system_test_utils.sys_call_return_subproc(cmdStr)
                         for line in subproc.stdout.readlines():
                             line = line.rstrip('\n')
                             if showMismatchedIndexOffset:
-                                logger.debug("#### [" + line + "]", extra=d)
+                                logger.error("#### [" + line + "]", extra=d)
                             elif "Mismatches in :" in line:
-                                logger.debug("#### error found [" + line + "]", extra=d)
+                                logger.error("#### error found [" + line + "]", extra=d)
                                 failureCount += 1
                                 showMismatchedIndexOffset = True
+                        if subproc.wait() != 0:
+                            logger.error("#### error found [DumpLogSegments exited abnormally]", extra=d)
+                            failureCount += 1
 
     if failureCount == 0:
         validationStatusDict["Validate index log in cluster [" + clusterName + "]"] = "PASSED"
     else:
         validationStatusDict["Validate index log in cluster [" + clusterName + "]"] = "FAILED"
+
+def get_leader_for(systemTestEnv, testcaseEnv, topic, partition):
+    logger.info("Querying Zookeeper for leader info for topic " + topic, extra=d)
+    clusterConfigsList = systemTestEnv.clusterEntityConfigDictList
+    tcConfigsList      = testcaseEnv.testcaseConfigsList
+
+    zkDictList         = system_test_utils.get_dict_from_list_of_dicts(clusterConfigsList, "role", "zookeeper")
+    firstZkDict        = zkDictList[0]
+    hostname           = firstZkDict["hostname"]
+    zkEntityId         = firstZkDict["entity_id"]
+    clientPort         = system_test_utils.get_data_by_lookup_keyval(tcConfigsList, "entity_id", zkEntityId, "clientPort")
+    kafkaHome          = system_test_utils.get_data_by_lookup_keyval(clusterConfigsList, "entity_id", zkEntityId, "kafka_home")
+    javaHome           = system_test_utils.get_data_by_lookup_keyval(clusterConfigsList, "entity_id", zkEntityId, "java_home")
+    kafkaRunClassBin   = kafkaHome + "/bin/kafka-run-class.sh"
+
+    zkQueryStr = "get /brokers/topics/" + topic + "/partitions/" + str(partition) + "/state"
+    brokerid   = ''
+    leaderEntityId = ''
+
+    cmdStrList = ["ssh " + hostname,
+                  "\"JAVA_HOME=" + javaHome,
+                  kafkaRunClassBin + " kafka.tools.ZooKeeperMainWrapper ",
+                  "-server " + testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"],
+                  zkQueryStr + " 2> /dev/null | tail -1\""]
+    cmdStr = " ".join(cmdStrList)
+    logger.info("executing command [" + cmdStr + "]", extra=d)
+    subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+    for line in subproc.stdout.readlines():
+        if "\"leader\"" in line:
+            line = line.rstrip('\n')
+            json_data = json.loads(line)
+            for key,val in json_data.items():
+                if key == 'leader':
+                    brokerid = str(val)
+            leaderEntityId = system_test_utils.get_data_by_lookup_keyval(tcConfigsList, "broker.id", brokerid, "entity_id")
+            break
+    return leaderEntityId
 
 def get_leader_attributes(systemTestEnv, testcaseEnv):
 
@@ -2244,26 +2669,28 @@ def get_leader_attributes(systemTestEnv, testcaseEnv):
     topics = producerTopicsString.split(',')
     zkQueryStr = "get /brokers/topics/" + topics[0] + "/partitions/0/state"
     brokerid   = ''
+    replicas = None
 
     cmdStrList = ["ssh " + hostname,
                   "\"JAVA_HOME=" + javaHome,
-                  kafkaRunClassBin + " kafka.tools.ZooKeeperMainWrapper",
+                  kafkaRunClassBin + " kafka.tools.ZooKeeperMainWrapper ",
                   "-server " + testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"],
                   zkQueryStr + " 2> /dev/null | tail -1\""]
     cmdStr = " ".join(cmdStrList)
-    logger.debug("executing command [" + cmdStr + "]", extra=d)
+    logger.info("executing command [" + cmdStr + "]", extra=d)
 
     subproc = system_test_utils.sys_call_return_subproc(cmdStr)
     for line in subproc.stdout.readlines():
-        logger.debug("zk returned : " + line, extra=d)
         if "\"leader\"" in line:
             line = line.rstrip('\n')
             json_data = json.loads(line)
             for key,val in json_data.items():
                 if key == 'leader':
                     brokerid = str(val)
-
+                elif key == 'isr':
+                    replicas = val
             leaderDict["brokerid"]  = brokerid
+            leaderDict["replicas"]  = replicas
             leaderDict["topic"]     = topics[0]
             leaderDict["partition"] = '0'
             leaderDict["entity_id"] = system_test_utils.get_data_by_lookup_keyval(
@@ -2274,3 +2701,48 @@ def get_leader_attributes(systemTestEnv, testcaseEnv):
 
     print leaderDict
     return leaderDict
+
+def write_consumer_properties(consumerProperties):
+    import tempfile
+    props_file_path = tempfile.gettempdir() + "/consumer.properties"
+    consumer_props_file=open(props_file_path,"w")
+    for key,value in consumerProperties.iteritems():
+        consumer_props_file.write(key+"="+value+"\n")
+    consumer_props_file.close()
+    return props_file_path
+
+
+def get_replicas(systemTestEnv, testcaseEnv, topic, partition):
+
+    logger.info("Querying Zookeeper for replica info ...", extra=d)
+
+    clusterConfigsList = systemTestEnv.clusterEntityConfigDictList
+
+    zkDictList         = system_test_utils.get_dict_from_list_of_dicts(clusterConfigsList, "role", "zookeeper")
+    firstZkDict        = zkDictList[0]
+    hostname           = firstZkDict["hostname"]
+    zkEntityId         = firstZkDict["entity_id"]
+    kafkaHome          = system_test_utils.get_data_by_lookup_keyval(clusterConfigsList, "entity_id", zkEntityId, "kafka_home")
+    javaHome           = system_test_utils.get_data_by_lookup_keyval(clusterConfigsList, "entity_id", zkEntityId, "java_home")
+    kafkaRunClassBin   = kafkaHome + "/bin/kafka-run-class.sh"
+
+    zkQueryStr = "get /brokers/topics/" + topic + "/partitions/" + str(partition) + "/state"
+
+    cmdStrList = ["ssh " + hostname,
+                  "\"JAVA_HOME=" + javaHome,
+                  kafkaRunClassBin + " kafka.tools.ZooKeeperMainWrapper ",
+                  "-server " + testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"],
+                  zkQueryStr + " 2> /dev/null | tail -1\""]
+    cmdStr = " ".join(cmdStrList)
+    logger.info("executing command [" + cmdStr + "]", extra=d)
+
+    subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+    for line in subproc.stdout.readlines():
+        if "\"leader\"" in line:
+            line = line.rstrip('\n')
+            json_data = json.loads(line)
+            for key,val in json_data.items():
+                if key == 'isr':
+                    return val
+    logger.error("Replica information not found  for topic %s partition %s" % (topic,partition), extra=d)
+    return None

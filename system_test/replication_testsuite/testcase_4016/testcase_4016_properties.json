@@ -67,6 +67,7 @@
     },
     {
       "entity_id": "4",
+      "new-producer":"true",
       "topic": "test_1",
       "threads": "5",
       "compression-codec": "0",
@@ -80,6 +81,7 @@
     },
     {
       "entity_id": "5",
+      "new-producer":"true",
       "topic": "test_2",
       "threads": "5",
       "compression-codec": "0",
@@ -95,7 +97,7 @@
       "entity_id": "6",
       "topic": "test_1",
       "group.id": "mytestgroup",
-      "consumer-timeout-ms": "60000",
+      "consumer-timeout-ms": "120000",
       "log_filename": "console_consumer_6.log",
       "config_filename": "console_consumer_6.properties"
     },
@@ -103,7 +105,7 @@
       "entity_id": "7",
       "topic": "test_2",
       "group.id": "mytestgroup",
-      "consumer-timeout-ms": "60000",
+      "consumer-timeout-ms": "120000",
       "log_filename": "console_consumer_7.log",
       "config_filename": "console_consumer_7.properties"
     }

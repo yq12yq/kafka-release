@@ -40,7 +40,7 @@ from   testcase_env       import TestcaseEnv
 
 # product specific: Kafka
 import kafka_system_test_utils
-#import metrics
+# import metrics
 
 class ReplicaBasicTest(ReplicationUtils, SetupUtils):
 
@@ -186,11 +186,20 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 self.anonLogger.info("sleeping for 5s")
                 time.sleep(5)
 
+                secureMode = self.systemTestEnv.SECURE_MODE
+
                 if autoCreateTopic.lower() == "false":
                     self.log_message("creating topics")
-                    kafka_system_test_utils.create_topic(self.systemTestEnv, self.testcaseEnv)
+                    kafka_system_test_utils.create_topic_for_producer_performance(self.systemTestEnv, self.testcaseEnv)
                     self.anonLogger.info("sleeping for 5s")
                     time.sleep(5)
+
+                if secureMode:
+                    self.log_message("Issuing cluster level permissions")
+                    kafka_system_test_utils.give_permissions_to_user_on_cluster(self.systemTestEnv, self.testcaseEnv)
+                    self.anonLogger.info("sleeping for 5s")
+                    time.sleep(5)
+
 
                 # =============================================
                 # start ConsoleConsumer if this is a Log Retention test
@@ -198,7 +207,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 if logRetentionTest.lower() == "true":
                     self.log_message("starting consumer in the background")
                     kafka_system_test_utils.start_console_consumer(self.systemTestEnv, self.testcaseEnv)
-                    time.sleep(1)
+                    time.sleep(30)
 
                 # =============================================
                 # starting producer
@@ -208,7 +217,6 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 msgProducingFreeTimeSec = self.testcaseEnv.testcaseArgumentsDict["message_producing_free_time_sec"]
                 self.anonLogger.info("sleeping for " + msgProducingFreeTimeSec + " sec to produce some messages")
                 time.sleep(int(msgProducingFreeTimeSec))
-
                 # =============================================
                 # A while-loop to bounce leader as specified
                 # by "num_iterations" in testcase_n_properties.json
@@ -285,6 +293,10 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                             kafka_system_test_utils.validate_leader_election_successful(self.testcaseEnv, leaderDict, self.testcaseEnv.validationStatusDict)
 
                             # trigger leader re-election by stopping leader to get re-election latency
+                            self.log_message("Stopping leader broker " + stoppedBrokerEntityId)
+                            kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, stoppedBrokerEntityId, self.testcaseEnv.entityBrokerParentPidDict[stoppedBrokerEntityId])
+                            time.sleep(30)
+                            kafka_system_test_utils.force_stop_remote_entity(self.systemTestEnv, stoppedBrokerEntityId, self.testcaseEnv.entityBrokerParentPidDict[stoppedBrokerEntityId])
                             #reelectionLatency = kafka_system_test_utils.get_reelection_latency(self.systemTestEnv, self.testcaseEnv, leaderDict, self.leaderAttributesDict)
                             #latencyKeyName = "Leader Election Latency - iter " + str(i) + " brokerid " + leaderDict["brokerid"]
                             #self.testcaseEnv.validationStatusDict[latencyKeyName] = str("{0:.2f}".format(reelectionLatency * 1000)) + " ms"
@@ -294,11 +306,14 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                             # stopping Follower
                             self.log_message("stopping follower with entity id: " + firstFollowerEntityId)
                             kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, firstFollowerEntityId, self.testcaseEnv.entityBrokerParentPidDict[firstFollowerEntityId])
-
+                            time.sleep(10)
+                            kafka_system_test_utils.force_stop_remote_entity(self.systemTestEnv, firstFollowerEntityId, self.testcaseEnv.entityBrokerParentPidDict[firstFollowerEntityId])
                         elif brokerType == "controller":
                             # stopping Controller
                             self.log_message("stopping controller : " + controllerDict["brokerid"])
                             kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, controllerDict["entity_id"], self.testcaseEnv.entityBrokerParentPidDict[controllerDict["entity_id"]])
+                            time.sleep(10)
+                            kafka_system_test_utils.force_stop_remote_entity(self.systemTestEnv, controllerDict["entity_id"], self.testcaseEnv.entityBrokerParentPidDict[controllerDict["entity_id"]])
 
                         brokerDownTimeInSec = 5
                         try:
@@ -347,10 +362,14 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 # =============================================
                 # tell producer to stop
                 # =============================================
+                self.logger.info("trying to get lock", extra=self.d)
                 self.testcaseEnv.lock.acquire()
+                self.logger.info("Stopping backgroundproducer , lock acquired ", extra=self.d)
                 self.testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"] = True
+                self.logger.info("set to true " + str(self.testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]), extra=self.d)
                 time.sleep(1)
                 self.testcaseEnv.lock.release()
+                self.logger.info("released lock", extra=self.d)
                 time.sleep(1)
 
                 # =============================================
@@ -363,6 +382,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                         str(self.testcaseEnv.userDefinedEnvVarDict["backgroundProducerStopped"]) + "]", extra=self.d)
                     if self.testcaseEnv.userDefinedEnvVarDict["backgroundProducerStopped"]:
                         time.sleep(1)
+                        self.testcaseEnv.lock.release()
                         self.logger.info("all producer threads completed", extra=self.d)
                         break
                     time.sleep(1)
@@ -408,6 +428,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 for entityId, parentPid in self.testcaseEnv.entityBrokerParentPidDict.items():
                     kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, entityId, parentPid)
 
+
                 for entityId, parentPid in self.testcaseEnv.entityZkParentPidDict.items():
                     kafka_system_test_utils.stop_remote_entity(self.systemTestEnv, entityId, parentPid)
 
@@ -434,22 +455,24 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                     kafka_system_test_utils.validate_broker_log_segment_checksum(self.systemTestEnv, self.testcaseEnv)
                     kafka_system_test_utils.validate_data_matched(self.systemTestEnv, self.testcaseEnv, replicationUtils)
 
-                #kafka_system_test_utils.validate_index_log(self.systemTestEnv, self.testcaseEnv)
+                kafka_system_test_utils.validate_index_log(self.systemTestEnv, self.testcaseEnv)
 
                 # =============================================
                 # draw graphs
                 # =============================================
-                # metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME,
-                #                         self.testcaseEnv,
-                #                         self.systemTestEnv.clusterEntityConfigDictList)
+#                metrics.draw_all_graphs(self.systemTestEnv.METRICS_PATHNAME,
+#                                        self.testcaseEnv,
+#                                        self.systemTestEnv.clusterEntityConfigDictList)
 
-                # # build dashboard, one for each role
-                # metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
-                #                              self.testcaseEnv.testCaseDashboardsDir,
-                #                              self.systemTestEnv.clusterEntityConfigDictList)
+                # build dashboard, one for each role
+#                metrics.build_all_dashboards(self.systemTestEnv.METRICS_PATHNAME,
+#                                             self.testcaseEnv.testCaseDashboardsDir,
+#                                             self.systemTestEnv.clusterEntityConfigDictList)
             except Exception as e:
                 self.log_message("Exception while running test {0}".format(e))
                 traceback.print_exc()
+                self.testcaseEnv.validationStatusDict["Test completed"] = "FAILED"
+
 
             finally:
                 if not skipThisTestCase and not self.systemTestEnv.printTestDescriptionsOnly:
