@@ -352,7 +352,12 @@ project(':core') {
     from '../LICENSE'
     from '../NOTICE'
     from(configurations.runtime) { into("libs/") }
-    from(configurations.archives.artifacts.files) { into("libs/") }
+    from(configurations.archives.artifacts.files) { 
+      exclude("**/*.asc")
+      exclude("**/*-test*.jar")
+      exclude("**/*-source*.jar")
+      into("libs/") 
+    }
     from(project.siteDocsTar) { into("site-docs/") }
     from(project(':tools').jar) { into("libs/") }
     from(project(':tools').configurations.runtime) { into("libs/") }
