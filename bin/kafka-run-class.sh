@@ -54,7 +54,7 @@ do
   CLASSPATH=$CLASSPATH:$file
 done
 
-for file in $base_dir/perf/build/libs//kafka-perf_${SCALA_VERSION}*.jar;
+for file in $base_dir/perf/lib/kafka-perf_*.jar;
 do
   CLASSPATH=$CLASSPATH:$file
 done

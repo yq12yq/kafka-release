@@ -766,27 +766,15 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                   logPathName + "/entity_" + entityId + "_pid'"]
 
     elif role == "mirror_maker":
-        if useNewProducer.lower() == "true":
-            cmdList = ["ssh " + hostname,
-                      "'JAVA_HOME=" + javaHome,
-                      "JMX_PORT=" + jmxPort,
-                      kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
-                      "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
-                      "--producer.config " + configPathName + "/" + mmProducerConfigFile,
-                      # "--new.producer",
-                      "--whitelist=\".*\" >> ",
-                      logPathName + "/" + logFile + " & echo pid:$! > ",
-                      logPathName + "/entity_" + entityId + "_pid'"]
-        else:
-            cmdList = ["ssh " + hostname,
-                      "'JAVA_HOME=" + javaHome,
-                      "JMX_PORT=" + jmxPort,
-                      kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
-                      "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
-                      "--producer.config " + configPathName + "/" + mmProducerConfigFile,
-                      "--whitelist=\".*\" >> ",
-                      logPathName + "/" + logFile + " & echo pid:$! > ",
-                      logPathName + "/entity_" + entityId + "_pid'"]
+        cmdList = ["ssh " + hostname,
+                   "'JAVA_HOME=" + javaHome,
+                   "JMX_PORT=" + jmxPort,
+                   kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
+                   "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
+                   "--producer.config " + configPathName + "/" + mmProducerConfigFile,
+                   "--whitelist=\".*\" >> ",
+                   logPathName + "/" + logFile + " & echo pid:$! > ",
+                   logPathName + "/entity_" + entityId + "_pid'"]
 
     elif role == "console_consumer":
         clusterToConsumeFrom = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "cluster_name")
@@ -847,10 +835,10 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                    "'(", kinitCmd,
                    "JAVA_HOME=" + javaHome,
                    "JMX_PORT=" + jmxPort,
-                   kafkaHome + "/bin/kafka-run-class.sh kafka.tools.ConsoleConsumer",
+                   kafkaHome + "/bin/kafka-run-class.sh kafka.consumer.ConsoleConsumer",
                    "--zookeeper " + zkConnectStr,
                    "--topic " + topic,
-                   "--consumer.config /tmp/consumer.properties",
+                   "--consumer-timeout-ms " + timeoutMs,
                    "--csv-reporter-enabled",
                    securityProtocol,
                    formatterOption,
@@ -972,10 +960,10 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
                    "'(", kinitCmd,
                    "JAVA_HOME=" + javaHome,
                    "JMX_PORT=" + jmxPort,
-                   kafkaRunClassBin + " kafka.tools.ConsoleConsumer",
+                   kafkaRunClassBin + " kafka.consumer.ConsoleConsumer",
                    "--zookeeper " + zkConnectStr,
                    "--topic " + topic,
-                   "--consumer.config /tmp/consumer.properties",
+                   "--consumer-timeout-ms " + timeoutMs,
                    "--csv-reporter-enabled",
                    #"--metrics-dir " + metricsDir,
                    formatterOption,
@@ -1136,9 +1124,6 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     boolArgumentsStr = ""
     if syncMode.lower() == "true":
         boolArgumentsStr = boolArgumentsStr + " --sync"
-
-    if useNewProducer.lower() == "true":
-        boolArgumentsStr = boolArgumentsStr + " --new-producer"
 
     # keep calling producer until signaled to stop by:
     # testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]
