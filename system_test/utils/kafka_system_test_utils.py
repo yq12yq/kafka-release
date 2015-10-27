@@ -766,15 +766,27 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                   logPathName + "/entity_" + entityId + "_pid'"]
 
     elif role == "mirror_maker":
-        cmdList = ["ssh " + hostname,
-                   "'JAVA_HOME=" + javaHome,
-                   "JMX_PORT=" + jmxPort,
-                   kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
-                   "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
-                   "--producer.config " + configPathName + "/" + mmProducerConfigFile,
-                   "--whitelist=\".*\" >> ",
-                   logPathName + "/" + logFile + " & echo pid:$! > ",
-                   logPathName + "/entity_" + entityId + "_pid'"]
+        if useNewProducer.lower() == "true":
+            cmdList = ["ssh " + hostname,
+                      "'JAVA_HOME=" + javaHome,
+                      "JMX_PORT=" + jmxPort,
+                      kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
+                      "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
+                      "--producer.config " + configPathName + "/" + mmProducerConfigFile,
+                      # "--new.producer",
+                      "--whitelist=\".*\" >> ",
+                      logPathName + "/" + logFile + " & echo pid:$! > ",
+                      logPathName + "/entity_" + entityId + "_pid'"]
+        else:
+            cmdList = ["ssh " + hostname,
+                      "'JAVA_HOME=" + javaHome,
+                      "JMX_PORT=" + jmxPort,
+                      kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
+                      "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
+                      "--producer.config " + configPathName + "/" + mmProducerConfigFile,
+                      "--whitelist=\".*\" >> ",
+                      logPathName + "/" + logFile + " & echo pid:$! > ",
+                      logPathName + "/entity_" + entityId + "_pid'"]
 
     elif role == "console_consumer":
         clusterToConsumeFrom = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "cluster_name")
@@ -835,10 +847,10 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                    "'(", kinitCmd,
                    "JAVA_HOME=" + javaHome,
                    "JMX_PORT=" + jmxPort,
-                   kafkaHome + "/bin/kafka-run-class.sh kafka.consumer.ConsoleConsumer",
+                   kafkaHome + "/bin/kafka-run-class.sh kafka.perf.ConsoleConsumer",
                    "--zookeeper " + zkConnectStr,
                    "--topic " + topic,
-                   "--consumer-timeout-ms " + timeoutMs,
+                   "--consumer.config /tmp/consumer.properties",
                    "--csv-reporter-enabled",
                    securityProtocol,
                    formatterOption,
@@ -960,10 +972,10 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
                    "'(", kinitCmd,
                    "JAVA_HOME=" + javaHome,
                    "JMX_PORT=" + jmxPort,
-                   kafkaRunClassBin + " kafka.consumer.ConsoleConsumer",
+                   kafkaRunClassBin + " kafka.perf.ConsoleConsumer",
                    "--zookeeper " + zkConnectStr,
                    "--topic " + topic,
-                   "--consumer-timeout-ms " + timeoutMs,
+                   "--consumer.config /tmp/consumer.properties",
                    "--csv-reporter-enabled",
                    #"--metrics-dir " + metricsDir,
                    formatterOption,
@@ -1085,7 +1097,8 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     noMsgPerBatch  = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "message")
     requestNumAcks = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "request-num-acks")
     syncMode       = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "sync")
-    useNewProducer = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "new-producer")
+    # HDP-2.2 we don't have new producer and since these system tests are backported turning it off here.
+    useNewProducer = "false"
     retryBackoffMs = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "producer-retry-backoff-ms")
     numOfRetries   = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "producer-num-retries")
 
@@ -1152,7 +1165,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        "'JAVA_HOME=" + javaHome,
                        "JMX_PORT=" + jmxPort,
                        "KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%s/config/test-log4j.properties" % kafkaHome,
-                       kafkaRunClassBin + " kafka.tools.ProducerPerformance",
+                       kafkaRunClassBin + " kafka.perf.ProducerPerformance",
                        "--broker-list " + brokerListStr,
                        "--initial-message-id " + str(initMsgId),
                        "--messages " + noMsgPerBatch,
@@ -1191,7 +1204,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        "JAVA_HOME=" + javaHome,
                        "JMX_PORT=" + jmxPort,
                        "KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%s/config/test-log4j.properties" % kafkaHome,
-                       kafkaRunClassBin + " kafka.tools.ProducerPerformance",
+                       kafkaRunClassBin + " kafka.perf.ProducerPerformance",
                        "--brokerinfo " + brokerInfoStr,
                        "--initial-message-id " + str(initMsgId),
                        "--messages " + noMsgPerBatch,
