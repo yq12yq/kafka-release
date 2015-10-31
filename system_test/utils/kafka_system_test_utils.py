@@ -818,6 +818,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
         # 4. consumer config
         consumerProperties = {}
         consumerProperties["consumer.timeout.ms"] = timeoutMs
+        groupOption = "consumer"
         try:
             groupOption = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "group.id")
             consumerProperties["group.id"] = groupOption
@@ -847,12 +848,12 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                    "'(", kinitCmd,
                    "JAVA_HOME=" + javaHome,
                    "JMX_PORT=" + jmxPort,
-                   kafkaHome + "/bin/kafka-run-class.sh kafka.perf.ConsoleConsumer",
+                   kafkaHome + "/bin/kafka-run-class.sh kafka.consumer.ConsoleConsumer",
                    "--zookeeper " + zkConnectStr,
                    "--topic " + topic,
-                   "--consumer.config /tmp/consumer.properties",
+                   "--group " + groupOption,
                    "--csv-reporter-enabled",
-                   securityProtocol,
+                   "--consumer-timeout-ms " + timeoutMs,
                    formatterOption,
                    "--from-beginning",
                    " >> " + logPathName + "/" + logFile + " & echo pid:$! > ",
@@ -972,15 +973,14 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
                    "'(", kinitCmd,
                    "JAVA_HOME=" + javaHome,
                    "JMX_PORT=" + jmxPort,
-                   kafkaRunClassBin + " kafka.perf.ConsoleConsumer",
+                   kafkaRunClassBin + " kafka.consumer.ConsoleConsumer",
                    "--zookeeper " + zkConnectStr,
                    "--topic " + topic,
-                   "--consumer.config /tmp/consumer.properties",
+                   "--consumer-timeout-ms " + timeoutMs,
                    "--csv-reporter-enabled",
                    #"--metrics-dir " + metricsDir,
                    formatterOption,
                    "--from-beginning ",
-                   securityProtocol,
                    " >> " + consumerLogPathName,
                    " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid)'"]
 
