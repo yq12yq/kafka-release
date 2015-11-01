@@ -162,4 +162,8 @@ public class KafkaChannel {
         return send.completed();
     }
 
+    public TransportLayer transportLayer() {
+        return this.transportLayer;
+    }
+
 }

@@ -28,6 +28,7 @@ import kafka.api._
 import kafka.client.ClientUtils
 import kafka.cluster._
 import kafka.common._
+import kafka.common.security.LoginManager
 import kafka.javaapi.consumer.ConsumerRebalanceListener
 import kafka.metrics._
 import kafka.network.BlockingChannel
@@ -40,6 +41,10 @@ import org.I0Itec.zkclient.{IZkChildListener, IZkDataListener, IZkStateListener}
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.security.JaasUtils
 import org.apache.zookeeper.Watcher.Event.KeeperState
+
+import org.apache.kafka.common.security.JaasUtils
+import org.apache.kafka.common.protocol.SecurityProtocol
+import org.apache.kafka.common.config.SaslConfigs
 
 import scala.collection._
 import scala.collection.JavaConversions._
@@ -111,6 +116,17 @@ private[kafka] class ZookeeperConsumerConnector(val config: ConsumerConfig,
   private val kafkaCommitMeter = newMeter("KafkaCommitsPerSec", "commits", TimeUnit.SECONDS, Map("clientId" -> config.clientId))
   private val zkCommitMeter = newMeter("ZooKeeperCommitsPerSec", "commits", TimeUnit.SECONDS, Map("clientId" -> config.clientId))
   private val rebalanceTimer = new KafkaTimer(newTimer("RebalanceRateAndTime", TimeUnit.MILLISECONDS, TimeUnit.SECONDS, Map("clientId" -> config.clientId)))
+  private val protocol = SecurityProtocol.valueOf(config.securityProtocol)
+
+  if ( protocol == SecurityProtocol.SASL_PLAINTEXT) {
+    val saslConfigs = new java.util.HashMap[String, Any]()
+    saslConfigs.put(SaslConfigs.SASL_KERBEROS_KINIT_CMD, config.saslKerberosKinitCmd)
+    saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_JITTER, config.saslKerberosTicketRenewJitter.toDouble)
+    saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_WINDOW_FACTOR, config.saslKerberosTicketRenewWindowFactor.toDouble)
+    saslConfigs.put(SaslConfigs.SASL_KERBEROS_MIN_TIME_BEFORE_RELOGIN, config.saslKerberosMinTimeBeforeRelogin.toLong)
+
+    LoginManager.init(JaasUtils.LOGIN_CONTEXT_CLIENT, saslConfigs)
+  }
 
   newGauge(
     "yammer-metrics-count",
@@ -230,6 +246,7 @@ private[kafka] class ZookeeperConsumerConnector(val config: ConsumerConfig,
           }
 
           if (offsetsChannel != null) offsetsChannel.disconnect()
+          LoginManager.shutdown
         } catch {
           case e: Throwable =>
             fatal("error during consumer connector shutdown", e)

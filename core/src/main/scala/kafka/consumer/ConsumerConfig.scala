@@ -22,6 +22,8 @@ import kafka.api.OffsetRequest
 import kafka.utils._
 import kafka.common.{InvalidConfigException, Config}
 import java.util.Locale
+import org.apache.kafka.common.config.SaslConfigs
+import org.apache.kafka.common.protocol.SecurityProtocol
 
 object ConsumerConfig extends Config {
   val RefreshMetadataBackoffMs = 200
@@ -53,6 +55,12 @@ object ConsumerConfig extends Config {
   val DefaultPartitionAssignmentStrategy = "range" /* select between "range", and "roundrobin" */
   val MirrorConsumerNumThreadsProp = "mirror.consumer.numthreads"
   val DefaultClientId = ""
+  val DefaultSecurityProtocol = SecurityProtocol.PLAINTEXT.toString
+  val DefaultSaslKerberosKinitCmd = "/usr/bin/kinit"
+  val DefaultSaslKerberosTicketRenewJitter = 0.80
+  val DefaultKerberosTicketRenewJitter = 0.05
+  val DefaultSaslKerberosMinTimeBeforeRelogin = 1 * 60 * 1000L
+
 
   def validate(config: ConsumerConfig) {
     validateClientId(config.clientId)
@@ -164,7 +172,7 @@ class ConsumerConfig private (val props: VerifiableProperties) extends ZKConfig(
   val offsetsCommitMaxRetries = props.getInt("offsets.commit.max.retries", OffsetsCommitMaxRetries)
 
   /** Specify whether offsets should be committed to "zookeeper" (default) or "kafka" */
-  val offsetsStorage = props.getString("offsets.storage", OffsetsStorage).toLowerCase(Locale.ROOT)
+  val offsetsStorage = props.getString("offsets.storage", OffsetsStorage).toLowerCase
 
   /** If you are using "kafka" as offsets.storage, you can dual commit offsets to ZooKeeper (in addition to Kafka). This
     * is required during migration from zookeeper-based offset storage to kafka-based offset storage. With respect to any
@@ -191,7 +199,13 @@ class ConsumerConfig private (val props: VerifiableProperties) extends ZKConfig(
 
   /** Select a strategy for assigning partitions to consumer streams. Possible values: range, roundrobin */
   val partitionAssignmentStrategy = props.getString("partition.assignment.strategy", DefaultPartitionAssignmentStrategy)
-  
+
+  val securityProtocol = props.getString("security.protocol", DefaultSecurityProtocol)
+  val saslKerberosKinitCmd = props.getString(SaslConfigs.SASL_KERBEROS_KINIT_CMD, DefaultSaslKerberosKinitCmd)
+  val saslKerberosTicketRenewWindowFactor = props.getString(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_WINDOW_FACTOR, DefaultSaslKerberosTicketRenewJitter.toString)
+  val saslKerberosTicketRenewJitter = props.getString(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_JITTER, DefaultKerberosTicketRenewJitter.toString)
+  val saslKerberosMinTimeBeforeRelogin = props.getString(SaslConfigs.SASL_KERBEROS_MIN_TIME_BEFORE_RELOGIN, DefaultSaslKerberosMinTimeBeforeRelogin.toString)
+
   validate(this)
 }
 

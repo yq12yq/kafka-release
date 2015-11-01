@@ -38,6 +38,13 @@ should_include_file() {
   fi
 }
 
+# need to check if its called from kafka-server-start.sh
+# to correctly decide about JMX_PORT
+ISKAFKASERVER="false"
+if [[ "$*" =~ "kafka.Kafka" ]]; then
+    ISKAFKASERVER="true"
+fi
+
 base_dir=$(dirname $0)/..
 
 if [ -z "$SCALA_VERSION" ]; then
@@ -203,6 +210,15 @@ if [ -z "$KAFKA_JVM_PERFORMANCE_OPTS" ]; then
   KAFKA_JVM_PERFORMANCE_OPTS="-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+DisableExplicitGC -Djava.awt.headless=true"
 fi
 
+#JAAS config file params
+if [ -z "$KAFKA_KERBEROS_PARAMS" ]; then
+    KAFKA_KERBEROS_PARAMS=""
+else
+    # check client kerberos params present than it takes precedence
+    if [ ! -z "$KAFKA_KERBEROS_PARAMS" ] && [ ! -z "$KAFKA_CLIENT_KERBEROS_PARAMS" ]; then
+        KAFKA_KERBEROS_PARAMS=$KAFKA_CLIENT_KERBEROS_PARAMS
+    fi
+fi
 
 while [ $# -gt 0 ]; do
   COMMAND=$1
@@ -238,7 +254,7 @@ fi
 
 # Launch mode
 if [ "x$DAEMON_MODE" = "xtrue" ]; then
-  nohup $JAVA $KAFKA_HEAP_OPTS $KAFKA_JVM_PERFORMANCE_OPTS $KAFKA_GC_LOG_OPTS $KAFKA_JMX_OPTS $KAFKA_LOG4J_OPTS -cp $CLASSPATH $KAFKA_OPTS "$@" > "$CONSOLE_OUTPUT_FILE" 2>&1 < /dev/null &
+  nohup $JAVA $KAFKA_HEAP_OPTS $KAFKA_JVM_PERFORMANCE_OPTS $KAFKA_GC_LOG_OPTS $KAFKA_JMX_OPTS $KAFKA_LOG4J_OPTS $KAFKA_KERBEROS_PARAMS -cp $CLASSPATH $KAFKA_OPTS "$@" > "$CONSOLE_OUTPUT_FILE" 2>&1 < /dev/null &
 else
-  exec $JAVA $KAFKA_HEAP_OPTS $KAFKA_JVM_PERFORMANCE_OPTS $KAFKA_GC_LOG_OPTS $KAFKA_JMX_OPTS $KAFKA_LOG4J_OPTS -cp $CLASSPATH $KAFKA_OPTS "$@"
+  exec $JAVA $KAFKA_HEAP_OPTS $KAFKA_JVM_PERFORMANCE_OPTS $KAFKA_GC_LOG_OPTS $KAFKA_JMX_OPTS $KAFKA_LOG4J_OPTS $KAFKA_KERBEROS_PARAMS -cp $CLASSPATH $KAFKA_OPTS "$@"
 fi

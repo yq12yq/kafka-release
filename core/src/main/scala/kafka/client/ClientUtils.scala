@@ -85,11 +85,13 @@ object ClientUtils extends Logging{
    * @return topic metadata response
    */
   def fetchTopicMetadata(topics: Set[String], brokers: Seq[BrokerEndPoint], clientId: String, timeoutMs: Int,
-                         correlationId: Int = 0): TopicMetadataResponse = {
+    correlationId: Int = 0, securityProtocol: SecurityProtocol = SecurityProtocol.PLAINTEXT): TopicMetadataResponse = {
     val props = new Properties()
     props.put("metadata.broker.list", brokers.map(_.connectionString).mkString(","))
     props.put("client.id", clientId)
     props.put("request.timeout.ms", timeoutMs.toString)
+    props.put("security.protocol", securityProtocol.toString)
+    println(props)
     val producerConfig = new ProducerConfig(props)
     fetchTopicMetadata(topics, brokers, producerConfig, correlationId)
   }
@@ -108,15 +110,15 @@ object ClientUtils extends Logging{
    /**
     * Creates a blocking channel to a random broker
     */
-   def channelToAnyBroker(zkUtils: ZkUtils, socketTimeoutMs: Int = 3000) : BlockingChannel = {
+  def channelToAnyBroker(zkUtils: ZkUtils, socketTimeoutMs: Int = 3000, protocol: SecurityProtocol = SecurityProtocol.PLAINTEXT) : BlockingChannel = {
      var channel: BlockingChannel = null
      var connected = false
      while (!connected) {
-       val allBrokers = zkUtils.getAllBrokerEndPointsForChannel(SecurityProtocol.PLAINTEXT)
+       val allBrokers = zkUtils.getAllBrokerEndPointsForChannel(protocol)
        Random.shuffle(allBrokers).find { broker =>
          trace("Connecting to broker %s:%d.".format(broker.host, broker.port))
          try {
-           channel = new BlockingChannel(broker.host, broker.port, BlockingChannel.UseDefaultBufferSize, BlockingChannel.UseDefaultBufferSize, socketTimeoutMs)
+           channel = new BlockingChannel(broker.host, broker.port, BlockingChannel.UseDefaultBufferSize, BlockingChannel.UseDefaultBufferSize, socketTimeoutMs, protocol)
            channel.connect()
            debug("Created channel to broker %s:%d.".format(channel.host, channel.port))
            true
@@ -137,8 +139,8 @@ object ClientUtils extends Logging{
    /**
     * Creates a blocking channel to the offset manager of the given group
     */
-   def channelToOffsetManager(group: String, zkUtils: ZkUtils, socketTimeoutMs: Int = 3000, retryBackOffMs: Int = 1000) = {
-     var queryChannel = channelToAnyBroker(zkUtils)
+  def channelToOffsetManager(group: String, zkUtils: ZkUtils, socketTimeoutMs: Int = 3000, retryBackOffMs: Int = 1000, protocol: SecurityProtocol = SecurityProtocol.PLAINTEXT) = {
+     var queryChannel = channelToAnyBroker(zkUtils, protocol = protocol)
 
      var offsetManagerChannelOpt: Option[BlockingChannel] = None
 
@@ -149,7 +151,7 @@ object ClientUtils extends Logging{
        while (!coordinatorOpt.isDefined) {
          try {
            if (!queryChannel.isConnected)
-             queryChannel = channelToAnyBroker(zkUtils)
+             queryChannel = channelToAnyBroker(zkUtils, protocol=protocol)
            debug("Querying %s:%d to locate offset manager for %s.".format(queryChannel.host, queryChannel.port, group))
            queryChannel.send(GroupCoordinatorRequest(group))
            val response = queryChannel.receive()
@@ -181,7 +183,8 @@ object ClientUtils extends Logging{
            offsetManagerChannel = new BlockingChannel(coordinator.host, coordinator.port,
                                                       BlockingChannel.UseDefaultBufferSize,
                                                       BlockingChannel.UseDefaultBufferSize,
-                                                      socketTimeoutMs)
+                                                      socketTimeoutMs,
+                                                      protocol)
            offsetManagerChannel.connect()
            offsetManagerChannelOpt = Some(offsetManagerChannel)
            queryChannel.disconnect()
