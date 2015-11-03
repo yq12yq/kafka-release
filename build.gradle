@@ -237,7 +237,7 @@ for ( sv in ['2_10', '2_11'] ) {
   }
 }
 
-def connectPkgs = ['connect:api', 'connect:runtime', 'connect:json', 'connect:file', 'connect:tools']
+def copycatPkgs = ['copycat:api', 'copycat:runtime', 'copycat:json', 'copycat:file']
 def pkgs = ['clients', 'examples', 'log4j-appender', 'tools'] + connectPkgs
 
 tasks.create(name: "jarConnect", dependsOn: connectPkgs.collect { it + ":jar" }) {}
@@ -420,6 +420,23 @@ project(':core') {
     into "$buildDir/dependant-testlibs"
   }
 }
+
+project(':contrib:kafka-ganglia') {
+  archivesBaseName = "kafka-ganglia"
+
+  dependencies {
+    compile project(':core')
+    compile "net.sf.jopt-simple:jopt-simple:3.2"
+    compile "com.yammer.metrics:metrics-core:2.2.0"
+    compile "com.yammer.metrics:metrics-ganglia:2.2.0"
+  }
+  task copyToLib( type: Copy ) {
+    into "$buildDir/libs/lib"
+    from configurations.runtime
+  }
+  jar { dependsOn copyToLib }
+}
+
 
 project(':examples') {
   archivesBaseName = "kafka-examples"
