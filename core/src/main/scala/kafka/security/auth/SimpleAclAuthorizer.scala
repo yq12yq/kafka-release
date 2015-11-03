@@ -26,7 +26,7 @@ import kafka.network.RequestChannel.Session
 import kafka.server.KafkaConfig
 import kafka.utils.CoreUtils.{inReadLock, inWriteLock}
 import kafka.utils._
-import org.I0Itec.zkclient.IZkStateListener
+import org.I0Itec.zkclient.{IZkStateListener}
 import org.apache.kafka.common.security.JaasUtils
 import org.apache.kafka.common.security.auth.KafkaPrincipal
 import scala.collection.JavaConverters._
@@ -43,6 +43,8 @@ object SimpleAclAuthorizer {
   val SuperUsersProp = "super.users"
   //If set to true when no acls are found for a resource , authorizer allows access to everyone. Defaults to false.
   val AllowEveryoneIfNoAclIsFoundProp = "allow.everyone.if.no.acl.found"
+  //FQCN of Plugin class that can convert kafka principal to local user name.
+  val PrincipalToLocalProp = "principal.to.local.class"
 
   /**
    * The root acl storage node. Under this node there will be one child node per resource type (Topic, Cluster, ConsumerGroup).
@@ -66,8 +68,11 @@ object SimpleAclAuthorizer {
 
 class SimpleAclAuthorizer extends Authorizer with Logging {
   private val authorizerLogger = Logger.getLogger("kafka.authorizer.logger")
+
   private var superUsers = Set.empty[KafkaPrincipal]
   private var shouldAllowEveryoneIfNoAclIsFound = false
+  private var principalToLocalPlugin: Option[PrincipalToLocal] = None
+
   private var zkUtils: ZkUtils = null
   private var aclChangeListener: ZkNodeChangeNotificationListener = null
 
@@ -80,21 +85,22 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
   override def configure(javaConfigs: util.Map[String, _]) {
     val configs = javaConfigs.asScala
     val props = new java.util.Properties()
-    configs.foreach { case (key, value) => props.put(key, value.toString) }
+    configs foreach { case (key, value) => props.put(key, value.toString) }
+    val kafkaConfig = KafkaConfig.fromProps(props)
 
     superUsers = configs.get(SimpleAclAuthorizer.SuperUsersProp).collect {
       case str: String if str.nonEmpty => str.split(";").map(s => KafkaPrincipal.fromString(s.trim)).toSet
     }.getOrElse(Set.empty[KafkaPrincipal])
 
-    shouldAllowEveryoneIfNoAclIsFound = configs.get(SimpleAclAuthorizer.AllowEveryoneIfNoAclIsFoundProp).exists(_.toString.toBoolean)
+    principalToLocalPlugin = configs.get(SimpleAclAuthorizer.PrincipalToLocalProp).collect {
+      case str: String if str.nonEmpty => CoreUtils.createObject(str)
+    }
 
-    // Use `KafkaConfig` in order to get the default ZK config values if not present in `javaConfigs`. Note that this
-    // means that `KafkaConfig.zkConnect` must always be set by the user (even if `SimpleAclAuthorizer.ZkUrlProp` is also
-    // set).
-    val kafkaConfig = KafkaConfig.fromProps(props, doLog = false)
-    val zkUrl = configs.get(SimpleAclAuthorizer.ZkUrlProp).map(_.toString).getOrElse(kafkaConfig.zkConnect)
-    val zkConnectionTimeoutMs = configs.get(SimpleAclAuthorizer.ZkConnectionTimeOutProp).map(_.toString.toInt).getOrElse(kafkaConfig.zkConnectionTimeoutMs)
-    val zkSessionTimeOutMs = configs.get(SimpleAclAuthorizer.ZkSessionTimeOutProp).map(_.toString.toInt).getOrElse(kafkaConfig.zkSessionTimeoutMs)
+    shouldAllowEveryoneIfNoAclIsFound = configs.get(SimpleAclAuthorizer.AllowEveryoneIfNoAclIsFoundProp).map(_.toString.toBoolean).getOrElse(false)
+
+    val zkUrl = configs.getOrElse(SimpleAclAuthorizer.ZkUrlProp, kafkaConfig.zkConnect).toString
+    val zkConnectionTimeoutMs = configs.getOrElse(SimpleAclAuthorizer.ZkConnectionTimeOutProp, kafkaConfig.zkConnectionTimeoutMs).toString.toInt
+    val zkSessionTimeOutMs = configs.getOrElse(SimpleAclAuthorizer.ZkSessionTimeOutProp, kafkaConfig.zkSessionTimeoutMs).toString.toInt
 
     zkUtils = ZkUtils(zkUrl,
                       zkConnectionTimeoutMs,
@@ -105,19 +111,21 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
     loadCache()
 
     zkUtils.makeSurePersistentPathExists(SimpleAclAuthorizer.AclChangedZkPath)
-    aclChangeListener = new ZkNodeChangeNotificationListener(zkUtils, SimpleAclAuthorizer.AclChangedZkPath, SimpleAclAuthorizer.AclChangedPrefix, AclChangedNotificationHandler)
+    aclChangeListener = new ZkNodeChangeNotificationListener(zkUtils, SimpleAclAuthorizer.AclChangedZkPath, SimpleAclAuthorizer.AclChangedPrefix, AclChangedNotificaitonHandler)
     aclChangeListener.init()
 
     zkUtils.zkClient.subscribeStateChanges(ZkStateChangeListener)
   }
 
   override def authorize(session: Session, operation: Operation, resource: Resource): Boolean = {
-    val principal = session.principal
-    val host = session.clientAddress.getHostAddress
+    val principal: KafkaPrincipal = session.principal
+    val host = session.host
     val acls = getAcls(resource) ++ getAcls(new Resource(resource.resourceType, Resource.WildCardResource))
 
+    val principals = if (localPrincipal != null) Set(principal, localPrincipal) else Set(principal)
+
     //check if there is any Deny acl match that would disallow this operation.
-    val denyMatch = aclMatch(session, operation, resource, principal, host, Deny, acls)
+    val denyMatch = principals.foldLeft(false)((result, principal) => result || aclMatch(session, operation, resource, principal, host, Deny, acls))
 
     //if principal is allowed to read or write we allow describe by default, the reverse does not apply to Deny.
     val ops = if (Describe == operation)
@@ -126,12 +134,13 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
       Set[Operation](operation)
 
     //now check if there is any allow acl that will allow this operation.
-    val allowMatch = ops.exists(operation => aclMatch(session, operation, resource, principal, host, Allow, acls))
+    val allowMatch = ops.exists(operation =>
+      principals.foldLeft(false)((result, principal) => result || aclMatch(session, operation, resource, principal, host, Allow, acls)))
 
     //we allow an operation if a user is a super user or if no acls are found and user has configured to allow all users
     //when no acls are found or if no deny acls are found and at least one allow acls matches.
-    val authorized = isSuperUser(operation, resource, principal, host) ||
-      isEmptyAclAndAuthorized(operation, resource, principal, host, acls) ||
+    val authorized = principals.foldLeft(false)(
+      (result, principal) => isSuperUser(operation, resource, principal, host) || isEmptyAclAndAuthorized(operation, resource, principal, host, acls)) ||
       (!denyMatch && allowMatch)
 
     logAuditMessage(principal, authorized, operation, resource, host)
@@ -230,7 +239,6 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
   }
 
   def close() {
-    if (aclChangeListener != null) aclChangeListener.close()
     if (zkUtils != null) zkUtils.close()
   }
 
@@ -270,7 +278,7 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
     zkUtils.createSequentialPersistentPath(SimpleAclAuthorizer.AclChangedZkPath + "/" + SimpleAclAuthorizer.AclChangedPrefix, resource.toString)
   }
 
-  object AclChangedNotificationHandler extends NotificationHandler {
+  object AclChangedNotificaitonHandler extends NotificationHandler {
 
     override def processNotification(notificationMessage: String) {
       val resource: Resource = Resource.fromString(notificationMessage)
