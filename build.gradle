@@ -17,7 +17,9 @@ import org.ajoberstar.grgit.Grgit
 
 buildscript {
   repositories {
-    mavenCentral()
+      maven {
+        url = "$repoUrl"
+      }
   }
   apply from: file('gradle/buildscript.gradle'), to: buildscript
 
@@ -264,11 +266,11 @@ project(':core') {
     compile project(':clients')
     compile "$slf4jlog4j"
     compile "org.scala-lang:scala-library:$scalaVersion"
-    compile 'org.apache.zookeeper:zookeeper:3.4.6'
-    compile 'com.101tec:zkclient:0.7'
+    compile 'org.apache.zookeeper:zookeeper:$zookeeperVersion'
+    compile 'com.101tec:zkclient:0.6'
     compile 'com.yammer.metrics:metrics-core:2.2.0'
     compile 'net.sf.jopt-simple:jopt-simple:4.9'
-    if (baseScalaVersion == '2.11') {
+    if (scalaVersion.startsWith('2.11')) {
       compile 'org.scala-lang.modules:scala-xml_2.11:1.0.4'
       compile 'org.scala-lang.modules:scala-parser-combinators_2.11:1.0.4'
     }
@@ -305,7 +307,7 @@ project(':core') {
     from (configurations.runtime) {
       exclude('kafka-clients*')
     }
-    into "$buildDir/dependant-libs-${resolvedScalaVersion}"
+    into "$buildDir/dependant-libs-${scalaVersion}"
   }
 
   tasks.create(name: "genProducerConfigDocs", dependsOn:jar, type: JavaExec) {
