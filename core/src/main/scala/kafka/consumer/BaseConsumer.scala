@@ -37,7 +37,7 @@ case class BaseConsumerRecord(topic: String, partition: Int, offset: Long, key: 
 class NewShinyConsumer(topic: String, consumerProps: Properties, val timeoutMs: Long = Long.MaxValue) extends BaseConsumer {
   import org.apache.kafka.clients.consumer.KafkaConsumer
 
-import scala.collection.JavaConversions._
+  import scala.collection.JavaConversions._
 
   val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](consumerProps)
   consumer.subscribe(List(topic))
