@@ -39,3 +39,5 @@ tests/results
 tests/.ducktape
 
 docs/generated/
+docs/consumer_config.html
+docs/kafka_config.html
