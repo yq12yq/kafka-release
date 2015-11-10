@@ -18,14 +18,30 @@ from ducktape.utils.util import wait_until
 from ducktape.errors import DucktapeError
 
 from kafkatest.services.kafka.directory import kafka_dir
-import signal, random, requests
+import signal, random, requests, os.path, json
 
 class ConnectServiceBase(Service):
     """Base class for Kafka Connect services providing some common settings and functionality"""
 
+    PERSISTENT_ROOT = "/mnt/connect"
+    CONFIG_FILE = os.path.join(PERSISTENT_ROOT, "connect.properties")
+    # The log file contains normal log4j logs written using a file appender. stdout and stderr are handled separately
+    # so they can be used for other output, e.g. verifiable source & sink.
+    LOG_FILE = os.path.join(PERSISTENT_ROOT, "connect.log")
+    STDOUT_FILE = os.path.join(PERSISTENT_ROOT, "connect.stdout")
+    STDERR_FILE = os.path.join(PERSISTENT_ROOT, "connect.stderr")
+    LOG4J_CONFIG_FILE = os.path.join(PERSISTENT_ROOT, "connect-log4j.properties")
+    PID_FILE = os.path.join(PERSISTENT_ROOT, "connect.pid")
+
     logs = {
-        "kafka_log": {
-            "path": "/mnt/connect.log",
+        "connect_log": {
+            "path": LOG_FILE,
+            "collect_default": True},
+        "connect_stdout": {
+            "path": STDOUT_FILE,
+            "collect_default": False},
+        "connect_stderr": {
+            "path": STDERR_FILE,
             "collect_default": True},
     }
 
@@ -37,7 +53,7 @@ class ConnectServiceBase(Service):
     def pids(self, node):
         """Return process ids for Kafka Connect processes."""
         try:
-            return [pid for pid in node.account.ssh_capture("cat /mnt/connect.pid", callback=int)]
+            return [pid for pid in node.account.ssh_capture("cat " + self.PID_FILE, callback=int)]
         except:
             return []
 
@@ -52,19 +68,22 @@ class ConnectServiceBase(Service):
         self.connector_config_templates = connector_config_templates
 
     def stop_node(self, node, clean_shutdown=True):
+        self.logger.info((clean_shutdown and "Cleanly" or "Forcibly") + " stopping Kafka Connect on " + str(node.account))
         pids = self.pids(node)
         sig = signal.SIGTERM if clean_shutdown else signal.SIGKILL
 
         for pid in pids:
-            node.account.signal(pid, sig, allow_fail=False)
-        for pid in pids:
+            node.account.signal(pid, sig, allow_fail=True)
+        if clean_shutdown:
+            for pid in pids:
             wait_until(lambda: not node.account.alive(pid), timeout_sec=60, err_msg="Kafka Connect standalone process took too long to exit")
 
-        node.account.ssh("rm -f /mnt/connect.pid", allow_fail=False)
+        node.account.ssh("rm -f " + self.PID_FILE, allow_fail=False)
 
     def restart(self):
         # We don't want to do any clean up here, just restart the process.
         for node in self.nodes:
+            self.logger.info("Restarting Kafka Connect on " + str(node.account))
             self.stop_node(node)
             self.start_node(node)
 
