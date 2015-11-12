@@ -232,7 +232,7 @@ for ( sv in ['2_10_5', '2_11_7'] ) {
   }
 }
 
-def connectPkgs = ['connect-api', 'connect-runtime', 'connect-json', 'connect-file', 'connect-tools']
+def connectPkgs = ['connect:api', 'connect:runtime', 'connect:json', 'connect:file']
 def pkgs = ['clients', 'examples', 'log4j-appender', 'tools'] + connectPkgs
 
 tasks.create(name: "jarConnect", dependsOn: connectPkgs.collect { it + ":jar" }) {}
@@ -727,13 +727,14 @@ project(':connect:json') {
   test.dependsOn('checkstyleMain', 'checkstyleTest')
 }
 
-project(':connect-runtime') {
+project(':connect:runtime') {
   apply plugin: 'checkstyle'
   archivesBaseName = "connect-runtime"
 
   dependencies {
     compile project(':connect:api')
     compile project(':clients')
+    compile project(':tools')
     compile "$slf4japi"
 
     compile "org.eclipse.jetty:jetty-server:$jetty_version"
