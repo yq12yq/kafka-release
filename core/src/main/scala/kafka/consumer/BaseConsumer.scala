@@ -20,6 +20,7 @@ package kafka.consumer
 import java.util.Properties
 import kafka.common.StreamEndException
 
+import kafka.common.StreamEndException
 /**
  * A base consumer used to abstract both old and new consumer
  * this class should be removed (along with BaseProducer) be removed
