@@ -155,6 +155,13 @@ class ConnectStandaloneService(ConnectServiceBase):
     def node(self):
         return self.nodes[0]
 
+    def start_cmd(self, node, connector_configs):
+        cmd = "( export KAFKA_LOG4J_OPTS=\"-Dlog4j.configuration=file:%s\"; " % self.LOG4J_CONFIG_FILE
+        cmd += "/opt/%s/bin/connect-standalone.sh %s " % (kafka_dir(node), self.CONFIG_FILE)
+        cmd += " ".join(connector_configs)
+        cmd += " & echo $! >&3 ) 1>> %s 2>> %s 3> %s" % (self.STDOUT_FILE, self.STDERR_FILE, self.PID_FILE)
+        return cmd
+
     def start_node(self, node):
         node.account.create_file("/mnt/connect.properties", self.config_template_func(node))
         remote_connector_configs = []
