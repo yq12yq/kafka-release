@@ -244,7 +244,7 @@ for ( sv in ['2_10', '2_11'] ) {
 }
 
 def connectPkgs = ['connect:api', 'connect:runtime', 'connect:json', 'connect:file', 'connect:tools']
-def pkgs = ['clients', 'examples', 'log4j-appender', 'contrib:hadoop-consumer', 'contrib:hadoop-producer', 'contrib:kafka-ganglia','tools', 'streams'] + connectPkgs
+def pkgs = ['clients', 'examples', 'log4j-appender', 'contrib:kafka-ganglia','tools', 'streams'] + connectPkgs
 
 tasks.create(name: "jarConnect", dependsOn: connectPkgs.collect { it + ":jar" }) {}
 tasks.create(name: "jarAll", dependsOn: ['jar_core_2_10_6', 'jar_core_2_11_7'] + pkgs.collect { it + ":jar" }) { }
