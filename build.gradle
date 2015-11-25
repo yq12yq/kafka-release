@@ -254,7 +254,7 @@ tasks.create(name: "srcJarAll", dependsOn: ['srcJar_2_10', 'srcJar_2_11'] + pkgs
 tasks.create(name: "docsJarAll", dependsOn: ['docsJar_2_10', 'docsJar_2_11'] + pkgs.collect { it + ":docsJar" }) { }
 
 tasks.create(name: "testConnect", dependsOn: connectPkgs.collect { it + ":test" }) {}
-tasks.create(name: "testAll", dependsOn: ['test_core_2_10_6', 'test_core_2_11_7'] + pkgs.collect { it + ":test" }) { }
+tasks.create(name: "testAll", dependsOn: ['test_core_2_10', 'test_core_2_11'] + pkgs.collect { it + ":test" }) { }
 
 tasks.create(name: "installAll", dependsOn: ['install_2_10', 'install_2_11'] + pkgs.collect { it + ":install" }) { }
 
@@ -271,7 +271,7 @@ project(':core') {
   dependencies {
     compile project(':clients')
     compile "$slf4jlog4j"
-    compile "org.scala-lang:scala-library:$scalaVersion"
+    compile "org.scala-lang:scala-library:$resolvedScalaVersion"
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
     compile 'com.101tec:zkclient:0.7'
     compile 'com.yammer.metrics:metrics-core:2.2.0'
@@ -313,7 +313,7 @@ project(':core') {
     from (configurations.runtime) {
       exclude('kafka-clients*')
     }
-    into "$buildDir/dependant-libs-${scalaVersion}"
+    into "$buildDir/dependant-libs-${resolvedScalaVersion}"
   }
 
   tasks.create(name: "genProducerConfigDocs", dependsOn:jar, type: JavaExec) {
@@ -554,7 +554,7 @@ project(':tools') {
         from (configurations.runtime) {
             exclude('kafka-clients*')
         }
-        into "$buildDir/dependant-libs-${scalaVersion}"
+        into "$buildDir/dependant-libs-${resolvedScalaVersion}"
     }
 
     jar {
@@ -611,7 +611,7 @@ project(':streams') {
         from (configurations.runtime) {
             exclude('kafka-clients*')
         }
-        into "$buildDir/dependant-libs-${scalaVersion}"
+        into "$buildDir/dependant-libs-${resolvedScalaVersion}"
     }
 
     jar {
