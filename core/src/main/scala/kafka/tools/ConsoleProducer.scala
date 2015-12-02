@@ -78,9 +78,7 @@ object ConsoleProducer {
 
   def getOldProducerProps(config: ProducerConfig): Properties = {
 
-    val props = new Properties
-
-    props.putAll(config.extraProducerProps)
+    val props = producerProps(config)
 
     props.put("metadata.broker.list", config.brokerList)
     props.put("compression.codec", config.compressionCodec)
@@ -114,9 +112,7 @@ object ConsoleProducer {
 
   def getNewProducerProps(config: ProducerConfig): Properties = {
 
-    val props = new Properties
-
-    props.putAll(config.extraProducerProps)
+    val props = producerProps(config)
 
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, config.brokerList)
     props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, config.compressionCodec)
@@ -259,7 +255,7 @@ object ConsoleProducer {
       .defaultsTo("PLAINTEXT")
 
     val useNewProducerOpt = parser.accepts("new-producer", "Use the old producer implementation.")
-    
+
     val options = parser.parse(args : _*)
     if(args.length == 0)
       CommandLineUtils.printUsageAndDie(parser, "Read data from standard input and publish it to Kafka.")
