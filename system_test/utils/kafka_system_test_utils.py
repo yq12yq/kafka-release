@@ -437,12 +437,12 @@ def generate_overriden_props_files(testsuitePathname, testcaseEnv, systemTestEnv
                     addedCSVConfig["kafka.metrics.reporters"] = "kafka.metrics.KafkaCSVMetricsReporter"
                     addedCSVConfig["kafka.csv.metrics.reporter.enabled"] = "true"
                     if systemTestEnv.SECURE_MODE:
-                        addedCSVConfig["listeners"] = "SASL_PLAINTEXT://" + hostname + ":"+tcCfg["port"]
-                        addedCSVConfig["listeners"] = "SASL_PLAINTEXT://" + hostname + ":"+tcCfg["port"]
+                        addedCSVConfig["listeners"] = "PLAINTEXTSASL://" + hostname + ":"+tcCfg["port"]
+                        addedCSVConfig["listeners"] = "PLAINTEXTSASL://" + hostname + ":"+tcCfg["port"]
                         addedCSVConfig["super.users"] = "User:kafka"
                         addedCSVConfig["principal.to.local.class"] = "kafka.security.auth.KerberosPrincipalToLocal"
                         addedCSVConfig["authorizer.class.name"] = "kafka.security.auth.SimpleAclAuthorizer"
-                        addedCSVConfig["security.inter.broker.protocol"] = "SASL_PLAINTEXT"
+                        addedCSVConfig["security.inter.broker.protocol"] = "PLAINTEXTSASL"
                     else:
                         addedCSVConfig["listeners"] = "PLAINTEXT://" + hostname + ":"+tcCfg["port"]
 
@@ -842,7 +842,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
             logger.error("Invalid cluster name : " + clusterName, extra=d)
             sys.exit(1)
         kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
-        securityProtocol = "--security-protocol SASL_PLAINTEXT" if secureMode else ""
+        securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
         cmdList = ["ssh " + hostname,
                    "'(", kinitCmd,
                    "JAVA_HOME=" + javaHome,
@@ -966,7 +966,7 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
 
         secureMode = systemTestEnv.SECURE_MODE
         kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
-        securityProtocol = "--security-protocol SASL_PLAINTEXT" if secureMode else ""
+        securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
 
         cmdList = ["ssh " + host,
                    "'(", kinitCmd,
@@ -1143,7 +1143,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
     # keep calling producer until signaled to stop by:
     # testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]
     kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
-    securityProtocol = "--security-protocol SASL_PLAINTEXT" if secureMode else ""
+    securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
     if secureMode:
         kinitCmdList = ["ssh " + host,
                         kinitCmd]
@@ -1342,14 +1342,14 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
                 kafkaAclCmdList = ["ssh " + zkHost,
                                    "JAVA_HOME=" + javaHome,
                                    kafkaAclCommand,
-                                   " --topic " + topic,
+                                  " --topic " + topic,
                                    " --add " +
-                                   " --allowprincipals " + "User:ambari-qa",
-                                   " --config " + brokerConfigFile]
+                                   " --allow-principals " + "User:ambari-qa",
+                                   " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188" ]
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                 subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
-
+             
 
 def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_partitions):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
@@ -2203,7 +2203,7 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
                     startingOffset = minStartingOffsetDict[topicPartition]
 
                 outputFilePathName = consumerLogPath + "/simple_consumer_" + topic + "-" + str(partitionId) + "_r" + str(replicaInfo[replicaIndex-1]) + ".log"
-                securityProtocol = "--security-protocol SASL_PLAINTEXT" if secureMode else ""
+                securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
                 cmdList = ["ssh " + host,
                            "'(", kinitCmd,
                            "JAVA_HOME=" + javaHome,
