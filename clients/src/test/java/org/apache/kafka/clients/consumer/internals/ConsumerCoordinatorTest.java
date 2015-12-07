@@ -24,8 +24,6 @@ import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetCommitCallback;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
-import org.apache.kafka.clients.consumer.RangeAssignor;
-import org.apache.kafka.clients.consumer.RoundRobinAssignor;
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Node;
@@ -40,7 +38,6 @@ import org.apache.kafka.common.protocol.types.Struct;
 import org.apache.kafka.common.requests.GroupCoordinatorResponse;
 import org.apache.kafka.common.requests.HeartbeatResponse;
 import org.apache.kafka.common.requests.JoinGroupRequest;
-import org.apache.kafka.common.requests.JoinGroupRequest.ProtocolMetadata;
 import org.apache.kafka.common.requests.JoinGroupResponse;
 import org.apache.kafka.common.requests.LeaveGroupRequest;
 import org.apache.kafka.common.requests.LeaveGroupResponse;
@@ -78,6 +75,7 @@ public class ConsumerCoordinatorTest {
     private int sessionTimeoutMs = 10;
     private int heartbeatIntervalMs = 2;
     private long retryBackoffMs = 100;
+    private long requestTimeoutMs = 5000;
     private boolean autoCommitEnabled = false;
     private long autoCommitIntervalMs = 5000;
     private MockPartitionAssignor partitionAssignor = new MockPartitionAssignor();
@@ -110,7 +108,22 @@ public class ConsumerCoordinatorTest {
 
         client.setNode(node);
 
-        this.coordinator = buildCoordinator(metrics, assignors);
+        this.coordinator = new ConsumerCoordinator(
+                consumerClient,
+                groupId,
+                sessionTimeoutMs,
+                heartbeatIntervalMs,
+                assignors,
+                metadata,
+                subscriptions,
+                metrics,
+                "consumer" + groupId,
+                metricTags,
+                time,
+                retryBackoffMs,
+                defaultOffsetCommitCallback,
+                autoCommitEnabled,
+                autoCommitIntervalMs);
     }
 
     @After
@@ -877,47 +890,6 @@ public class ConsumerCoordinatorTest {
         coordinator.refreshCommittedOffsetsIfNeeded();
         assertFalse(subscriptions.refreshCommitsNeeded());
         assertEquals(null, subscriptions.committed(tp));
-    }
-
-    @Test
-    public void testProtocolMetadataOrder() {
-        RoundRobinAssignor roundRobin = new RoundRobinAssignor();
-        RangeAssignor range = new RangeAssignor();
-
-        try (Metrics metrics = new Metrics(time)) {
-            ConsumerCoordinator coordinator = buildCoordinator(metrics, Arrays.<PartitionAssignor>asList(roundRobin, range));
-            List<ProtocolMetadata> metadata = coordinator.metadata();
-            assertEquals(2, metadata.size());
-            assertEquals(roundRobin.name(), metadata.get(0).name());
-            assertEquals(range.name(), metadata.get(1).name());
-        }
-
-        try (Metrics metrics = new Metrics(time)) {
-            ConsumerCoordinator coordinator = buildCoordinator(metrics, Arrays.<PartitionAssignor>asList(range, roundRobin));
-            List<ProtocolMetadata> metadata = coordinator.metadata();
-            assertEquals(2, metadata.size());
-            assertEquals(range.name(), metadata.get(0).name());
-            assertEquals(roundRobin.name(), metadata.get(1).name());
-        }
-    }
-
-    private ConsumerCoordinator buildCoordinator(Metrics metrics, List<PartitionAssignor> assignors) {
-        return new ConsumerCoordinator(
-                consumerClient,
-                groupId,
-                sessionTimeoutMs,
-                heartbeatIntervalMs,
-                assignors,
-                metadata,
-                subscriptions,
-                metrics,
-                "consumer" + groupId,
-                metricTags,
-                time,
-                retryBackoffMs,
-                defaultOffsetCommitCallback,
-                autoCommitEnabled,
-                autoCommitIntervalMs);
     }
 
     private Struct consumerMetadataResponse(Node node, short error) {

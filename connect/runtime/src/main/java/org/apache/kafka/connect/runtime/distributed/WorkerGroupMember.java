@@ -21,6 +21,7 @@ import org.apache.kafka.clients.ClientUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.Metadata;
 import org.apache.kafka.clients.NetworkClient;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.internals.ConsumerNetworkClient;
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.KafkaException;
@@ -104,6 +105,7 @@ public class WorkerGroupMember {
                     metricGrpPrefix,
                     metricsTags,
                     this.time,
+                    config.getInt(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG),
                     retryBackoffMs,
                     restUrl,
                     configStorage,
