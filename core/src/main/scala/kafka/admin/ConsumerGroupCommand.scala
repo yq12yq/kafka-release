@@ -25,14 +25,15 @@ import joptsimple.{OptionParser, OptionSpec}
 import kafka.api.{OffsetFetchRequest, OffsetFetchResponse, OffsetRequest, PartitionOffsetRequestInfo}
 import kafka.client.ClientUtils
 import kafka.common.{OffsetMetadataAndError, TopicAndPartition}
-import kafka.utils.Implicits._
+import kafka.common.security.LoginManager
 import kafka.consumer.SimpleConsumer
+import kafka.utils.Implicits._
 import kafka.utils._
 import org.I0Itec.zkclient.exception.ZkNoNodeException
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer, OffsetAndMetadata}
+import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.common.errors.BrokerNotAvailableException
-import org.apache.kafka.common.{KafkaException, Node, TopicPartition}
 import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.network.ListenerName
 import org.apache.kafka.common.protocol.Errors
@@ -40,6 +41,7 @@ import org.apache.kafka.common.security.JaasUtils
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.utils.Utils
+import org.apache.kafka.common.{KafkaException, Node, TopicPartition}
 
 import scala.collection.JavaConverters._
 import scala.collection.{Seq, Set, mutable}
@@ -58,6 +60,14 @@ object ConsumerGroupCommand extends Logging {
       CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --list, --describe, --delete, --reset-offset")
 
     opts.checkArgs()
+    if (CoreUtils.isSaslProtocol(SecurityProtocol.valueOf(opts.securityProtocol))) {
+      val saslConfigs = new java.util.HashMap[String, Any]()
+      saslConfigs.put(SaslConfigs.SASL_KERBEROS_KINIT_CMD, SaslConfigs.DEFAULT_KERBEROS_KINIT_CMD)
+      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_JITTER, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
+      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_WINDOW_FACTOR, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
+      saslConfigs.put(SaslConfigs.SASL_KERBEROS_MIN_TIME_BEFORE_RELOGIN, SaslConfigs.DEFAULT_KERBEROS_MIN_TIME_BEFORE_RELOGIN)
+      LoginManager.init(JaasUtils.LOGIN_CONTEXT_CLIENT, saslConfigs)
+    }
 
     val consumerGroupService = {
       if (opts.useOldConsumer) {
@@ -283,7 +293,7 @@ object ConsumerGroupCommand extends Logging {
       val topicsByConsumerId = zkUtils.getTopicsPerMemberId(group)
 
       var assignmentRows = topicPartitions.flatMap { topicPartition =>
-        val partitionOffsets = getPartitionOffsets(group, List(topicPartition), channelSocketTimeoutMs, channelRetryBackoffMs)
+        val partitionOffsets = getPartitionOffsets(group, List(topicPartition), channelSocketTimeoutMs, channelRetryBackoffMs, SecurityProtocol.valueOf(opts.securityProtocol))
         val consumerId = consumerIdByTopicPartition.get(topicPartition)
         // since consumer id is repeated in client id, leave host and client id empty
         consumerId.foreach(id => groupConsumerIds = groupConsumerIds.filterNot(_ == id))
@@ -313,8 +323,8 @@ object ConsumerGroupCommand extends Logging {
       zkUtils.getLeaderForPartition(topicPartition.topic, topicPartition.partition) match {
         case Some(-1) => LogOffsetResult.Unknown
         case Some(brokerId) =>
-          getZkConsumer(brokerId).map { consumer =>
-            val topicAndPartition = TopicAndPartition(topicPartition.topic, topicPartition.partition)
+          getZkConsumer(brokerId, SecurityProtocol.valueOf(opts.securityProtocol)).map { consumer =>
+            val topicAndPartition = new TopicAndPartition(topicPartition.topic, topicPartition.partition)
             val request = OffsetRequest(Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)))
             val logEndOffset = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets.head
             consumer.close()
@@ -329,9 +339,9 @@ object ConsumerGroupCommand extends Logging {
     private def getPartitionOffsets(group: String,
                                     topicPartitions: Seq[TopicAndPartition],
                                     channelSocketTimeoutMs: Int,
-                                    channelRetryBackoffMs: Int): Map[TopicAndPartition, Long] = {
+                                    channelRetryBackoffMs: Int, securityProtocol: SecurityProtocol): Map[TopicAndPartition, Long] = {
       val offsetMap = mutable.Map[TopicAndPartition, Long]()
-      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs)
+      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs, protocol=securityProtocol)
       channel.send(OffsetFetchRequest(group, topicPartitions))
       val offsetFetchResponse = OffsetFetchResponse.readFrom(channel.receive().payload())
 
@@ -399,7 +409,7 @@ object ConsumerGroupCommand extends Logging {
       println(s"Deleted consumer group information for all inactive consumer groups for topic '$topic' in zookeeper.")
     }
 
-    private def getZkConsumer(brokerId: Int): Option[SimpleConsumer] = {
+    private def getZkConsumer(brokerId: Int, securityProtocol: SecurityProtocol): Option[SimpleConsumer] = {
       try {
         zkUtils.getBrokerInfo(brokerId)
           .map(_.getBrokerEndPoint(ListenerName.forSecurityProtocol(SecurityProtocol.PLAINTEXT)))
@@ -510,6 +520,7 @@ object ConsumerGroupCommand extends Logging {
       val properties = new Properties()
       val deserializer = (new StringDeserializer).getClass.getName
       val brokerUrl = opts.options.valueOf(opts.bootstrapServerOpt)
+      properties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, opts.securityProtocol)
       properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerUrl)
       properties.put(ConsumerConfig.GROUP_ID_CONFIG, opts.options.valueOf(opts.groupOpt))
       properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
@@ -759,6 +770,11 @@ object ConsumerGroupCommand extends Logging {
     val listOpt = parser.accepts("list", ListDoc)
     val describeOpt = parser.accepts("describe", DescribeDoc)
     val deleteOpt = parser.accepts("delete", DeleteDoc)
+    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
+      .withRequiredArg
+      .describedAs("security-protocol")
+      .ofType(classOf[String])
+      .defaultsTo("PLAINTEXT")
     val newConsumerOpt = parser.accepts("new-consumer", NewConsumerDoc)
     val timeoutMsOpt = parser.accepts("timeout", TimeoutMsDoc)
                              .withRequiredArg
@@ -803,6 +819,7 @@ object ConsumerGroupCommand extends Logging {
     val allConsumerGroupLevelOpts: Set[OptionSpec[_]] = Set(listOpt, describeOpt, deleteOpt, resetOffsetsOpt)
     val allResetOffsetScenarioOpts: Set[OptionSpec[_]] = Set(resetToOffsetOpt, resetShiftByOpt,
       resetToDatetimeOpt, resetByDurationOpt, resetToEarliestOpt, resetToLatestOpt, resetToCurrentOpt, resetFromFileOpt)
+    val securityProtocol = options.valueOf(securityProtocolOpt)
 
     def checkArgs() {
       // check required args
