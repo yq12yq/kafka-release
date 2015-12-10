@@ -32,6 +32,11 @@ import kafka.client.ClientUtils
 import kafka.network.BlockingChannel
 import kafka.api.PartitionOffsetRequestInfo
 import org.I0Itec.zkclient.exception.ZkNoNodeException
+import kafka.common.security.LoginManager
+import org.apache.kafka.clients.CommonClientConfigs
+import org.apache.kafka.common.config.SaslConfigs
+import org.apache.kafka.common.protocol.SecurityProtocol
+
 
 object ConsumerOffsetChecker extends Logging {
 
@@ -115,6 +120,12 @@ object ConsumerOffsetChecker extends Logging {
     val channelRetryBackoffMsOpt = parser.accepts("retry.backoff.ms", "Retry back-off to use for failed offset queries.").
             withRequiredArg().ofType(classOf[java.lang.Integer]).defaultsTo(3000)
 
+    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
+      .withRequiredArg
+      .describedAs("security-protocol")
+      .ofType(classOf[String])
+      .defaultsTo("PLAINTEXT")
+
     parser.accepts("broker-info", "Print broker info")
     parser.accepts("help", "Print this message.")
 
@@ -137,8 +148,17 @@ object ConsumerOffsetChecker extends Logging {
 
     val channelSocketTimeoutMs = options.valueOf(channelSocketTimeoutMsOpt).intValue()
     val channelRetryBackoffMs = options.valueOf(channelRetryBackoffMsOpt).intValue()
-
+    val securityProtocol = options.valueOf(securityProtocolOpt)
     val topics = if (options.has(topicsOpt)) Some(options.valueOf(topicsOpt)) else None
+
+    if (CoreUtils.isSaslProtocol(SecurityProtocol.valueOf(securityProtocol))) {
+      val saslConfigs = new java.util.HashMap[String, Any]()
+      saslConfigs.put(SaslConfigs.SASL_KERBEROS_KINIT_CMD, SaslConfigs.DEFAULT_KERBEROS_KINIT_CMD)
+      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_JITTER, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
+      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_WINDOW_FACTOR, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
+      saslConfigs.put(SaslConfigs.SASL_KERBEROS_MIN_TIME_BEFORE_RELOGIN, SaslConfigs.DEFAULT_KERBEROS_MIN_TIME_BEFORE_RELOGIN)
+      LoginManager.init(JaasUtils.LOGIN_CONTEXT_CLIENT, saslConfigs)
+    }
 
     var zkUtils: ZkUtils = null
     var channel: BlockingChannel = null
@@ -155,7 +175,7 @@ object ConsumerOffsetChecker extends Logging {
 
       topicPidMap = immutable.Map(zkUtils.getPartitionsForTopics(topicList).toSeq:_*)
       val topicPartitions = topicPidMap.flatMap { case(topic, partitionSeq) => partitionSeq.map(TopicAndPartition(topic, _)) }.toSeq
-      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs)
+      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs, protocol=SecurityProtocol.valueOf(securityProtocol))
 
       debug("Sending offset fetch request to coordinator %s:%d.".format(channel.host, channel.port))
       channel.send(OffsetFetchRequest(group, topicPartitions))
