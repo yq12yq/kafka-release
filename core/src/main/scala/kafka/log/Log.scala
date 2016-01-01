@@ -175,8 +175,7 @@ class Log(val dir: File,
               segment.index.sanityCheck()
           } catch {
             case e: java.lang.IllegalArgumentException =>
-              warn("sanityCheck error %s ".format(s))
-              warn("Found an corrupted index file, %s, deleting and rebuilding index...".format(indexFile.getAbsolutePath))
+              warn("Found an corrupted index file, %s, deleting and rebuilding index...".format(indexFile.getAbsolutePath), e)
               indexFile.delete()
               segment.recover(config.maxMessageSize)
           }
