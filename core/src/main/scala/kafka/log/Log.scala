@@ -156,14 +156,15 @@ class Log(val dir: File,
       }
     }
 
-//    See the above TODO, we probably don't need this.
-//    for(file <- indexDir.listFiles if file.isFile) {
-//      if (!file.canRead)
-//        throw new IOException("Could not read file " + file)
-//      if(file.getName.endsWith(SwapFileSuffix)) {
-//        file.delete();
-//      }
-//    }
+    if(indexDir != dir) {
+      for (file <- indexDir.listFiles if file.isFile) {
+        if (!file.canRead)
+          throw new IOException("Could not read file " + file)
+        if (file.getName.endsWith(SwapFileSuffix)) {
+          file.delete();
+        }
+      }
+    }
 
 
     // now do a second pass and load all the .log and .index files

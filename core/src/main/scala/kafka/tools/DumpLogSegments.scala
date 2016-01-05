@@ -45,6 +45,8 @@ object DumpLogSegments {
                                   .ofType(classOf[java.lang.Integer])
       .defaultsTo(5 * 1024 * 1024)
 
+    val dataDirOpt = parser.accepts("data-directory", "if set, looks for the data file in the given directory instead of looking at the same directory as the index directory.")
+
     val maxIndexSizeOpt = parser.accepts("max-index-size", "Max index size.")
       .withRequiredArg
       .describedAs("size")
@@ -84,6 +86,8 @@ object DumpLogSegments {
     val isDeepIteration = if(options.has(deepIterationOpt)) true else false
     val maxIndexSize = options.valueOf(maxIndexSizeOpt).intValue()
 
+    val dataDir = if(options.has(dataDirOpt)) Some(options.valueOf(dataDirOpt).toString) else None
+
     val valueDecoder: Decoder[_] = CoreUtils.createObject[Decoder[_]](options.valueOf(valueDecoderOpt), new VerifiableProperties)
     val keyDecoder: Decoder[_] = CoreUtils.createObject[Decoder[_]](options.valueOf(keyDecoderOpt), new VerifiableProperties)
 
@@ -98,10 +102,10 @@ object DumpLogSegments {
       } else if(file.getName.endsWith(Log.IndexFileSuffix)) {
         if (indexRecoverOnly) {
           println("recovering " + file)
-          recoverIndex(file, maxMessageSize, indexIntervalBytes, maxIndexSize)
+          recoverIndex(file, maxMessageSize, indexIntervalBytes, maxIndexSize, dataDir)
         } else {
           println("Dumping " + file)
-          dumpIndex(file, verifyOnly, indexSanityOnly, misMatchesForIndexFilesMap, maxMessageSize)
+          dumpIndex(file, verifyOnly, indexSanityOnly, misMatchesForIndexFilesMap, maxMessageSize, dataDir)
         }
       }
     }
@@ -128,14 +132,15 @@ object DumpLogSegments {
                         verifyOnly: Boolean,
                         indexSanityOnly: Boolean,
                         misMatchesForIndexFilesMap: mutable.HashMap[String, List[(Long, Long)]],
-                        maxMessageSize: Int) {
+                        maxMessageSize: Int,
+                        dataDirStr: Option[String]) {
     val startOffset = file.getName().split("\\.")(0).toLong
     val index = new OffsetIndex(file = file, baseOffset = startOffset)
     if (indexSanityOnly) {
       index.sanityCheck
       return
     }
-    val logFile = new File(file.getAbsoluteFile.getParent, file.getName.split("\\.")(0) + Log.LogFileSuffix)
+    val logFile = getLogFile(file, dataDirStr)
     val messageSet = new FileMessageSet(logFile, false)
     for(i <- 0 until index.entries) {
       val entry = index.entry(i)
@@ -239,10 +244,11 @@ object DumpLogSegments {
     * @return The number of bytes truncated from the log
     */
   @nonthreadsafe
-  def recoverIndex(file: File, maxMessageSize: Int, indexIntervalBytes: Int, maxIndexSize: Int): Int = {
+  def recoverIndex(file: File, maxMessageSize: Int, indexIntervalBytes: Int, maxIndexSize: Int, dataDirStr: Option[String]): Int = {
     val startOffset1 = file.getName().split("\\.")(0).toLong
     val index = new OffsetIndex(file = file, baseOffset = startOffset1, maxIndexSize = maxIndexSize)
-    val logFile = new File(file.getAbsoluteFile.getParent, file.getName.split("\\.")(0) + Log.LogFileSuffix)
+
+    val logFile = getLogFile(file, dataDirStr)
     println("log file " + logFile)
     index.truncate()
     index.resize(maxIndexSize);
@@ -281,5 +287,11 @@ object DumpLogSegments {
     //log.truncateTo(validBytes)
     index.trimToValidSize()
     truncated
+  }
+
+  private def getLogFile(file: File, dataDirStr: Option[String]) : File = {
+    val topicPartitionDir = file.getParentFile.getName
+    val dataDir = dataDirStr map (new File(_, topicPartitionDir)) getOrElse file.getParentFile
+    new File(dataDir, file.getName.split("\\.")(0) + Log.LogFileSuffix)
   }
 }
