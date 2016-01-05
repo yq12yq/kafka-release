@@ -46,6 +46,9 @@ object DumpLogSegments {
       .defaultsTo(5 * 1024 * 1024)
 
     val dataDirOpt = parser.accepts("data-directory", "if set, looks for the data file in the given directory instead of looking at the same directory as the index directory.")
+                              .withRequiredArg
+                              .describedAs("size")
+                              .ofType(classOf[String])
 
     val maxIndexSizeOpt = parser.accepts("max-index-size", "Max index size.")
       .withRequiredArg
@@ -86,7 +89,7 @@ object DumpLogSegments {
     val isDeepIteration = if(options.has(deepIterationOpt)) true else false
     val maxIndexSize = options.valueOf(maxIndexSizeOpt).intValue()
 
-    val dataDir = if(options.has(dataDirOpt)) Some(options.valueOf(dataDirOpt).toString) else None
+    val dataDir = if(options.has(dataDirOpt)) Some(options.valueOf(dataDirOpt)) else None
 
     val valueDecoder: Decoder[_] = CoreUtils.createObject[Decoder[_]](options.valueOf(valueDecoderOpt), new VerifiableProperties)
     val keyDecoder: Decoder[_] = CoreUtils.createObject[Decoder[_]](options.valueOf(keyDecoderOpt), new VerifiableProperties)
