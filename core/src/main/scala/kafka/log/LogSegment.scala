@@ -60,6 +60,14 @@ class LogSegment(val log: FileMessageSet,
          rollJitterMs,
          time)
 
+   def this(dir: File, indexDir: File, startOffset: Long, indexIntervalBytes: Int, maxIndexSize: Int, rollJitterMs: Long, time: Time) =
+     this(new FileMessageSet(file = Log.logFilename(dir, startOffset)),
+       new OffsetIndex(file = Log.indexFilename(indexDir, startOffset), baseOffset = startOffset, maxIndexSize = maxIndexSize),
+       startOffset,
+       indexIntervalBytes,
+       rollJitterMs,
+       time)
+
   /* Return the size in bytes of this log segment */
   def size: Long = log.sizeInBytes()
 
@@ -184,7 +192,6 @@ class LogSegment(val log: FileMessageSet,
               case _ =>
                 ByteBufferMessageSet.deepIterator(entry.message).next().offset
             }
-          println("adding to the index, validBytes " + validBytes + " lastIndexEntry "  +lastIndexEntry)
           index.append(startOffset, validBytes)
           lastIndexEntry = validBytes
         }

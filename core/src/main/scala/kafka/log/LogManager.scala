@@ -37,6 +37,7 @@ import java.util.concurrent.{Executors, ExecutorService, ExecutionException, Fut
  */
 @threadsafe
 class LogManager(val logDirs: Array[File],
+                 val indexDir: Option[String] = None,
                  val topicConfigs: Map[String, LogConfig],
                  val defaultConfig: LogConfig,
                  val cleanerConfig: CleanerConfig,
@@ -64,13 +65,13 @@ class LogManager(val logDirs: Array[File],
       new LogCleaner(cleanerConfig, logDirs, logs, time = time)
     else
       null
-  
+
   /**
    * Create and check validity of the given directories, specifically:
    * <ol>
    * <li> Ensure that there are no duplicates in the directory list
    * <li> Create each directory if it doesn't exist
-   * <li> Check that each path is a readable directory 
+   * <li> Check that each path is a readable directory
    * </ol>
    */
   private def createAndValidateLogDirs(dirs: Seq[File]) {
@@ -87,7 +88,7 @@ class LogManager(val logDirs: Array[File],
         throw new KafkaException(dir.getAbsolutePath + " is not a readable log directory.")
     }
   }
-  
+
   /**
    * Lock all the given directories
    */
@@ -95,12 +96,12 @@ class LogManager(val logDirs: Array[File],
     dirs.map { dir =>
       val lock = new FileLock(new File(dir, LockFile))
       if(!lock.tryLock())
-        throw new KafkaException("Failed to acquire lock on file .lock in " + lock.file.getParentFile.getAbsolutePath + 
+        throw new KafkaException("Failed to acquire lock on file .lock in " + lock.file.getParentFile.getAbsolutePath +
                                ". A Kafka instance in another process or thread is using this directory.")
       lock
     }
   }
-  
+
   /**
    * Recover and load all logs in the given data directories
    */
@@ -138,8 +139,9 @@ class LogManager(val logDirs: Array[File],
           val topicPartition = Log.parseTopicPartitionName(logDir)
           val config = topicConfigs.getOrElse(topicPartition.topic, defaultConfig)
           val logRecoveryPoint = recoveryPoints.getOrElse(topicPartition, 0L)
+          val idxDir = indexDir map (new File(_, logDir.getName)) getOrElse(logDir)
 
-          val current = new Log(logDir, config, logRecoveryPoint, scheduler, time)
+          val current = new Log(logDir, idxDir , config, logRecoveryPoint, scheduler, time)
           val previous = this.logs.put(topicPartition, current)
 
           if (previous != null) {
@@ -178,16 +180,16 @@ class LogManager(val logDirs: Array[File],
     /* Schedule the cleanup task to delete old logs */
     if(scheduler != null) {
       info("Starting log cleanup with a period of %d ms.".format(retentionCheckMs))
-      scheduler.schedule("kafka-log-retention", 
-                         cleanupLogs, 
-                         delay = InitialTaskDelayMs, 
-                         period = retentionCheckMs, 
+      scheduler.schedule("kafka-log-retention",
+                         cleanupLogs,
+                         delay = InitialTaskDelayMs,
+                         period = retentionCheckMs,
                          TimeUnit.MILLISECONDS)
       info("Starting log flusher with a default period of %d ms.".format(flushCheckMs))
-      scheduler.schedule("kafka-log-flusher", 
-                         flushDirtyLogs, 
-                         delay = InitialTaskDelayMs, 
-                         period = flushCheckMs, 
+      scheduler.schedule("kafka-log-flusher",
+                         flushDirtyLogs,
+                         delay = InitialTaskDelayMs,
+                         period = flushCheckMs,
                          TimeUnit.MILLISECONDS)
       scheduler.schedule("kafka-recovery-point-checkpoint",
                          checkpointRecoveryPointOffsets,
@@ -302,7 +304,7 @@ class LogManager(val logDirs: Array[File],
   }
 
   /**
-   * Write out the current recovery point for all logs to a text file in the log directory 
+   * Write out the current recovery point for all logs to a text file in the log directory
    * to avoid recovering the whole log on startup.
    */
   def checkpointRecoveryPointOffsets() {
@@ -337,16 +339,22 @@ class LogManager(val logDirs: Array[File],
   def createLog(topicAndPartition: TopicAndPartition, config: LogConfig): Log = {
     logCreationOrDeletionLock synchronized {
       var log = logs.get(topicAndPartition)
-      
+
       // check if the log has already been created in another thread
       if(log != null)
         return log
-      
+
       // if not, create it
       val dataDir = nextLogDir()
-      val dir = new File(dataDir, topicAndPartition.topic + "-" + topicAndPartition.partition)
+      val subdir = topicAndPartition.topic + "-" + topicAndPartition.partition
+      val dir = new File(dataDir, subdir)
+      val idxDir = indexDir map (new File(_, subdir)) getOrElse dir
       dir.mkdirs()
-      log = new Log(dir, 
+      if(!idxDir.exists())
+        idxDir.mkdirs()
+
+      log = new Log(dir,
+                    idxDir,
                     config,
                     recoveryPoint = 0L,
                     scheduler,

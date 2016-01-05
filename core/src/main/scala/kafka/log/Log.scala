@@ -65,10 +65,14 @@ case class LogAppendInfo(var firstOffset: Long, var lastOffset: Long, sourceCode
  */
 @threadsafe
 class Log(val dir: File,
+          val indexDir: File,
           @volatile var config: LogConfig,
           @volatile var recoveryPoint: Long = 0L,
           scheduler: Scheduler,
           time: Time = SystemTime) extends Logging with KafkaMetricsGroup {
+
+
+  def this(dir: File, config: LogConfig, recoveryPoint: Long = 0L, scheduler: Scheduler, time: Time = SystemTime) = this(dir, dir, config, recoveryPoint, scheduler, time)
 
   import kafka.log.Log._
 
@@ -122,6 +126,8 @@ class Log(val dir: File,
   private def loadSegments() {
     // create the log directory if it doesn't exist
     dir.mkdirs()
+    // create the index directroy if it doesen't exist
+    indexDir.mkdirs()
     var swapFiles = Set[File]()
 
     // first do a pass through the files in the log directory and remove any temporary files
@@ -138,16 +144,27 @@ class Log(val dir: File,
         // if a log, delete the .index file, complete the swap operation later
         // if an index just delete it, it will be rebuilt
         val baseName = new File(CoreUtils.replaceSuffix(file.getPath, SwapFileSuffix, ""))
+        //TODO: Does it matter if we don't delete the index swap files, if this is necessary we need to ensure we loop through the indexDir as well.
         if(baseName.getPath.endsWith(IndexFileSuffix)) {
           file.delete()
         } else if(baseName.getPath.endsWith(LogFileSuffix)){
           // delete the index
-          val index = new File(CoreUtils.replaceSuffix(baseName.getPath, LogFileSuffix, IndexFileSuffix))
+          val index = new File(indexDir, CoreUtils.replaceSuffix(baseName.getName, LogFileSuffix, IndexFileSuffix))
           index.delete()
           swapFiles += file
         }
       }
     }
+
+//    See the above TODO, we probably don't need this.
+//    for(file <- indexDir.listFiles if file.isFile) {
+//      if (!file.canRead)
+//        throw new IOException("Could not read file " + file)
+//      if(file.getName.endsWith(SwapFileSuffix)) {
+//        file.delete();
+//      }
+//    }
+
 
     // now do a second pass and load all the .log and .index files
     for(file <- dir.listFiles if file.isFile) {
@@ -162,20 +179,22 @@ class Log(val dir: File,
       } else if(filename.endsWith(LogFileSuffix)) {
         // if its a log file, load the corresponding log segment
         val start = filename.substring(0, filename.length - LogFileSuffix.length).toLong
-        val indexFile = Log.indexFilename(dir, start)
+        val indexFile = Log.indexFilename(indexDir, start)
+        val indexFileExists = indexFile.exists()
         val segment = new LogSegment(dir = dir,
+                                     indexDir = indexDir,
                                      startOffset = start,
                                      indexIntervalBytes = config.indexInterval,
                                      maxIndexSize = config.maxIndexSize,
                                      rollJitterMs = config.randomSegmentJitter,
                                      time = time)
 
-        if(indexFile.exists()) {
+        if(indexFileExists) {
           try {
               segment.index.sanityCheck()
           } catch {
             case e: java.lang.IllegalArgumentException =>
-              warn("Found an corrupted index file, %s, deleting and rebuilding index...".format(indexFile.getAbsolutePath), e)
+              warn("Found a corrupted index file, %s, deleting and rebuilding index...".format(indexFile.getAbsolutePath), e)
               indexFile.delete()
               segment.recover(config.maxMessageSize)
           }
@@ -194,7 +213,8 @@ class Log(val dir: File,
       val logFile = new File(CoreUtils.replaceSuffix(swapFile.getPath, SwapFileSuffix, ""))
       val fileName = logFile.getName
       val startOffset = fileName.substring(0, fileName.length - LogFileSuffix.length).toLong
-      val indexFile = new File(CoreUtils.replaceSuffix(logFile.getPath, LogFileSuffix, IndexFileSuffix) + SwapFileSuffix)
+      val indexFilePath = indexDir.getAbsoluteFile + File.pathSeparator + fileName
+      val indexFile = new File(CoreUtils.replaceSuffix(indexFilePath, LogFileSuffix, IndexFileSuffix) + SwapFileSuffix)
       val index =  new OffsetIndex(file = indexFile, baseOffset = startOffset, maxIndexSize = config.maxIndexSize)
       val swapSegment = new LogSegment(new FileMessageSet(file = swapFile),
                                        index = index,
@@ -211,6 +231,7 @@ class Log(val dir: File,
     if(logSegments.size == 0) {
       // no existing segments, create a new mutable segment beginning at offset 0
       segments.put(0L, new LogSegment(dir = dir,
+                                     indexDir,
                                      startOffset = 0,
                                      indexIntervalBytes = config.indexInterval,
                                      maxIndexSize = config.maxIndexSize,
@@ -596,6 +617,7 @@ class Log(val dir: File,
         case entry => entry.getValue.index.trimToValidSize()
       }
       val segment = new LogSegment(dir,
+                                   indexDir,
                                    startOffset = newOffset,
                                    indexIntervalBytes = config.indexInterval,
                                    maxIndexSize = config.maxIndexSize,
@@ -690,6 +712,7 @@ class Log(val dir: File,
       val segmentsToDelete = logSegments.toList
       segmentsToDelete.foreach(deleteSegment(_))
       addSegment(new LogSegment(dir,
+                                indexDir,
                                 newOffset,
                                 indexIntervalBytes = config.indexInterval,
                                 maxIndexSize = config.maxIndexSize,

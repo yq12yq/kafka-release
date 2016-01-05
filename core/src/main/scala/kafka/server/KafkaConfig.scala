@@ -173,6 +173,8 @@ object KafkaConfig {
   val NumPartitionsProp = "num.partitions"
   val LogDirsProp = "log.dirs"
   val LogDirProp = "log.dir"
+  val IndexDirProp = "index.dir"
+
   val LogSegmentBytesProp = "log.segment.bytes"
 
   val LogRollTimeMillisProp = "log.roll.ms"
@@ -297,6 +299,7 @@ object KafkaConfig {
   val NumPartitionsDoc = "The default number of log partitions per topic"
   val LogDirDoc = "The directory in which the log data is kept (supplemental for " + LogDirsProp + " property)"
   val LogDirsDoc = "The directories in which the log data is kept"
+  val IndexDirDoc = "The directory in which the index files will be stored.By default the index files will be stored with log files."
   val LogSegmentBytesDoc = "The maximum size of a single log file"
   val LogRollTimeMillisDoc = "The maximum time before a new log segment is rolled out (in milliseconds)"
   val LogRollTimeHoursDoc = "The maximum time before a new log segment is rolled out (in hours), secondary to " + LogRollTimeMillisProp + " property"
@@ -432,6 +435,7 @@ object KafkaConfig {
       .define(NumPartitionsProp, INT, Defaults.NumPartitions, atLeast(1), MEDIUM, NumPartitionsDoc)
       .define(LogDirProp, STRING, Defaults.LogDir, HIGH, LogDirDoc)
       .define(LogDirsProp, STRING, HIGH, LogDirsDoc, false)
+      .define(IndexDirProp, STRING, LOW, IndexDirDoc, false)
       .define(LogSegmentBytesProp, INT, Defaults.LogSegmentBytes, atLeast(Message.MinHeaderSize), HIGH, LogSegmentBytesDoc)
 
       .define(LogRollTimeMillisProp, LONG, HIGH, LogRollTimeMillisDoc, false)
@@ -559,6 +563,7 @@ object KafkaConfig {
       numPartitions = parsed.get(NumPartitionsProp).asInstanceOf[Int],
       _logDir = parsed.get(LogDirProp).asInstanceOf[String],
       _logDirs = Option(parsed.get(LogDirsProp)).map(_.asInstanceOf[String]),
+      _indexDir = Option(parsed.get(IndexDirProp)).map(_.asInstanceOf[String]),
 
       logSegmentBytes = parsed.get(LogSegmentBytesProp).asInstanceOf[Int],
       logRollTimeHours = parsed.get(LogRollTimeHoursProp).asInstanceOf[Int],
@@ -706,6 +711,7 @@ class KafkaConfig(/** ********* Zookeeper Configuration ***********/
                   val numPartitions: Int = Defaults.NumPartitions,
                   private val _logDir: String = Defaults.LogDir,
                   private val _logDirs: Option[String] = None,
+                  val _indexDir: Option[String] = None,
 
                   val logSegmentBytes: Int = Defaults.LogSegmentBytes,
 
@@ -935,6 +941,7 @@ class KafkaConfig(/** ********* Zookeeper Configuration ***********/
     props.put(NumPartitionsProp, numPartitions.toString)
     props.put(LogDirProp, _logDir)
     _logDirs.foreach(value => props.put(LogDirsProp, value))
+    props.put(IndexDirProp, _indexDir)
     props.put(LogSegmentBytesProp, logSegmentBytes.toString)
 
     props.put(LogRollTimeHoursProp, logRollTimeHours.toString)
