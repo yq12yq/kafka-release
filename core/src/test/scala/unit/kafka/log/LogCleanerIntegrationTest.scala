@@ -5,7 +5,7 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
- * 
+ *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -32,7 +32,7 @@ import junit.framework.Assert._
  * This is an integration test that tests the fully integrated log cleaner
  */
 class LogCleanerIntegrationTest extends JUnitSuite {
-  
+
   val time = new MockTime()
   val segmentSize = 100
   val deleteDelay = 1000
@@ -40,7 +40,7 @@ class LogCleanerIntegrationTest extends JUnitSuite {
   val logDir = TestUtils.tempDir()
   var counter = 0
   val topics = Array(TopicAndPartition("log", 0), TopicAndPartition("log", 1), TopicAndPartition("log", 2))
-  
+
   @Test
   def cleanerTest() {
     val cleaner = makeCleaner(parts = 3)
@@ -49,15 +49,15 @@ class LogCleanerIntegrationTest extends JUnitSuite {
     val appends = writeDups(numKeys = 100, numDups = 3, log)
     val startSize = log.size
     cleaner.startup()
-    
+
     val lastCleaned = log.activeSegment.baseOffset
     // wait until we clean up to base_offset of active segment - minDirtyMessages
     cleaner.awaitCleaned("log", 0, lastCleaned)
-    
+
     val read = readFromLog(log)
     assertEquals("Contents of the map shouldn't change.", appends.toMap, read.toMap)
     assertTrue(startSize > log.size)
-    
+
     // write some more stuff and validate again
     val appends2 = appends ++ writeDups(numKeys = 100, numDups = 3, log)
     val lastCleaned2 = log.activeSegment.baseOffset
@@ -76,10 +76,10 @@ class LogCleanerIntegrationTest extends JUnitSuite {
 
     // we expect partition 0 to be gone
     assert(!checkpoints.contains(topics(0)))
-    
+
     cleaner.shutdown()
   }
-  
+
   def readFromLog(log: Log): Iterable[(Int, Int)] = {
     for(segment <- log.logSegments; message <- segment.log) yield {
       val key = TestUtils.readString(message.message.key).toInt
@@ -87,7 +87,7 @@ class LogCleanerIntegrationTest extends JUnitSuite {
       key -> value
     }
   }
-  
+
   def writeDups(numKeys: Int, numDups: Int, log: Log): Seq[(Int, Int)] = {
     for(dup <- 0 until numDups; key <- 0 until numKeys) yield {
       val count = counter
@@ -96,32 +96,32 @@ class LogCleanerIntegrationTest extends JUnitSuite {
       (key, count)
     }
   }
-    
+
   @After
   def teardown() {
     CoreUtils.rm(logDir)
   }
-  
+
   /* create a cleaner instance and logs with the given parameters */
-  def makeCleaner(parts: Int, 
-                  minDirtyMessages: Int = 0, 
+  def makeCleaner(parts: Int,
+                  minDirtyMessages: Int = 0,
                   numThreads: Int = 1,
                   defaultPolicy: String = "compact",
                   policyOverrides: Map[String, String] = Map()): LogCleaner = {
-    
+
     // create partitions and add them to the pool
     val logs = new Pool[TopicAndPartition, Log]()
     for(i <- 0 until parts) {
       val dir = new File(logDir, "log-" + i)
       dir.mkdirs()
       val log = new Log(dir = dir,
-                        LogConfig(segmentSize = segmentSize, maxIndexSize = 100*1024, fileDeleteDelayMs = deleteDelay, compact = true),
+                        config = LogConfig(segmentSize = segmentSize, maxIndexSize = 100*1024, fileDeleteDelayMs = deleteDelay, compact = true),
                         recoveryPoint = 0L,
                         scheduler = time.scheduler,
                         time = time)
-      logs.put(TopicAndPartition("log", i), log)      
+      logs.put(TopicAndPartition("log", i), log)
     }
-  
+
     new LogCleaner(CleanerConfig(numThreads = numThreads),
                    logDirs = Array(logDir),
                    logs = logs,

@@ -5,7 +5,7 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
- * 
+ *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -29,11 +29,11 @@ import kafka.utils._
 import kafka.server.KafkaConfig
 
 class LogTest extends JUnitSuite {
-  
+
   var logDir: File = null
   val time = new MockTime(0)
   var config: KafkaConfig = null
-  val logConfig = LogConfig()  
+  val logConfig = LogConfig()
 
   @Before
   def setUp() {
@@ -46,7 +46,7 @@ class LogTest extends JUnitSuite {
   def tearDown() {
     CoreUtils.rm(logDir)
   }
-  
+
   def createEmptyLogs(dir: File, offsets: Int*) {
     for(offset <- offsets) {
       Log.logFilename(dir, offset).createNewFile()
@@ -63,8 +63,8 @@ class LogTest extends JUnitSuite {
     val set = TestUtils.singleMessageSet("test".getBytes())
 
     // create a log
-    val log = new Log(logDir,
-                      logConfig.copy(segmentMs = 1 * 60 * 60L),
+    val log = new Log(dir = logDir,
+                      config = logConfig.copy(segmentMs = 1 * 60 * 60L),
                       recoveryPoint = 0L,
                       scheduler = time.scheduler,
                       time = time)
@@ -98,8 +98,8 @@ class LogTest extends JUnitSuite {
     val maxJitter = 20 * 60L
 
     // create a log
-    val log = new Log(logDir,
-      logConfig.copy(segmentMs = 1 * 60 * 60L, segmentJitterMs = maxJitter),
+    val log = new Log(dir = logDir,
+      config = logConfig.copy(segmentMs = 1 * 60 * 60L, segmentJitterMs = maxJitter),
       recoveryPoint = 0L,
       scheduler = time.scheduler,
       time = time)
@@ -125,7 +125,7 @@ class LogTest extends JUnitSuite {
     val segmentSize = msgPerSeg * (setSize - 1) // each segment will be 10 messages
 
     // create a log
-    val log = new Log(logDir, logConfig.copy(segmentSize = segmentSize), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = segmentSize), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     assertEquals("There should be exactly 1 segment.", 1, log.numberOfSegments)
 
     // segments expire in size
@@ -141,7 +141,7 @@ class LogTest extends JUnitSuite {
   @Test
   def testLoadEmptyLog() {
     createEmptyLogs(logDir, 0)
-    val log = new Log(logDir, logConfig, recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig, recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     log.append(TestUtils.singleMessageSet("test".getBytes))
   }
 
@@ -150,7 +150,7 @@ class LogTest extends JUnitSuite {
    */
   @Test
   def testAppendAndReadWithSequentialOffsets() {
-    val log = new Log(logDir, logConfig.copy(segmentSize = 71), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = 71), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     val messages = (0 until 100 by 2).map(id => new Message(id.toString.getBytes)).toArray
 
     for(i <- 0 until messages.length)
@@ -169,7 +169,7 @@ class LogTest extends JUnitSuite {
    */
   @Test
   def testAppendAndReadWithNonSequentialOffsets() {
-    val log = new Log(logDir, logConfig.copy(segmentSize = 71), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = 71), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     val messageIds = ((0 until 50) ++ (50 until 200 by 7)).toArray
     val messages = messageIds.map(id => new Message(id.toString.getBytes))
 
@@ -192,7 +192,7 @@ class LogTest extends JUnitSuite {
    */
   @Test
   def testReadAtLogGap() {
-    val log = new Log(logDir, logConfig.copy(segmentSize = 300), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = 300), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
 
     // keep appending until we have two segments with only a single message in the second segment
     while(log.numberOfSegments == 1)
@@ -212,7 +212,7 @@ class LogTest extends JUnitSuite {
   @Test
   def testReadOutOfRange() {
     createEmptyLogs(logDir, 1024)
-    val log = new Log(logDir, logConfig.copy(segmentSize = 1024), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = 1024), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     assertEquals("Reading just beyond end of log should produce 0 byte read.", 0, log.read(1024, 1000).messageSet.sizeInBytes)
     try {
       log.read(0, 1024)
@@ -235,7 +235,7 @@ class LogTest extends JUnitSuite {
   @Test
   def testLogRolls() {
     /* create a multipart log with 100 messages */
-    val log = new Log(logDir, logConfig.copy(segmentSize = 100), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = 100), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     val numMessages = 100
     val messageSets = (0 until numMessages).map(i => TestUtils.singleMessageSet(i.toString.getBytes))
     messageSets.foreach(log.append(_))
@@ -264,7 +264,7 @@ class LogTest extends JUnitSuite {
   @Test
   def testCompressedMessages() {
     /* this log should roll after every messageset */
-    val log = new Log(logDir, logConfig.copy(segmentSize = 100), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = 100), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
 
     /* append 2 compressed message sets, each with two messages giving offsets 0, 1, 2, 3 */
     log.append(new ByteBufferMessageSet(DefaultCompressionCodec, new Message("hello".getBytes), new Message("there".getBytes)))
@@ -287,7 +287,7 @@ class LogTest extends JUnitSuite {
     for(messagesToAppend <- List(0, 1, 25)) {
       logDir.mkdirs()
       // first test a log segment starting at 0
-      val log = new Log(logDir, logConfig.copy(segmentSize = 100), recoveryPoint = 0L, time.scheduler, time = time)
+      val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = 100), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
       for(i <- 0 until messagesToAppend)
         log.append(TestUtils.singleMessageSet(i.toString.getBytes))
 
@@ -319,7 +319,7 @@ class LogTest extends JUnitSuite {
     val messageSet = new ByteBufferMessageSet(NoCompressionCodec, new Message ("You".getBytes), new Message("bethe".getBytes))
     // append messages to log
     val configSegmentSize = messageSet.sizeInBytes - 1
-    val log = new Log(logDir, logConfig.copy(segmentSize = configSegmentSize), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = configSegmentSize), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
 
     try {
       log.append(messageSet)
@@ -342,7 +342,7 @@ class LogTest extends JUnitSuite {
     val messageSetWithKeyedMessage = new ByteBufferMessageSet(NoCompressionCodec, keyedMessage)
     val messageSetWithKeyedMessages = new ByteBufferMessageSet(NoCompressionCodec, keyedMessage, anotherKeyedMessage)
 
-    val log = new Log(logDir, logConfig.copy(compact = true), recoveryPoint = 0L, time.scheduler, time)
+    val log = new Log(dir = logDir, config = logConfig.copy(compact = true), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
 
     try {
       log.append(messageSetWithUnkeyedMessage)
@@ -368,8 +368,8 @@ class LogTest extends JUnitSuite {
     log.append(messageSetWithKeyedMessages)
 
     // test that a compacted topic with broker-side compression type set to uncompressed can accept compressed messages
-    val uncompressedLog = new Log(logDir, logConfig.copy(compact = true, compressionType = "uncompressed"),
-                                  recoveryPoint = 0L, time.scheduler, time)
+    val uncompressedLog = new Log(dir = logDir, config = logConfig.copy(compact = true, compressionType = "uncompressed"),
+                                  recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     uncompressedLog.append(messageSetWithCompressedKeyedMessage)
     uncompressedLog.append(messageSetWithKeyedMessage)
     uncompressedLog.append(messageSetWithKeyedMessages)
@@ -398,7 +398,7 @@ class LogTest extends JUnitSuite {
 
     // append messages to log
     val maxMessageSize = second.sizeInBytes - 1
-    val log = new Log(logDir, logConfig.copy(maxMessageSize = maxMessageSize), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(maxMessageSize = maxMessageSize), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
 
     // should be able to append the small message
     log.append(first)
@@ -420,7 +420,7 @@ class LogTest extends JUnitSuite {
     val segmentSize = 7 * messageSize
     val indexInterval = 3 * messageSize
     val config = logConfig.copy(segmentSize = segmentSize, indexInterval = indexInterval, maxIndexSize = 4096)
-    var log = new Log(logDir, config, recoveryPoint = 0L, time.scheduler, time)
+    var log = new Log(dir = logDir, config = config, recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     for(i <- 0 until numMessages)
       log.append(TestUtils.singleMessageSet(TestUtils.randomBytes(messageSize)))
     assertEquals("After appending %d messages to an empty log, the log end offset should be %d".format(numMessages, numMessages), numMessages, log.logEndOffset)
@@ -429,14 +429,14 @@ class LogTest extends JUnitSuite {
     val lastOffset = log.logEndOffset
     log.close()
 
-    log = new Log(logDir, config, recoveryPoint = lastOffset, time.scheduler, time)
+    log = new Log(dir = logDir, config = config, recoveryPoint = lastOffset, scheduler = time.scheduler, time = time)
     assertEquals("Should have %d messages when log is reopened w/o recovery".format(numMessages), numMessages, log.logEndOffset)
     assertEquals("Should have same last index offset as before.", lastIndexOffset, log.activeSegment.index.lastOffset)
     assertEquals("Should have same number of index entries as before.", numIndexEntries, log.activeSegment.index.entries)
     log.close()
 
     // test recovery case
-    log = new Log(logDir, config, recoveryPoint = 0L, time.scheduler, time)
+    log = new Log(dir = logDir, config = config, recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     assertEquals("Should have %d messages when log is reopened with recovery".format(numMessages), numMessages, log.logEndOffset)
     assertEquals("Should have same last index offset as before.", lastIndexOffset, log.activeSegment.index.lastOffset)
     assertEquals("Should have same number of index entries as before.", numIndexEntries, log.activeSegment.index.entries)
@@ -451,7 +451,7 @@ class LogTest extends JUnitSuite {
     // publish the messages and close the log
     val numMessages = 200
     val config = logConfig.copy(segmentSize = 200, indexInterval = 1)
-    var log = new Log(logDir, config, recoveryPoint = 0L, time.scheduler, time)
+    var log = new Log(dir = logDir, config = config, recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     for(i <- 0 until numMessages)
       log.append(TestUtils.singleMessageSet(TestUtils.randomBytes(10)))
     val indexFiles = log.logSegments.map(_.index.file)
@@ -461,7 +461,7 @@ class LogTest extends JUnitSuite {
     indexFiles.foreach(_.delete())
 
     // reopen the log
-    log = new Log(logDir, config, recoveryPoint = 0L, time.scheduler, time)
+    log = new Log(dir = logDir, config = config, recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     assertEquals("Should have %d messages when log is reopened".format(numMessages), numMessages, log.logEndOffset)
     for(i <- 0 until numMessages)
       assertEquals(i, log.read(i, 100, None).messageSet.head.offset)
@@ -480,7 +480,7 @@ class LogTest extends JUnitSuite {
     logProps.put(LogConfig.IndexIntervalBytesProp, 1: java.lang.Integer)
 
     val config = LogConfig.fromProps(logProps)
-    var log = new Log(logDir, config, recoveryPoint = 0L, time.scheduler, time)
+    var log = new Log(dir = logDir, config = config, recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     for(i <- 0 until numMessages)
       log.append(TestUtils.singleMessageSet(TestUtils.randomBytes(10)))
     val indexFiles = log.logSegments.map(_.index.file)
@@ -494,7 +494,7 @@ class LogTest extends JUnitSuite {
     }
 
     // reopen the log
-    log = new Log(logDir, config, recoveryPoint = 200L, time.scheduler, time)
+    log = new Log(dir = logDir, config = config, recoveryPoint = 200L, scheduler = time.scheduler, time = time)
     assertEquals("Should have %d messages when log is reopened".format(numMessages), numMessages, log.logEndOffset)
     for(i <- 0 until numMessages)
       assertEquals(i, log.read(i, 100, None).messageSet.head.offset)
@@ -512,7 +512,7 @@ class LogTest extends JUnitSuite {
     val segmentSize = msgPerSeg * setSize  // each segment will be 10 messages
 
     // create a log
-    val log = new Log(logDir, logConfig.copy(segmentSize = segmentSize), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = logConfig.copy(segmentSize = segmentSize), recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     assertEquals("There should be exactly 1 segment.", 1, log.numberOfSegments)
 
     for (i<- 1 to msgPerSeg)
@@ -565,7 +565,7 @@ class LogTest extends JUnitSuite {
     val msgPerSeg = 10
     val segmentSize = msgPerSeg * setSize  // each segment will be 10 messages
     val config = logConfig.copy(segmentSize = segmentSize)
-    val log = new Log(logDir, config, recoveryPoint = 0L, scheduler = time.scheduler, time = time)
+    val log = new Log(dir = logDir, config = config, recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     assertEquals("There should be exactly 1 segment.", 1, log.numberOfSegments)
     for (i<- 1 to msgPerSeg)
       log.append(set)
@@ -591,13 +591,13 @@ class LogTest extends JUnitSuite {
     val bogusIndex2 = Log.indexFilename(logDir, 5)
 
     val set = TestUtils.singleMessageSet("test".getBytes())
-    val log = new Log(logDir,
-                      logConfig.copy(segmentSize = set.sizeInBytes * 5,
+    val log = new Log(dir = logDir,
+                      config = logConfig.copy(segmentSize = set.sizeInBytes * 5,
                                      maxIndexSize = 1000,
                                      indexInterval = 1),
                       recoveryPoint = 0L,
-                      time.scheduler,
-                      time)
+                      scheduler = time.scheduler,
+                      time = time)
 
     assertTrue("The first index file should have been replaced with a larger file", bogusIndex1.length > 0)
     assertFalse("The second index file should have been deleted.", bogusIndex2.exists)
@@ -620,21 +620,21 @@ class LogTest extends JUnitSuite {
                                 indexInterval = 10000)
 
     // create a log
-    var log = new Log(logDir,
-                      config,
+    var log = new Log(dir = logDir,
+                      config = config,
                       recoveryPoint = 0L,
-                      time.scheduler,
-                      time)
+                      scheduler = time.scheduler,
+                      time = time)
 
     // add enough messages to roll over several segments then close and re-open and attempt to truncate
     for(i <- 0 until 100)
       log.append(set)
     log.close()
-    log = new Log(logDir,
-                  config,
+    log = new Log(dir = logDir,
+                  config = config,
                   recoveryPoint = 0L,
-                  time.scheduler,
-                  time)
+                  scheduler = time.scheduler,
+                  time = time)
     log.truncateTo(3)
     assertEquals("All but one segment should be deleted.", 1, log.numberOfSegments)
     assertEquals("Log end offset should be 3.", 3, log.logEndOffset)
@@ -651,11 +651,11 @@ class LogTest extends JUnitSuite {
                                 fileDeleteDelayMs = asyncDeleteMs,
                                 maxIndexSize = 1000,
                                 indexInterval = 10000)
-    val log = new Log(logDir,
-                      config,
+    val log = new Log(dir = logDir,
+                      config = config,
                       recoveryPoint = 0L,
-                      time.scheduler,
-                      time)
+                      scheduler = time.scheduler,
+                      time = time)
 
     // append some messages to create some segments
     for(i <- 0 until 100)
@@ -686,11 +686,11 @@ class LogTest extends JUnitSuite {
   def testOpenDeletesObsoleteFiles() {
     val set = TestUtils.singleMessageSet("test".getBytes())
     val config = logConfig.copy(segmentSize = set.sizeInBytes * 5, maxIndexSize = 1000)
-    var log = new Log(logDir,
-                      config,
+    var log = new Log(dir = logDir,
+                      config = config,
                       recoveryPoint = 0L,
-                      time.scheduler,
-                      time)
+                      scheduler = time.scheduler,
+                      time = time)
 
     // append some messages to create some segments
     for(i <- 0 until 100)
@@ -699,21 +699,21 @@ class LogTest extends JUnitSuite {
     log.deleteOldSegments((s) => true)
     log.close()
 
-    log = new Log(logDir,
-                  config,
+    log = new Log(dir = logDir,
+                  config = config,
                   recoveryPoint = 0L,
-                  time.scheduler,
-                  time)
+                  scheduler = time.scheduler,
+                  time = time)
     assertEquals("The deleted segments should be gone.", 1, log.numberOfSegments)
   }
 
   @Test
   def testAppendMessageWithNullPayload() {
-    val log = new Log(logDir,
-                      LogConfig(),
+    val log = new Log(dir = logDir,
+                      config = LogConfig(),
                       recoveryPoint = 0L,
-                      time.scheduler,
-                      time)
+                      scheduler = time.scheduler,
+                      time = time)
     log.append(new ByteBufferMessageSet(new Message(bytes = null)))
     val messageSet = log.read(0, 4096, None).messageSet
     assertEquals(0, messageSet.head.offset)
@@ -729,11 +729,11 @@ class LogTest extends JUnitSuite {
     for(iteration <- 0 until 50) {
       // create a log and write some messages to it
       logDir.mkdirs()
-      var log = new Log(logDir,
-                        config,
+      var log = new Log(dir = logDir,
+                        config = config,
                         recoveryPoint = 0L,
-                        time.scheduler,
-                        time)
+                        scheduler = time.scheduler,
+                        time = time)
       val numMessages = 50 + TestUtils.random.nextInt(50)
       for(i <- 0 until numMessages)
         log.append(set)
@@ -745,7 +745,7 @@ class LogTest extends JUnitSuite {
       TestUtils.appendNonsenseToFile(log.activeSegment.log.file, TestUtils.random.nextInt(1024) + 1)
 
       // attempt recovery
-      log = new Log(logDir, config, recoveryPoint, time.scheduler, time)
+      log = new Log(dir = logDir, config = config, recoveryPoint = recoveryPoint, scheduler = time.scheduler, time = time)
       assertEquals(numMessages, log.logEndOffset)
       assertEquals("Messages in the log after recovery should be the same.", messages, log.logSegments.flatMap(_.log.iterator.toList))
       CoreUtils.rm(logDir)
@@ -764,11 +764,11 @@ class LogTest extends JUnitSuite {
     assertTrue(".kafka_cleanshutdown must exist", cleanShutdownFile.exists())
     var recoveryPoint = 0L
     // create a log and write some messages to it
-    var log = new Log(logDir,
-      config,
+    var log = new Log(dir = logDir,
+      config = config,
       recoveryPoint = 0L,
-      time.scheduler,
-      time)
+      scheduler = time.scheduler,
+      time = time)
     for(i <- 0 until 100)
       log.append(set)
     log.close()
@@ -776,7 +776,7 @@ class LogTest extends JUnitSuite {
     // check if recovery was attempted. Even if the recovery point is 0L, recovery should not be attempted as the
     // clean shutdown file exists.
     recoveryPoint = log.logEndOffset
-    log = new Log(logDir, config, 0L, time.scheduler, time)
+    log = new Log(dir = logDir, config = config, recoveryPoint = 0L, scheduler = time.scheduler, time = time)
     assertEquals(recoveryPoint, log.logEndOffset)
     cleanShutdownFile.delete()
   }

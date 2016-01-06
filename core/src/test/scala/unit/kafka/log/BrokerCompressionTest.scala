@@ -56,7 +56,7 @@ class BrokerCompressionTest(messageCompression: String, brokerCompression: Strin
     val messageCompressionCode = CompressionCodec.getCompressionCodec(messageCompression)
 
     /*configure broker-side compression  */
-    val log = new Log(logDir, logConfig.copy(compressionType = brokerCompression), recoveryPoint = 0L, time.scheduler, time = time)
+    val log = new Log(dir=logDir, config=logConfig.copy(compressionType = brokerCompression), recoveryPoint = 0L, scheduler=time.scheduler, time = time)
 
     /* append two messages */
     log.append(new ByteBufferMessageSet(messageCompressionCode, new Message("hello".getBytes), new Message("there".getBytes)))
