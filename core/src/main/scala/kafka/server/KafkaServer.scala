@@ -413,17 +413,18 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime) extends Logg
                                       maxIoBytesPerSecond = config.logCleanerIoMaxBytesPerSecond,
                                       backOffMs = config.logCleanerBackoffMs,
                                       enableCleaner = config.logCleanerEnable)
-    new LogManager(logDirs = config.logDirs.map(new File(_)).toArray,
-                   topicConfigs = configs,
-                   defaultConfig = defaultLogConfig,
-                   cleanerConfig = cleanerConfig,
-                   ioThreads = config.numRecoveryThreadsPerDataDir,
-                   flushCheckMs = config.logFlushSchedulerIntervalMs,
-                   flushCheckpointMs = config.logFlushOffsetCheckpointIntervalMs,
-                   retentionCheckMs = config.logCleanupIntervalMs,
-                   scheduler = kafkaScheduler,
-                   brokerState = brokerState,
-                   time = time)
+      new LogManager(logDirs = config.logDirs.map(new File(_)).toArray,
+        config._indexDir,
+        topicConfigs = configs,
+        defaultConfig = defaultLogConfig,
+        cleanerConfig = cleanerConfig,
+        ioThreads = config.numRecoveryThreadsPerDataDir,
+        flushCheckMs = config.logFlushSchedulerIntervalMs,
+        flushCheckpointMs = config.logFlushOffsetCheckpointIntervalMs,
+        retentionCheckMs = config.logCleanupIntervalMs,
+        scheduler = kafkaScheduler,
+        brokerState = brokerState,
+        time = time)
   }
 
   private def createOffsetManager(): OffsetManager = {

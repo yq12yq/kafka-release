@@ -5,7 +5,7 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
- * 
+ *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -33,6 +33,8 @@ object DumpLogSegments {
     val parser = new OptionParser
     val printOpt = parser.accepts("print-data-log", "if set, printing the messages content when dumping data logs")
     val verifyOpt = parser.accepts("verify-index-only", "if set, just verify the index log without printing its content")
+    val indexSanityOpt = parser.accepts("verify-index-sanity", "if set, just verify the index sanity without printing its content")
+    val indexRecoveryOpt = parser.accepts("recover-index", "if set, just verify the index sanity without printing its content")
     val filesOpt = parser.accepts("files", "REQUIRED: The comma separated list of data and index log files to be dumped")
                            .withRequiredArg
                            .describedAs("file1, file2, ...")
@@ -41,7 +43,25 @@ object DumpLogSegments {
                                   .withRequiredArg
                                   .describedAs("size")
                                   .ofType(classOf[java.lang.Integer])
-                                  .defaultsTo(5 * 1024 * 1024)
+      .defaultsTo(5 * 1024 * 1024)
+
+    val dataDirOpt = parser.accepts("data-directory", "if set, looks for the data file in the given directory instead of looking at the same directory as the index directory.")
+                              .withRequiredArg
+                              .describedAs("size")
+                              .ofType(classOf[String])
+
+    val maxIndexSizeOpt = parser.accepts("max-index-size", "Max index size.")
+      .withRequiredArg
+      .describedAs("size")
+      .ofType(classOf[java.lang.Integer])
+      .defaultsTo(Defaults.MaxIndexSize)
+
+    val indexIntervalBytesOpt = parser.accepts("index-interval-bytes", "index interval bytes")
+      .withRequiredArg
+      .describedAs("size")
+      .ofType(classOf[java.lang.Integer])
+      .defaultsTo(4096)
+
     val deepIterationOpt = parser.accepts("deep-iteration", "if set, uses deep instead of shallow iteration")
     val valueDecoderOpt = parser.accepts("value-decoder-class", "if set, used to deserialize the messages. This class should implement kafka.serializer.Decoder trait. Custom jar should be available in kafka/libs directory.")
                                .withOptionalArg()
@@ -56,15 +76,21 @@ object DumpLogSegments {
       CommandLineUtils.printUsageAndDie(parser, "Parse a log file and dump its contents to the console, useful for debugging a seemingly corrupt log segment.")
 
     val options = parser.parse(args : _*)
-    
+
     CommandLineUtils.checkRequiredArgs(parser, options, filesOpt)
 
     val print = if(options.has(printOpt)) true else false
     val verifyOnly = if(options.has(verifyOpt)) true else false
+    val indexSanityOnly = if(options.has(indexSanityOpt)) true else false
+    val indexRecoverOnly = if(options.has(indexRecoveryOpt)) true else false
     val files = options.valueOf(filesOpt).split(",")
     val maxMessageSize = options.valueOf(maxMessageSizeOpt).intValue()
+    val indexIntervalBytes = options.valueOf(indexIntervalBytesOpt).intValue()
     val isDeepIteration = if(options.has(deepIterationOpt)) true else false
-  
+    val maxIndexSize = options.valueOf(maxIndexSizeOpt).intValue()
+
+    val dataDir = if(options.has(dataDirOpt)) Some(options.valueOf(dataDirOpt)) else None
+
     val valueDecoder: Decoder[_] = CoreUtils.createObject[Decoder[_]](options.valueOf(valueDecoderOpt), new VerifiableProperties)
     val keyDecoder: Decoder[_] = CoreUtils.createObject[Decoder[_]](options.valueOf(keyDecoderOpt), new VerifiableProperties)
 
@@ -77,8 +103,13 @@ object DumpLogSegments {
         println("Dumping " + file)
         dumpLog(file, print, nonConsecutivePairsForLogFilesMap, isDeepIteration, maxMessageSize , valueDecoder, keyDecoder)
       } else if(file.getName.endsWith(Log.IndexFileSuffix)) {
-        println("Dumping " + file)
-        dumpIndex(file, verifyOnly, misMatchesForIndexFilesMap, maxMessageSize)
+        if (indexRecoverOnly) {
+          println("recovering " + file)
+          recoverIndex(file, maxMessageSize, indexIntervalBytes, maxIndexSize, dataDir)
+        } else {
+          println("Dumping " + file)
+          dumpIndex(file, verifyOnly, indexSanityOnly, misMatchesForIndexFilesMap, maxMessageSize, dataDir)
+        }
       }
     }
     misMatchesForIndexFilesMap.foreach {
@@ -98,16 +129,22 @@ object DumpLogSegments {
       }
     }
   }
-  
+
   /* print out the contents of the index */
   private def dumpIndex(file: File,
                         verifyOnly: Boolean,
+                        indexSanityOnly: Boolean,
                         misMatchesForIndexFilesMap: mutable.HashMap[String, List[(Long, Long)]],
-                        maxMessageSize: Int) {
+                        maxMessageSize: Int,
+                        dataDirStr: Option[String]) {
     val startOffset = file.getName().split("\\.")(0).toLong
-    val logFile = new File(file.getAbsoluteFile.getParent, file.getName.split("\\.")(0) + Log.LogFileSuffix)
-    val messageSet = new FileMessageSet(logFile, false)
     val index = new OffsetIndex(file = file, baseOffset = startOffset)
+    if (indexSanityOnly) {
+      index.sanityCheck
+      return
+    }
+    val logFile = getLogFile(file, dataDirStr)
+    val messageSet = new FileMessageSet(logFile, false)
     for(i <- 0 until index.entries) {
       val entry = index.entry(i)
       val partialFileMessageSet: FileMessageSet = messageSet.read(entry.position, maxMessageSize)
@@ -124,7 +161,7 @@ object DumpLogSegments {
         println("offset: %d position: %d".format(entry.offset + index.baseOffset, entry.position))
     }
   }
-  
+
   /* print out the contents of the log */
   private def dumpLog(file: File,
                       printContents: Boolean,
@@ -200,5 +237,64 @@ object DumpLogSegments {
       }
     }
   }
-  
+
+  /**
+    * Run recovery on the given segment. This will rebuild the index from the log file and lop off any invalid bytes from the end of the log and index.
+    *
+    * @param maxMessageSize A bound the memory allocation in the case of a corrupt message size--we will assume any message larger than this
+    * is corrupt.
+    *
+    * @return The number of bytes truncated from the log
+    */
+  @nonthreadsafe
+  def recoverIndex(file: File, maxMessageSize: Int, indexIntervalBytes: Int, maxIndexSize: Int, dataDirStr: Option[String]): Int = {
+    val startOffset1 = file.getName().split("\\.")(0).toLong
+    val index = new OffsetIndex(file = file, baseOffset = startOffset1, maxIndexSize = maxIndexSize)
+
+    val logFile = getLogFile(file, dataDirStr)
+    println("log file " + logFile)
+    index.truncate()
+    index.resize(maxIndexSize);
+    println("Max allowed entries are "  + index.maxEntries + " and max allowed size is " + index.maxIndexSize)
+    val log = new FileMessageSet(logFile, false)
+    var validBytes = 0
+    var lastIndexEntry = 0
+    val iter = log.iterator(maxMessageSize)
+    try {
+      while(iter.hasNext) {
+        val entry = iter.next
+        entry.message.ensureValid()
+        if(validBytes - lastIndexEntry > indexIntervalBytes) {
+          // we need to decompress the message, if required, to get the offset of the first uncompressed message
+          val startOffset =
+            entry.message.compressionCodec match {
+              case NoCompressionCodec =>
+                entry.offset
+              case _ =>
+                ByteBufferMessageSet.deepIterator(entry.message).next().offset
+            }
+          index.append(startOffset, validBytes)
+          lastIndexEntry = validBytes
+        }
+        validBytes += MessageSet.entrySize(entry.message)
+      }
+    } catch {
+      case e: InvalidMessageException =>
+        println("Found invalid messages in log segment %s at byte offset %d: %s.".format(log.file.getAbsolutePath, validBytes, e.getMessage))
+    }
+    println("total added indexes " + index.entries())
+    val truncated = log.sizeInBytes - validBytes
+    println(s"log has bytes =  ${log.sizeInBytes()} and validBytes after index rebuilding is only $validBytes, so $truncated bytes should be truncated." +
+      "This is not currently done as we don't want to touch the actual data segment in anyway.")
+      //s" Are you sure you want to truncate the log it self , (THIS IS NOT INDEX BUT THE ACTUAL DATA FILE, VERY DANGEROUS...)")
+    //log.truncateTo(validBytes)
+    index.trimToValidSize()
+    truncated
+  }
+
+  private def getLogFile(file: File, dataDirStr: Option[String]) : File = {
+    val topicPartitionDir = file.getParentFile.getName
+    val dataDir = dataDirStr map (new File(_, topicPartitionDir)) getOrElse file.getParentFile
+    new File(dataDir, file.getName.split("\\.")(0) + Log.LogFileSuffix)
+  }
 }

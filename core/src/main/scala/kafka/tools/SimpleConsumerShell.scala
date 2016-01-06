@@ -145,7 +145,6 @@ object SimpleConsumerShell extends Logging {
       System.err.println(("Error: no valid topic metadata for topic: %s, " + "what we get from server is only: %s").format(topic, topicsMetadata))
       System.exit(1)
     }
-
     // validating partition id
     val partitionsMetadata = topicsMetadata(0).partitionsMetadata
     val partitionMetadataOpt = partitionsMetadata.find(p => p.partitionId == partitionId)
@@ -217,9 +216,10 @@ object SimpleConsumerShell extends Logging {
           while(numMessagesConsumed < maxMessages) {
             val fetchRequest = fetchRequestBuilder
                     .addFetch(topic, partitionId, offset, fetchSize)
-                    .build()
+              .build()
             val fetchResponse = simpleConsumer.fetch(fetchRequest)
             val messageSet = fetchResponse.messageSet(topic, partitionId)
+
             if (messageSet.validBytes <= 0 && noWaitAtEndOfLog) {
               println("Terminating. Reached the end of partition (%s, %d) at offset %d".format(topic, partitionId, offset))
               return

@@ -184,6 +184,7 @@ class KafkaConfigConfigDefTest extends JUnit3Suite {
         case KafkaConfig.NumPartitionsProp => expected.setProperty(name, "2")
         case KafkaConfig.LogDirsProp => expected.setProperty(name, "/tmp/logs,/tmp/logs2")
         case KafkaConfig.LogDirProp => expected.setProperty(name, "/tmp/log")
+        case KafkaConfig.IndexDirProp => expected.setProperty(name, "/tmp/log")
         case KafkaConfig.LogSegmentBytesProp => expected.setProperty(name, atLeastXIntProp(Message.MinHeaderSize))
 
         case KafkaConfig.LogRollTimeMillisProp => expected.setProperty(name, atLeastOneIntProp)
@@ -292,6 +293,7 @@ class KafkaConfigConfigDefTest extends JUnit3Suite {
         case KafkaConfig.NumPartitionsProp => assertPropertyInvalid(getBaseProperties(), name, "not_a_number", "0")
         case KafkaConfig.LogDirsProp => // ignore string
         case KafkaConfig.LogDirProp => // ignore string
+        case KafkaConfig.IndexDirProp => // ignore string
         case KafkaConfig.LogSegmentBytesProp => assertPropertyInvalid(getBaseProperties(), name, "not_a_number", Message.MinHeaderSize - 1)
 
         case KafkaConfig.LogRollTimeMillisProp => assertPropertyInvalid(getBaseProperties(), name, "not_a_number", "0")
@@ -366,6 +368,7 @@ class KafkaConfigConfigDefTest extends JUnit3Suite {
     defaults.put(KafkaConfig.PortProp, "1122")
     defaults.put(KafkaConfig.MaxConnectionsPerIpOverridesProp, "127.0.0.1:2, 127.0.0.2:3")
     defaults.put(KafkaConfig.LogDirProp, "/tmp1,/tmp2")
+    defaults.put(KafkaConfig.IndexDirProp, "/tmp1")
     defaults.put(KafkaConfig.LogRollTimeHoursProp, "12")
     defaults.put(KafkaConfig.LogRollTimeJitterHoursProp, "11")
     defaults.put(KafkaConfig.LogRetentionTimeHoursProp, "10")
@@ -383,6 +386,7 @@ class KafkaConfigConfigDefTest extends JUnit3Suite {
     Assert.assertEquals("127.0.0.1", config.advertisedHostName)
     Assert.assertEquals(Map("127.0.0.1" -> 2, "127.0.0.2" -> 3), config.maxConnectionsPerIpOverrides)
     Assert.assertEquals(List("/tmp1", "/tmp2"), config.logDirs)
+    Assert.assertEquals(Some("/tmp1"), config._indexDir)
     Assert.assertEquals(12 * 60L * 1000L * 60, config.logRollTimeMillis)
     Assert.assertEquals(11 * 60L * 1000L * 60, config.logRollTimeJitterMillis)
     Assert.assertEquals(10 * 60L * 1000L * 60, config.logRetentionTimeMillis)
