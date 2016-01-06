@@ -232,7 +232,7 @@ class Log(val dir: File,
     if(logSegments.size == 0) {
       // no existing segments, create a new mutable segment beginning at offset 0
       segments.put(0L, new LogSegment(dir = dir,
-                                     indexDir,
+                                     indexDir = indexDir,
                                      startOffset = 0,
                                      indexIntervalBytes = config.indexInterval,
                                      maxIndexSize = config.maxIndexSize,

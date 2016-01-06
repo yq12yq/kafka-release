@@ -284,8 +284,8 @@ object DumpLogSegments {
     }
     println("total added indexes " + index.entries())
     val truncated = log.sizeInBytes - validBytes
-    println(s"log has bytes =  ${log.sizeInBytes()} and validBytes after index rebuilding is only $validBytes, so $truncated bytes should be truncated." +
-      "This is not currently done as we don't want to touch the actual data segment in anyway.")
+    println("log has bytes =  " + log.sizeInBytes() + " and validBytes after index rebuilding is only " + validBytes +
+       ",so " + truncated + "bytes should be truncated." + "This is not currently done as we don't want to touch the actual data segment in anyway.")
       //s" Are you sure you want to truncate the log it self , (THIS IS NOT INDEX BUT THE ACTUAL DATA FILE, VERY DANGEROUS...)")
     //log.truncateTo(validBytes)
     index.trimToValidSize()

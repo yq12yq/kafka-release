@@ -28,11 +28,11 @@ import java.util.concurrent.{Executors, ExecutorService, ExecutionException, Fut
 /**
  * The entry point to the kafka log management subsystem. The log manager is responsible for log creation, retrieval, and cleaning.
  * All read and write operations are delegated to the individual log instances.
- * 
+ *
  * The log manager maintains logs in one or more directories. New logs are created in the data directory
  * with the fewest logs. No attempt is made to move partitions after the fact or balance based on
  * size or I/O rate.
- * 
+ *
  * A background thread handles log retention by periodically truncating excess log segments.
  */
 @threadsafe
@@ -353,16 +353,16 @@ class LogManager(val logDirs: Array[File],
       if(!idxDir.exists())
         idxDir.mkdirs()
 
-      log = new Log(dir,
-                    idxDir,
-                    config,
+      log = new Log(dir = dir,
+                    indexDir = idxDir,
+                    config = config,
                     recoveryPoint = 0L,
-                    scheduler,
-                    time)
+                    scheduler = scheduler,
+                    time = time)
       logs.put(topicAndPartition, log)
       info("Created log for partition [%s,%d] in %s with properties {%s}."
-           .format(topicAndPartition.topic, 
-                   topicAndPartition.partition, 
+           .format(topicAndPartition.topic,
+                   topicAndPartition.partition,
                    dataDir.getAbsolutePath,
                    {import JavaConversions._; config.toProps.mkString(", ")}))
       log
@@ -404,7 +404,7 @@ class LogManager(val logDirs: Array[File],
       val logCounts = allLogs.groupBy(_.dir.getParent).mapValues(_.size)
       val zeros = logDirs.map(dir => (dir.getPath, 0)).toMap
       var dirCounts = (zeros ++ logCounts).toBuffer
-    
+
       // choose the directory with the least logs in it
       val leastLoaded = dirCounts.sortBy(_._2).head
       new File(leastLoaded._1)
