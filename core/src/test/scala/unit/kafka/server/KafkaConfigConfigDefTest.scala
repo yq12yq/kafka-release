@@ -386,7 +386,7 @@ class KafkaConfigConfigDefTest extends JUnit3Suite {
     Assert.assertEquals("127.0.0.1", config.advertisedHostName)
     Assert.assertEquals(Map("127.0.0.1" -> 2, "127.0.0.2" -> 3), config.maxConnectionsPerIpOverrides)
     Assert.assertEquals(List("/tmp1", "/tmp2"), config.logDirs)
-    Assert.assertEquals("/tmp1", config._indexDir)
+    Assert.assertEquals(Some("/tmp1"), config._indexDir)
     Assert.assertEquals(12 * 60L * 1000L * 60, config.logRollTimeMillis)
     Assert.assertEquals(11 * 60L * 1000L * 60, config.logRollTimeJitterMillis)
     Assert.assertEquals(10 * 60L * 1000L * 60, config.logRetentionTimeMillis)

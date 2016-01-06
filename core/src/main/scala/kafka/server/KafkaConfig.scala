@@ -941,7 +941,7 @@ class KafkaConfig(/** ********* Zookeeper Configuration ***********/
     props.put(NumPartitionsProp, numPartitions.toString)
     props.put(LogDirProp, _logDir)
     _logDirs.foreach(value => props.put(LogDirsProp, value))
-    props.put(IndexDirProp, _indexDir)
+    props.put(IndexDirProp, _indexDir.getOrElse(""))
     props.put(LogSegmentBytesProp, logSegmentBytes.toString)
 
     props.put(LogRollTimeHoursProp, logRollTimeHours.toString)
