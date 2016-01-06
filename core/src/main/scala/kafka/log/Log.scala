@@ -72,7 +72,7 @@ class Log(val dir: File,
           time: Time = SystemTime) extends Logging with KafkaMetricsGroup {
 
 
-  def this(dir: File, config: LogConfig, recoveryPoint: Long = 0L, scheduler: Scheduler, time: Time = SystemTime) = this(dir, dir, config, recoveryPoint, scheduler, time)
+  def this(dir: File, config: LogConfig, recoveryPoint: Long, scheduler: Scheduler, time: Time) = this(dir, dir, config, recoveryPoint, scheduler, time)
 
   import kafka.log.Log._
 
