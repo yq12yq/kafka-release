@@ -134,7 +134,6 @@ object SimpleConsumerShell extends Logging {
 
     // getting topic metadata
     info("Getting topic metatdata...")
-    println("Getting topic metatdata...")
     val brokerList = options.valueOf(brokerListOpt)
     ToolsUtils.validatePortOrDie(parser,brokerList)
     if (securityProtocol == SecurityProtocol.PLAINTEXTSASL) {
@@ -146,7 +145,6 @@ object SimpleConsumerShell extends Logging {
       System.err.println(("Error: no valid topic metadata for topic: %s, " + "what we get from server is only: %s").format(topic, topicsMetadata))
       System.exit(1)
     }
-    println(topicsMetadata)
     // validating partition id
     val partitionsMetadata = topicsMetadata(0).partitionsMetadata
     val partitionMetadataOpt = partitionsMetadata.find(p => p.partitionId == partitionId)
@@ -219,17 +217,14 @@ object SimpleConsumerShell extends Logging {
             val fetchRequest = fetchRequestBuilder
                     .addFetch(topic, partitionId, offset, fetchSize)
               .build()
-            println("making simpleConsumer.fetch with topic " + topic + " partition " + partitionId + " offset " + offset)
             val fetchResponse = simpleConsumer.fetch(fetchRequest)
-            println(" done making fetch request")
-            println("fetch response " + fetchResponse)
             val messageSet = fetchResponse.messageSet(topic, partitionId)
 
             if (messageSet.validBytes <= 0 && noWaitAtEndOfLog) {
               println("Terminating. Reached the end of partition (%s, %d) at offset %d".format(topic, partitionId, offset))
               return
             }
-            println("multi fetched " + messageSet.sizeInBytes + " bytes from offset " + offset)
+            debug("multi fetched " + messageSet.sizeInBytes + " bytes from offset " + offset)
             for(messageAndOffset <- messageSet if(numMessagesConsumed < maxMessages)) {
               try {
                 offset = messageAndOffset.nextOffset
