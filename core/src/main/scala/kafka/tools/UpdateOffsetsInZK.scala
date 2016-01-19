@@ -65,10 +65,11 @@ object UpdateOffsetsInZK {
           "getOffsetsBefore request")
       }
 
+      val securityProtocol = SecurityProtocol.valueOf(config.securityProtocol)
       zkUtils.getBrokerInfo(broker) match {
         case Some(brokerInfo) =>
-          val consumer = new SimpleConsumer(brokerInfo.getBrokerEndPoint(SecurityProtocol.PLAINTEXT).host,
-                                            brokerInfo.getBrokerEndPoint(SecurityProtocol.PLAINTEXT).port,
+          val consumer = new SimpleConsumer(brokerInfo.getBrokerEndPoint(securityProtocol).host,
+                                            brokerInfo.getBrokerEndPoint(securityProtocol).port,
                                             10000, 100 * 1024, "UpdateOffsetsInZk")
           val topicAndPartition = TopicAndPartition(topic, partition)
           val request = OffsetRequest(Map(topicAndPartition -> PartitionOffsetRequestInfo(offsetOption, 1)))
