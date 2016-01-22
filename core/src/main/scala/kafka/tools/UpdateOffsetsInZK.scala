@@ -70,7 +70,7 @@ object UpdateOffsetsInZK {
         case Some(brokerInfo) =>
           val consumer = new SimpleConsumer(brokerInfo.getBrokerEndPoint(securityProtocol).host,
                                             brokerInfo.getBrokerEndPoint(securityProtocol).port,
-                                            10000, 100 * 1024, "UpdateOffsetsInZk")
+                                            10000, 100 * 1024, "UpdateOffsetsInZk", securityProtocol)
           val topicAndPartition = TopicAndPartition(topic, partition)
           val request = OffsetRequest(Map(topicAndPartition -> PartitionOffsetRequestInfo(offsetOption, 1)))
           val offset = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets.head
