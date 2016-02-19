@@ -1345,6 +1345,8 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
                                   " --topic " + topic,
                                    " --add " +
                                    " --allow-principals " + "User:ambari-qa",
+                                   " --allow-principals " + "User:hrt_qa",
+                                   " --operation All",
                                    " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188" ]
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
@@ -1397,6 +1399,8 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
                            " --topic " + topic,
                            " --add " +
                            " --allow-principals " + "User:ambari-qa",
+                           " --allow-principals " + "User:hrt_qa",
+                           " --operation All",
                            " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
         kafkaAclCmdStr = " ".join(kafkaAclCmdList)
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
@@ -1434,6 +1438,8 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                            " --cluster ",
                            " --add " +
                            " --allow-principals " + "User:ambari-qa",
+                           " --allow-principals " + "User:hrt_qa",
+                           " --operation All",
                            " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
         kafkaAclCmdStr = " ".join(kafkaAclCmdList)
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
@@ -1453,6 +1459,8 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                                        " --topic " + topic,
                                        " --add " +
                                        " --allow-principals " + "User:ambari-qa",
+                                       " --allow-principals " + "User:hrt_qa",
+                                       " --operation All",
                                        " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
                     kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                     logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
@@ -1477,6 +1485,8 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                                    " --topic " + topic,
                                    " --add " +
                                    " --allow-principals " + "User:ambari-qa",
+                                   " --allow-principals " + "User:hrt_qa",
+                                   " --operation All",
                                    " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
