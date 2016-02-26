@@ -295,7 +295,7 @@ start_source_server() {
 
     $base_dir/bin/kafka-run-class.sh kafka.Kafka \
         ${kafka_source_prop_files[$s_idx]} \
-        2>&1 >> ${kafka_source_log_files[$s_idx]} &
+        >> ${kafka_source_log_files[$s_idx]} 2>&1 &
     kafka_source_pids[${s_idx}]=$!
 
     info "  -> kafka_source_pids[$s_idx]: ${kafka_source_pids[$s_idx]}"
@@ -321,7 +321,7 @@ start_target_server() {
 
     $base_dir/bin/kafka-run-class.sh kafka.Kafka \
         ${kafka_target_prop_files[${s_idx}]} \
-        2>&1 >> ${kafka_target_log_files[${s_idx}]} &
+        >> ${kafka_target_log_files[${s_idx}]} 2>&1 &
     kafka_target_pids[$s_idx]=$!
 
     info "  -> kafka_target_pids[$s_idx]: ${kafka_target_pids[$s_idx]}"
@@ -349,7 +349,7 @@ start_mirror_maker() {
         --consumer.config $consumer_prop_file \
         --producer.config ${mirror_producer_prop_files[${s_idx}]} \
         --whitelist=\".*\" \
-        2>&1 >> ${kafka_mirror_maker_log_files[$s_idx]} &
+        >> ${kafka_mirror_maker_log_files[$s_idx]} 2>&1 &
     kafka_mirror_maker_pids[${s_idx}]=$!
 
     info "  -> kafka_mirror_maker_pids[$s_idx]: ${kafka_mirror_maker_pids[$s_idx]}"
@@ -455,7 +455,7 @@ start_background_producer() {
             --message-size $message_size \
             --threads $num_producer_threads \
             --initial-message-id $batch_no \
-            2>&1 >> $base_dir/producer_performance.log    # appending all producers' msgs
+            >> $base_dir/producer_performance.log 2>&1    # appending all producers' msgs
 
         batch_no=$(($batch_no + $num_msg_per_batch))
         sleep $sleeptime

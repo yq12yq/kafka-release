@@ -762,7 +762,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                   "KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%s/config/log4j.properties" % kafkaHome,
                   kafkaHome + "/bin/kafka-run-class.sh kafka.Kafka",
                   configPathName + "/" + configFile + " >> ",
-                  logPathName + "/" + logFile + " & echo pid:$! > ",
+                  logPathName + "/" + logFile + " 2>&1 & echo pid:$! > ",
                   logPathName + "/entity_" + entityId + "_pid'"]
 
     elif role == "mirror_maker":
@@ -775,7 +775,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                       "--producer.config " + configPathName + "/" + mmProducerConfigFile,
                       # "--new.producer",
                       "--whitelist=\".*\" >> ",
-                      logPathName + "/" + logFile + " & echo pid:$! > ",
+                      logPathName + "/" + logFile + " 2>&1 & echo pid:$! > ",
                       logPathName + "/entity_" + entityId + "_pid'"]
         else:
             cmdList = ["ssh " + hostname,
@@ -785,7 +785,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                       "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
                       "--producer.config " + configPathName + "/" + mmProducerConfigFile,
                       "--whitelist=\".*\" >> ",
-                      logPathName + "/" + logFile + " & echo pid:$! > ",
+                      logPathName + "/" + logFile + " 2>&1 & echo pid:$! > ",
                       logPathName + "/entity_" + entityId + "_pid'"]
 
     elif role == "console_consumer":
@@ -855,7 +855,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                    securityProtocol,
                    formatterOption,
                    "--from-beginning",
-                   " >> " + logPathName + "/" + logFile + " & echo pid:$! > ",
+                   " >> " + logPathName + "/" + logFile + " 2>&1 & echo pid:$! > ",
                    logPathName + "/entity_" + entityId + "_pid)'"]
 
     cmdStr = " ".join(cmdList)
@@ -982,7 +982,7 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
                    "--from-beginning ",
                    securityProtocol,
                    " >> " + consumerLogPathName,
-                   " & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid)'"]
+                   " 2>&1 & echo pid:$! > " + consumerLogPath + "/entity_" + entityId + "_pid)'"]
 
         cmdStr = " ".join(cmdList)
 
@@ -1183,7 +1183,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        securityProtocol,
                        boolArgumentsStr,
                        " >> " + producerLogPathName,
-                       " & echo $! > " + producerLogPath + "/entity_" + entityId + "_pid",
+                       " 2>&1 & echo $! > " + producerLogPath + "/entity_" + entityId + "_pid",
                        " & wait'"]
 
             if kafka07Client:
@@ -1217,7 +1217,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
                        "--vary-message-size --async",
                        securityProtocol,
                        " >> " + producerLogPathName,
-                       " & echo $! > " + producerLogPath + "/entity_" + entityId + "_pid",
+                       " 2>&1 & echo $! > " + producerLogPath + "/entity_" + entityId + "_pid",
                        " & wait)'"]
 
             cmdStr = " ".join(cmdList)
@@ -1333,7 +1333,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
                        " --zookeeper " + zkConnectStr,
                        " --replication-factor "   + testcaseEnv.testcaseArgumentsDict["replica_factor"],
                        " --partitions " + testcaseEnv.testcaseArgumentsDict["num_partition"] + " >> ",
-                       testcaseBaseDir + "/logs/create_source_cluster_topic.log)'"]
+                       testcaseBaseDir + "/logs/create_source_cluster_topic.log 2>&1 )'"]
 
             cmdStr = " ".join(cmdList)
             logger.info("executing command: [" + cmdStr + "]", extra=d)
@@ -1387,7 +1387,7 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
                " --zookeeper " + zkConnectStr,
                " --replication-factor "   + str(replication_factor),
                " --partitions " + str(num_partitions) + " >> ",
-               testcaseBaseDir + "/logs/create_source_cluster_topic.log)'"]
+               testcaseBaseDir + "/logs/create_source_cluster_topic.log 2>&1 )'"]
 
     cmdStr = " ".join(cmdList)
     logger.info("executing command: [" + cmdStr + "]", extra=d)
@@ -1501,7 +1501,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                            " --zookeeper " + zkConnectStr,
                            " --replication-factor " + testcaseEnv.testcaseArgumentsDict["replica_factor"]  ,
                            " --partitions " + testcaseEnv.testcaseArgumentsDict["num_partition"]  + " >> ",
-                           testcaseBaseDir + "/logs/create_source_cluster_topic.log)'"]
+                           testcaseBaseDir + "/logs/create_source_cluster_topic.log 2>&1 )'"]
 
                 cmdStr = " ".join(cmdList)
                 logger.info("executing command: [" + cmdStr + "]", extra=d)
