@@ -34,7 +34,7 @@ import sys
 import thread
 import time
 import traceback
-
+from test_config import TestConfig
 import system_test_utils
 # import metrics
 
@@ -52,6 +52,7 @@ from time      import mktime
 logger     = logging.getLogger("namedLogger")
 thisClassName = '(kafka_system_test_utils)'
 d = {'name_of_class': thisClassName}
+ALLOW_PRINCIPLE_TEST_USER = " --allow-principals User:%s" % TestConfig.get_test_user()
 
 # 2. "anonymousLogger" is defined to log message in this format:
 #    "%(asctime)s - %(levelname)s - %(message)s"
@@ -841,7 +842,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
         else:
             logger.error("Invalid cluster name : " + clusterName, extra=d)
             sys.exit(1)
-        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
+        kinitCmd = TestConfig.get_kinit_cmd(secureMode)
         securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
         cmdList = ["ssh " + hostname,
                    "'(", kinitCmd,
@@ -965,7 +966,7 @@ def start_console_consumer(systemTestEnv, testcaseEnv):
         system_test_utils.sys_call(scpCmdStr)
 
         secureMode = systemTestEnv.SECURE_MODE
-        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
+        kinitCmd = TestConfig.get_kinit_cmd(secureMode)
         securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
 
         cmdList = ["ssh " + host,
@@ -1142,7 +1143,7 @@ def start_producer_in_thread(testcaseEnv, entityConfigList, producerConfig, kafk
 
     # keep calling producer until signaled to stop by:
     # testcaseEnv.userDefinedEnvVarDict["stopBackgroundProducer"]
-    kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
+    kinitCmd = TestConfig.get_kinit_cmd(secureMode)
     securityProtocol = "--security-protocol PLAINTEXTSASL" if secureMode else ""
     if secureMode:
         kinitCmdList = ["ssh " + host,
@@ -1344,7 +1345,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
                                    kafkaAclCommand,
                                   " --topic " + topic,
                                    " --add " +
-                                   " --allow-principals " + "User:ambari-qa",
+                                   ALLOW_PRINCIPLE_TEST_USER,
                                    " --allow-principals " + "User:hrt_qa",
                                    " --operation All",
                                    " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188" ]
@@ -1398,7 +1399,7 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
                            kafkaAclCommand,
                            " --topic " + topic,
                            " --add " +
-                           " --allow-principals " + "User:ambari-qa",
+                           ALLOW_PRINCIPLE_TEST_USER,
                            " --allow-principals " + "User:hrt_qa",
                            " --operation All",
                            " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
@@ -1437,7 +1438,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                            kafkaAclCommand,
                            " --cluster ",
                            " --add " +
-                           " --allow-principals " + "User:ambari-qa",
+                           ALLOW_PRINCIPLE_TEST_USER,
                            " --allow-principals " + "User:hrt_qa",
                            " --operation All",
                            " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
@@ -1458,7 +1459,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                                        kafkaAclCommand,
                                        " --topic " + topic,
                                        " --add " +
-                                       " --allow-principals " + "User:ambari-qa",
+                                       ALLOW_PRINCIPLE_TEST_USER,
                                        " --allow-principals " + "User:hrt_qa",
                                        " --operation All",
                                        " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
@@ -1484,7 +1485,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                                    kafkaAclCommand,
                                    " --topic " + topic,
                                    " --add " +
-                                   " --allow-principals " + "User:ambari-qa",
+                                   ALLOW_PRINCIPLE_TEST_USER,
                                    " --allow-principals " + "User:hrt_qa",
                                    " --operation All",
                                    " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
@@ -2197,7 +2198,7 @@ def start_simple_consumer(systemTestEnv, testcaseEnv, minStartingOffsetDict=None
             numReplicas = int(numReplicas)
 
         secureMode = systemTestEnv.SECURE_MODE
-        kinitCmd = "kinit -k -t /etc/security/keytabs/smokeuser.headless.keytab ambari-qa;" if secureMode else ""
+        kinitCmd = TestConfig.get_kinit_cmd(secureMode)
 
         startingOffset = -2
         #brokerPortList = brokerListStr.split(',')

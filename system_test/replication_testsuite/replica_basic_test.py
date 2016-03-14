@@ -33,13 +33,13 @@ import traceback
 from   system_test_env    import SystemTestEnv
 sys.path.append(SystemTestEnv.SYSTEM_TEST_UTIL_DIR)
 
-from   setup_utils        import SetupUtils
-from   replication_utils  import ReplicationUtils
-import system_test_utils
-from   testcase_env       import TestcaseEnv
+from   utils.setup_utils        import SetupUtils
+from   utils.replication_utils  import ReplicationUtils
+from utils import system_test_utils
+from   utils.testcase_env       import TestcaseEnv
 
 # product specific: Kafka
-import kafka_system_test_utils
+from utils import kafka_system_test_utils
 # import metrics
 
 class ReplicaBasicTest(ReplicationUtils, SetupUtils):
