@@ -86,7 +86,9 @@ if (new File('.git').exists()) {
         'gradlew.bat',
         '**/README.md',
         '.reviewboardrc',
-        '**/system_test/**'
+        '**/system_test/**',
+        '**/docs/**',
+        '.gitignore'
     ])
   }
 }

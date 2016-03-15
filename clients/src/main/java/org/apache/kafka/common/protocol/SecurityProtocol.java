@@ -34,7 +34,7 @@ public enum SecurityProtocol {
     /** SASL authenticated, SSL channel */
     SASL_SSL(3, "SASL_SSL", false),
     /** Deprecated, same as SASL_PLAINTEXT */
-    PLAINTEXTSASL(4, "PLAINTEXTSASL"),
+    PLAINTEXTSASL(4, "PLAINTEXTSASL", false),
     /** Currently identical to PLAINTEXT and used for testing only. We may implement extra instrumentation when testing channel code. */
     TRACE(Short.MAX_VALUE, "TRACE", true);
 
@@ -72,12 +72,6 @@ public enum SecurityProtocol {
         this.name = name;
         this.isTesting = isTesting;
     }
-
-    private SecurityProtocol(SecurityProtocol protocol) {
-        this.id = protocol.id;
-        this.name = protocol.name;
-    }
-
 
     public static String getName(int id) {
         return CODE_TO_SECURITY_PROTOCOL.get((short) id).name;

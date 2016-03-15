@@ -57,7 +57,7 @@ object ConsoleConsumer extends Logging {
     val consumer =
       if (conf.useNewConsumer) {
         val timeoutMs = if (conf.timeoutMs >= 0) conf.timeoutMs else Long.MaxValue
-        new NewShinyConsumer(Option(conf.topicArg), Option(conf.whitelistArg), getNewConsumerProps(conf), timeoutMs)
+        new NewShinyConsumer(conf.topicArg, getNewConsumerProps(conf), timeoutMs)
       } else {
         checkZk(conf)
         new OldConsumer(conf.filterSpec, getOldConsumerProps(conf))
