@@ -469,7 +469,8 @@ def generate_overriden_props_files(testsuitePathname, testcaseEnv, systemTestEnv
                 elif ( clusterCfg["role"] == "mirror_maker"):
                     tcCfg["metadata.broker.list"] = testcaseEnv.userDefinedEnvVarDict["targetBrokerList"]
                     tcCfg["bootstrap.servers"] = testcaseEnv.userDefinedEnvVarDict["targetBrokerList"] # for new producer
-                    tcCfg["security.protocol"] = "PLAINTEXTSASL"
+                    if systemTestEnv.SECURE_MODE:
+                        tcCfg["security.protocol"] = "PLAINTEXTSASL"
                     copy_file_with_dict_values(cfgTemplatePathname + "/mirror_producer.properties",
                         cfgDestPathname + "/" + tcCfg["mirror_producer_config_filename"], tcCfg, None)
 
@@ -1315,7 +1316,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
             zkConnectStr = testcaseEnv.userDefinedEnvVarDict["targetZkConnectStr"]
         else:
             raise Exception("Empty zkConnectStr found")
-
+        zkOneConnect = zkConnectStr.split(',')[0]
         testcaseBaseDir = testcaseEnv.testCaseBaseDir
 
         secureMode = systemTestEnv.SECURE_MODE
@@ -1349,7 +1350,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
                                    ALLOW_PRINCIPLE_TEST_USER,
                                    " --allow-principals " + "User:hrt_qa",
                                    " --operation All",
-                                   " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188" ]
+                                   " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                 subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
@@ -1372,7 +1373,7 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
         zkConnectStr = testcaseEnv.userDefinedEnvVarDict["targetZkConnectStr"]
     else:
         raise Exception("Empty zkConnectStr found")
-
+    zkOneConnect = zkConnectStr.split(',')[0]
     testcaseBaseDir = testcaseEnv.testCaseBaseDir
 
     testcaseBaseDir = replace_kafka_home(testcaseBaseDir, kafkaHome)
@@ -1403,7 +1404,7 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
                            ALLOW_PRINCIPLE_TEST_USER,
                            " --allow-principals " + "User:hrt_qa",
                            " --operation All",
-                           " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
+                           " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
         kafkaAclCmdStr = " ".join(kafkaAclCmdList)
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
@@ -1432,7 +1433,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
         zkConnectStr = testcaseEnv.userDefinedEnvVarDict["targetZkConnectStr"]
     else:
         raise Exception("Empty zkConnectStr found")
-
+    zkOneConnect = zkConnectStr.split(',')[0]
     if secureMode:
         kafkaAclCmdList = ["ssh " + zkHost,
                            "JAVA_HOME=" + javaHome,
@@ -1442,7 +1443,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                            ALLOW_PRINCIPLE_TEST_USER,
                            " --allow-principals " + "User:hrt_qa",
                            " --operation All",
-                           " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
+                           " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
         kafkaAclCmdStr = " ".join(kafkaAclCmdList)
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
@@ -1463,7 +1464,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                                        ALLOW_PRINCIPLE_TEST_USER,
                                        " --allow-principals " + "User:hrt_qa",
                                        " --operation All",
-                                       " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
+                                       " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
                     kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                     logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                     subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
@@ -1489,7 +1490,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                                    ALLOW_PRINCIPLE_TEST_USER,
                                    " --allow-principals " + "User:hrt_qa",
                                    " --operation All",
-                                   " --authorizer-properties " + "zookeeper.connect="+zkHost+":2188"]
+                                   " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                 subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)

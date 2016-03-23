@@ -32,14 +32,16 @@ import traceback
 from   system_test_env    import SystemTestEnv
 sys.path.append(SystemTestEnv.SYSTEM_TEST_UTIL_DIR)
 
-from   setup_utils        import SetupUtils
-from   replication_utils  import ReplicationUtils
-import system_test_utils
-from   testcase_env       import TestcaseEnv
+from   utils.setup_utils        import SetupUtils
+from   utils.replication_utils  import ReplicationUtils
+from   utils                    import system_test_utils
+from   utils.testcase_env       import TestcaseEnv
 
 # product specific: Kafka
-import kafka_system_test_utils
+from utils                      import kafka_system_test_utils
 # import metrics
+
+from utils import stacktracer; stacktracer.trace_start("/tmp/trace.txt", interval=5, auto=True)
 
 class MirrorMakerTest(ReplicationUtils, SetupUtils):
 
@@ -64,7 +66,7 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
 
         # perform the necessary cleanup here when user presses Ctrl+c and it may be product specific
         self.log_message("stopping all entities - please wait ...")
-        kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)
+        kafka_system_test_utils.stop_all_renmote_running_processes(self.systemTestEnv, self.testcaseEnv)
         sys.exit(1) 
 
     def runTest(self):
@@ -170,7 +172,13 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                 self.anonLogger.info("sleeping for 5s")
                 time.sleep(5)
 
-                
+                secureMode = self.systemTestEnv.SECURE_MODE
+                if secureMode:
+                    self.log_message("Issuing cluster level permissions")
+                    kafka_system_test_utils.give_permissions_to_user_on_cluster(self.systemTestEnv, self.testcaseEnv)
+                    self.anonLogger.info("sleeping for 5s")
+                    time.sleep(5)
+
                 self.log_message("starting mirror makers")
                 kafka_system_test_utils.start_mirror_makers(self.systemTestEnv, self.testcaseEnv)
                 self.anonLogger.info("sleeping for 10s")
