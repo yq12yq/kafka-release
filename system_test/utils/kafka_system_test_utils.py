@@ -475,7 +475,7 @@ def generate_overriden_props_files(testsuitePathname, testcaseEnv, systemTestEnv
                         cfgDestPathname + "/" + tcCfg["mirror_producer_config_filename"], tcCfg, None)
 
                     # update zookeeper.connect with the zk entities specified in cluster_config.json
-                    tcCfg["zookeeper.connect"] = testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"]
+                    tcCfg["bootstrap.servers"] = testcaseEnv.userDefinedEnvVarDict["sourceBrokerList"]  # for new consumer
                     copy_file_with_dict_values(cfgTemplatePathname + "/mirror_consumer.properties",
                         cfgDestPathname + "/" + tcCfg["mirror_consumer_config_filename"], tcCfg, None)
 
@@ -776,7 +776,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                       kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
                       "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
                       "--producer.config " + configPathName + "/" + mmProducerConfigFile,
-                      # "--new.producer",
+                      "--new.consumer",
                       "--whitelist=\".*\" >> ",
                       logPathName + "/" + logFile + " 2>&1 & echo pid:$! > ",
                       logPathName + "/entity_" + entityId + "_pid'"]
@@ -787,6 +787,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                       kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
                       "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
                       "--producer.config " + configPathName + "/" + mmProducerConfigFile,
+                      "--new.consumer",
                       "--whitelist=\".*\" >> ",
                       logPathName + "/" + logFile + " 2>&1 & echo pid:$! > ",
                       logPathName + "/entity_" + entityId + "_pid'"]
@@ -1409,6 +1410,43 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
 
+def give_permissions_to_user_for_mirror_maker(systemTestEnv, testcaseEnv):
+    clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
+    zkEntityId      = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "entity_id")
+    kafkaHome       = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", zkEntityId, "kafka_home")
+    javaHome        = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "entity_id", zkEntityId, "java_home")
+    kafkaAclCommand = kafkaHome + "/bin/kafka-acls.sh"
+    zkHost = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "hostname")
+    secureMode = systemTestEnv.SECURE_MODE
+    kinitCmd = "kinit -k -t /etc/security/keytabs/kafka.service.keytab kafka/" + zkHost + ";"
+    zkHost = system_test_utils.get_data_by_lookup_keyval(clusterEntityConfigDictList, "role", "zookeeper", "hostname")
+    if not secureMode:
+        logger.warning("This method should not get called in unsecure setup.")
+        return
+    prodPerfCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "producer_performance")
+
+    #/--group mm_regtest_grp  --add  --allow-host "*" --allow-principals User:hrt_qa --authorizer-properties zookeeper.connect=zk1-kfk4-h.hdinsight.net:2138
+    for prodPerfCfg in prodPerfCfgList:
+        topicsStr = system_test_utils.get_data_by_lookup_keyval(testcaseEnv.testcaseConfigsList, "entity_id", prodPerfCfg["entity_id"], "topic")
+        topicsList = topicsStr.split(",")
+        for topic in topicsList:
+            for zkConnectStr in [testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"], testcaseEnv.userDefinedEnvVarDict["targetZkConnectStr"]]:
+                zkOneConnect = zkConnectStr.split(',')[0]
+                kafkaAclCmdList = ["ssh " + zkHost,
+                                   kinitCmd,
+                                   "JAVA_HOME=" + javaHome,
+                                   kafkaAclCommand,
+                                   " --topic " + topic,
+                                   "--add",
+                                   "--cluster",
+                                   "--group mm_regtest_grp",
+                                   '--allow-host "*" ',
+                                   ALLOW_PRINCIPLE_TEST_USER,
+                                   " --operation All",
+                                   " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
+                kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+                logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+                subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
 
 def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList

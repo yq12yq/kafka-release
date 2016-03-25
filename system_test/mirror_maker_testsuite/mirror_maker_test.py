@@ -175,7 +175,7 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                 secureMode = self.systemTestEnv.SECURE_MODE
                 if secureMode:
                     self.log_message("Issuing cluster level permissions")
-                    kafka_system_test_utils.give_permissions_to_user_on_cluster(self.systemTestEnv, self.testcaseEnv)
+                    kafka_system_test_utils.give_permissions_to_user_for_mirror_maker(self.systemTestEnv, self.testcaseEnv)
                     self.anonLogger.info("sleeping for 5s")
                     time.sleep(5)
 
