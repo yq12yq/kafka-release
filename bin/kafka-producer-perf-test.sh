@@ -17,5 +17,12 @@
 if [ "x$KAFKA_HEAP_OPTS" = "x" ]; then
     export KAFKA_HEAP_OPTS="-Xmx512M"
 fi
-export KAFKA_CLIENT_KERBEROS_PARAMS="-Djava.security.auth.login.config=/usr/hdp/current/kafka-broker/config/kafka_client_jaas.conf"
+# check if kafka_jaas.conf in config , only enable client_kerberos_params in secure mode.
+KAFKA_HOME="$(dirname $(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd ))"
+KAFKA_JAAS_CONF=$KAFKA_HOME/config/kafka_jaas.conf
+if [ -f $KAFKA_JAAS_CONF ]; then
+    export KAFKA_CLIENT_KERBEROS_PARAMS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_client_jaas.conf"
+fi
+
+
 exec $(dirname $0)/kafka-run-class.sh kafka.tools.ProducerPerformance $@
