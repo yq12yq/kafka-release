@@ -1,4 +1,4 @@
-Changes only in Hortonworks github and not in Apache Kafka release 0.9.0 and hence not covered in releaes notes http://apache.arvixe.com/kafka/0.9.0.0/RELEASE_NOTES.html
+Changes only in Hortonworks github and not in Apache Kafka release 0.9.0.1 and hence not covered in releaes notes htp://apache.arvixe.com/kafka/0.9.0.1/RELEASE_NOTES.html
 
  * KAFKA-2812: improve consumer integration tests
  * KAFKA-2862: Fix MirrorMaker's message.handler.args description
