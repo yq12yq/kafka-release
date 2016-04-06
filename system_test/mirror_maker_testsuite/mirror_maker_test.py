@@ -31,6 +31,8 @@ import time
 import traceback
 
 from   system_test_env    import SystemTestEnv
+from utils.test_constants import *
+
 sys.path.append(SystemTestEnv.SYSTEM_TEST_UTIL_DIR)
 
 from   utils.setup_utils        import SetupUtils
