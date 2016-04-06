@@ -32,6 +32,8 @@ import traceback
 import json
 
 from   system_test_env    import SystemTestEnv
+from utils.logutil import *
+
 sys.path.append(SystemTestEnv.SYSTEM_TEST_UTIL_DIR)
 
 from   utils.setup_utils        import SetupUtils
@@ -107,7 +109,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                     self.testcaseEnv.printTestCaseDescription(testcaseDirName)
                     continue
                 elif self.systemTestEnv.isTestCaseToSkip(self.__class__.__name__, testcaseDirName):
-                    self.log_message("Skipping : " + testcaseDirName)
+                    self.testcaseEnv.validationStatusDict[TEST_COMPLETED] = SKIPPED
                     skipThisTestCase = True
                     continue
                 else:
@@ -473,14 +475,11 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
             except Exception as e:
                 self.log_message("Exception while running test {0}".format(e))
                 traceback.print_exc()
-                self.testcaseEnv.validationStatusDict["Test completed"] = "FAILED"
+                self.testcaseEnv.validationStatusDict[TEST_COMPLETED] = "FAILED"
 
 
             finally:
-                if skipThisTestCase:
-                    self.logger.info("Testing going to end for: %s ----- Status: %s", testcaseDirName, SKIPPED)
-                else:
-                    self.logger.info(json.dumps(self.testcaseEnv.validationStatusDict, indent=2))
+                log_test_summary(self.testcaseEnv.validationStatusDict, testcaseDirName)
                 if not skipThisTestCase and not self.systemTestEnv.printTestDescriptionsOnly:
                     self.log_message("stopping all entities - please wait ...")
                     kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)

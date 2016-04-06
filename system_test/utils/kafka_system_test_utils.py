@@ -1653,7 +1653,7 @@ def validate_data_matched(systemTestEnv, testcaseEnv, replicationUtils):
         if len(missingUniqConsumerMsgId) == 0 and len(producerMsgIdSet) > 0:
             validationStatusDict[data_matched_key] = PASSED
         elif acks == "1":
-            logger.warn("Data loss %s%%, %d messages missing", loss_threshold_percent, len(missingUniqConsumerMsgId), extra=d)
+            logger.warn("Data loss %s%%, %d messages missing", missingPercentage, len(missingUniqConsumerMsgId), extra=d)
             validationStatusDict[data_matched_key] = PASSED if missingPercentage <= loss_threshold_percent else FAILED
         else:
             validationStatusDict[data_matched_key] = FAILED

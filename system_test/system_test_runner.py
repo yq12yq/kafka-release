@@ -163,7 +163,6 @@ def main():
                     theClass = getattr(mod, className)
                     instance = theClass(systemTestEnv)
                     instance.runTest()
-                print
 
     if not systemTestEnv.printTestDescriptionsOnly:
         totalFailureCount = 0
