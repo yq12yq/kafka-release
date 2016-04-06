@@ -38,7 +38,7 @@ from   utils.setup_utils        import SetupUtils
 from   utils.replication_utils  import ReplicationUtils
 from utils import system_test_utils
 from   utils.testcase_env       import TestcaseEnv
-from test_constants import *
+from utils.test_constants import *
 
 # product specific: Kafka
 from utils import kafka_system_test_utils
