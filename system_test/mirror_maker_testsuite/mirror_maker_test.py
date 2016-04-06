@@ -21,6 +21,7 @@
 # ===================================
 
 import inspect
+import json
 import logging
 import os
 import signal
@@ -326,6 +327,10 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
                 self.testcaseEnv.validationStatusDict["Test completed"] = "FAILED"
 
             finally:
+                if skipThisTestCase:
+                    self.logger.info("Testing going to end for: %s ----- Status: %s", testcaseDirName, SKIPPED)
+                else:
+                    self.logger.info(json.dumps(self.testcaseEnv.validationStatusDict, indent=2))
                 if not skipThisTestCase and not self.systemTestEnv.printTestDescriptionsOnly:
                     self.log_message("stopping all entities - please wait ...")
                     kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)

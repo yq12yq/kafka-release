@@ -35,6 +35,8 @@ import thread
 import time
 import traceback
 from test_config import TestConfig
+from logutil import *
+from test_constants import *
 import system_test_utils
 # import metrics
 
@@ -1595,7 +1597,7 @@ def validate_data_matched(systemTestEnv, testcaseEnv, replicationUtils):
     consumerCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "console_consumer")
 
     consumerDuplicateCount = 0
-
+    pass_status = True
     for prodPerfCfg in prodPerfCfgList:
         producerEntityId = prodPerfCfg["entity_id"]
         topic = system_test_utils.get_data_by_lookup_keyval(testcaseEnv.testcaseConfigsList, "entity_id", producerEntityId, "topic")
@@ -1634,8 +1636,8 @@ def validate_data_matched(systemTestEnv, testcaseEnv, replicationUtils):
         missingUniqConsumerMsgId = system_test_utils.subtract_list(producerMsgIdSet, consumerMsgIdSet)
 
         outfile = open(msgIdMissingInConsumerLogPathName, "w")
-        for id in missingUniqConsumerMsgId:
-            outfile.write(id + "\n")
+        for one_id in sorted(missingUniqConsumerMsgId):
+            outfile.write(one_id + "\n")
         outfile.close()
 
         logger.info("no. of unique messages on topic [" + topic + "] sent from publisher  : " + str(len(producerMsgIdSet)), extra=d)
@@ -1644,23 +1646,23 @@ def validate_data_matched(systemTestEnv, testcaseEnv, replicationUtils):
         validationStatusDict["Unique messages from consumer on [" + topic + "]"] = str(len(consumerMsgIdSet))
 
         missingPercentage = len(missingUniqConsumerMsgId) * 100.00 / len(producerMsgIdSet)
-        logger.info("Data loss threshold % : " + str(replicationUtils.ackOneDataLossThresholdPercent), extra=d)
-        logger.warn("Data loss % on topic : " + topic + " : " + str(missingPercentage), extra=d)
+        loss_threshold_percent = replicationUtils.ackOneDataLossThresholdPercent
+        logger.info("Topic: %s Data loss: %f%% Threshold: %f%%", topic, missingPercentage, loss_threshold_percent, extra=d)
 
-        if ( len(missingUniqConsumerMsgId) == 0 and len(producerMsgIdSet) > 0 ):
-            validationStatusDict["Validate for data matched on topic [" + topic + "]"] = "PASSED"
-        elif (acks == "1"):
-            if missingPercentage <= replicationUtils.ackOneDataLossThresholdPercent:
-                validationStatusDict["Validate for data matched on topic [" + topic + "]"] = "PASSED"
-                logger.warn("Test case (Acks = 1) passes with less than " + str(replicationUtils.ackOneDataLossThresholdPercent) \
-                    + "% data loss : [" + str(len(missingUniqConsumerMsgId)) + "] missing messages", extra=d)
-            else:
-                validationStatusDict["Validate for data matched on topic [" + topic + "]"] = "FAILED"
-                logger.error("Test case (Acks = 1) failed with more than " + str(replicationUtils.ackOneDataLossThresholdPercent) \
-                    + "% data loss : [" + str(len(missingUniqConsumerMsgId)) + "] missing messages", extra=d)
+        data_matched_key = "Validate for data matched on topic [" + topic + "]"
+        if len(missingUniqConsumerMsgId) == 0 and len(producerMsgIdSet) > 0:
+            validationStatusDict[data_matched_key] = PASSED
+        elif acks == "1":
+            logger.warn("Data loss %s%%, %d messages missing", loss_threshold_percent, len(missingUniqConsumerMsgId), extra=d)
+            validationStatusDict[data_matched_key] = PASSED if missingPercentage <= loss_threshold_percent else FAILED
         else:
-            validationStatusDict["Validate for data matched on topic [" + topic + "]"] = "FAILED"
+            validationStatusDict[data_matched_key] = FAILED
             logger.info("See " + msgIdMissingInConsumerLogPathName + " for missing MessageID", extra=d)
+        if validationStatusDict[data_matched_key] == FAILED:
+            logger.error("Data validation FAILED.")
+            pass_status = False
+    log_status(pass_status, "Data validation")
+    return pass_status
 
 
 def validate_leader_election_successful(testcaseEnv, leaderDict, validationStatusDict):
@@ -2399,7 +2401,7 @@ def getMinCommonStartingOffset(systemTestEnv, testcaseEnv, clusterName="source")
     return minCommonStartOffsetDict
 
 def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcaseEnv):
-    logger.debug("#### Inside validate_simple_consumer_data_matched_across_replicas", extra=d)
+    logger.info("#### Inside validate_simple_consumer_data_matched_across_replicas", extra=d)
 
     validationStatusDict        = testcaseEnv.validationStatusDict
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
@@ -2407,7 +2409,7 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
                                   clusterEntityConfigDictList, "role", "console_consumer", "entity_id")
     replicaFactor               = testcaseEnv.testcaseArgumentsDict["replica_factor"]
     numPartition                = testcaseEnv.testcaseArgumentsDict["num_partition"]
-
+    pass_status = True
     for consumerEntityId in consumerEntityIdList:
 
         # get topic string from multi consumer "entity"
@@ -2491,10 +2493,14 @@ def validate_simple_consumer_data_matched_across_replicas(systemTestEnv, testcas
                     mismatchCounter += diffCount
                     logger.info("Mismatch count of topic-partition [" + topicPartition + "] in replica id [" + str(r) + "] : " + str(diffCount), extra=d)
 
+            validation_key = "Validate for data matched on topic [" + topic + "] across replicas"
             if mismatchCounter == 0 and totalMsgCounter > 0:
-                validationStatusDict["Validate for data matched on topic [" + topic + "] across replicas"] = "PASSED"
+                validationStatusDict[validation_key] = PASSED
             else:
-                validationStatusDict["Validate for data matched on topic [" + topic + "] across replicas"] = "FAILED"
+                validationStatusDict[validation_key] = FAILED
+                pass_status = False
+            log_status(validationStatusDict[validation_key], "Validation of consumer data match across replica")
+    return pass_status
 
 
 def validate_data_matched_in_multi_topics_from_single_consumer_producer(systemTestEnv, testcaseEnv, replicationUtils):
@@ -2504,7 +2510,7 @@ def validate_data_matched_in_multi_topics_from_single_consumer_producer(systemTe
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
 
     prodPerfCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "producer_performance")
-
+    pass_status = True
     for prodPerfCfg in prodPerfCfgList:
         producerEntityId = prodPerfCfg["entity_id"]
         topicStr = testcaseEnv.producerTopicsString
@@ -2559,24 +2565,31 @@ def validate_data_matched_in_multi_topics_from_single_consumer_producer(systemTe
             logger.info("Data loss threshold % : " + str(replicationUtils.ackOneDataLossThresholdPercent), extra=d)
             logger.warn("Data loss % on topic : " + topic + " : " + str(missingPercentage), extra=d)
 
+            data_match_key = "Validate for data matched on topic [" + topic + "]"
             if ( len(missingUniqConsumerMsgId) == 0 and len(producerMsgIdSet) > 0 ):
-                validationStatusDict["Validate for data matched on topic [" + topic + "]"] = "PASSED"
+                validationStatusDict[data_match_key] = PASSED
             elif (acks == "1"):
                 if missingPercentage <= replicationUtils.ackOneDataLossThresholdPercent:
-                    validationStatusDict["Validate for data matched on topic [" + topic + "]"] = "PASSED"
+                    validationStatusDict[data_match_key] = PASSED
                     logger.warn("Test case (Acks = 1) passes with less than " + str(replicationUtils.ackOneDataLossThresholdPercent) \
                         + "% data loss : [" + str(len(missingUniqConsumerMsgId)) + "] missing messages", extra=d)
                 else:
-                    validationStatusDict["Validate for data matched on topic [" + topic + "]"] = "FAILED"
+                    validationStatusDict[data_match_key] = PASSED
                     logger.error("Test case (Acks = 1) failed with more than " + str(replicationUtils.ackOneDataLossThresholdPercent) \
                         + "% data loss : [" + str(len(missingUniqConsumerMsgId)) + "] missing messages", extra=d)
             else:
-                validationStatusDict["Validate for data matched on topic [" + topic + "]"] = "FAILED"
+                validationStatusDict[data_match_key] = FAILED
                 logger.info("See " + msgIdMissingInConsumerLogPathName + " for missing MessageID", extra=d)
+            logger.info(validationStatusDict[data_match_key])
+            if validationStatusDict[data_match_key] == FAILED:
+                logger.error("Data validation FAILED.")
+                pass_status = False
+    log_status(pass_status, "Data validation")
+    return pass_status
 
 
 def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
-    logger.debug("#### Inside validate_index_log", extra=d)
+    logger.info("#### Inside validate_index_log", extra=d)
 
     failureCount         = 0
     brokerLogCksumDict   = {}
@@ -2629,35 +2642,37 @@ def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
 
                 # log segment files are located in : localLogSegmentPath + "/" + topicPartition
                 # sort the log segment files under each topic-partition and verify index
+                files_to_check = []
                 for logFile in sorted(os.listdir(localLogSegmentPath + "/" + topicPartition)):
                     # only process index file: *.index
                     if logFile.endswith(".index"):
                         offsetLogSegmentPathName = remoteLogSegmentPathName + "/" + topicPartition + "/" + logFile
-                        cmdStrList = ["ssh " + hostname,
-                                      "JAVA_HOME=" + javaHome,
-                                      kafkaRunClassBin + " kafka.tools.DumpLogSegments",
-                                      " --file " + offsetLogSegmentPathName,
-                                      "--verify-index-only 2>&1"]
-                        cmdStr     = " ".join(cmdStrList)
-                        showMismatchedIndexOffset = False
-                        logger.info("executing command [" + cmdStr + "]", extra=d)
-                        subproc = system_test_utils.sys_call_return_subproc(cmdStr)
-                        for line in subproc.stdout.readlines():
-                            line = line.rstrip('\n')
-                            if showMismatchedIndexOffset:
-                                logger.error("#### [" + line + "]", extra=d)
-                            elif "Mismatches in :" in line:
-                                logger.error("#### error found [" + line + "]", extra=d)
-                                failureCount += 1
-                                showMismatchedIndexOffset = True
-                        if subproc.wait() != 0:
-                            logger.error("#### error found [DumpLogSegments exited abnormally]", extra=d)
-                            failureCount += 1
+                        files_to_check.append(offsetLogSegmentPathName)
+                cmdStrList = ["ssh " + hostname,
+                              "JAVA_HOME=" + javaHome,
+                              kafkaRunClassBin + " kafka.tools.DumpLogSegments",
+                              " --files " + ",".join(files_to_check),
+                              "--verify-index-only 2>&1"]
+                cmdStr     = " ".join(cmdStrList)
+                logger.info("executing command [" + cmdStr + "]", extra=d)
+                subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+                for line in subproc.stdout.readlines():
+                    line = line.rstrip('\n')
+                    logger.info(line)
+                    if "Mismatches in :" in line:
+                        logger.error("#### error found [" + line + "]", extra=d)
+                        failureCount += 1
+                if subproc.wait() != 0:
+                    logger.error("#### error found [DumpLogSegments exited abnormally]", extra=d)
+                    failureCount += 1
 
+    index_match_key = "Validate index log in cluster [" + clusterName + "]"
     if failureCount == 0:
-        validationStatusDict["Validate index log in cluster [" + clusterName + "]"] = "PASSED"
+        validationStatusDict[index_match_key] = PASSED
     else:
-        validationStatusDict["Validate index log in cluster [" + clusterName + "]"] = "FAILED"
+        validationStatusDict[index_match_key] = FAILED
+    log_status(validationStatusDict[index_match_key], "Validation of index logs")
+    return validationStatusDict[index_match_key]
 
 def get_leader_for(systemTestEnv, testcaseEnv, topic, partition):
     logger.info("Querying Zookeeper for leader info for topic " + topic, extra=d)
@@ -2750,7 +2765,7 @@ def get_leader_attributes(systemTestEnv, testcaseEnv):
                                           clusterConfigsList, "entity_id", leaderDict["entity_id"], "hostname")
             break
 
-    print leaderDict
+    logger.info("leaderDict = %s", leaderDict)
     return leaderDict
 
 def write_consumer_properties(consumerProperties):
