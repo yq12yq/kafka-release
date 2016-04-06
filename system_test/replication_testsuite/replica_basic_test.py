@@ -29,6 +29,7 @@ import subprocess
 import sys
 import time
 import traceback
+import json
 
 from   system_test_env    import SystemTestEnv
 sys.path.append(SystemTestEnv.SYSTEM_TEST_UTIL_DIR)
@@ -37,6 +38,7 @@ from   utils.setup_utils        import SetupUtils
 from   utils.replication_utils  import ReplicationUtils
 from utils import system_test_utils
 from   utils.testcase_env       import TestcaseEnv
+from test_constants import *
 
 # product specific: Kafka
 from utils import kafka_system_test_utils
@@ -475,6 +477,10 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
 
 
             finally:
+                if skipThisTestCase:
+                    self.logger.info("Testing going to end for: %s ----- Status: %s", testcaseDirName, SKIPPED)
+                else:
+                    self.logger.info(json.dumps(self.testcaseEnv.validationStatusDict, indent=2))
                 if not skipThisTestCase and not self.systemTestEnv.printTestDescriptionsOnly:
                     self.log_message("stopping all entities - please wait ...")
                     kafka_system_test_utils.stop_all_remote_running_processes(self.systemTestEnv, self.testcaseEnv)
