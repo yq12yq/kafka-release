@@ -1552,22 +1552,16 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                 time.sleep(5)
 
 
-def get_message_id(logPathName, topic=""):
-    logLines      = open(logPathName, "r").readlines()
-    messageIdList = []
+def get_message_id(log_path, topic=""):
+    log_lines = open(log_path, "r").readlines()
+    message_ids = []
 
-    for line in logLines:
-        if not "MessageID" in line:
-            continue
-        else:
-            matchObj = re.match('.*Topic:(.*?):.*:MessageID:(.*?):', line)
-            if len(topic) == 0:
-                messageIdList.append( matchObj.group(2) )
-            else:
-                if topic == matchObj.group(1):
-                    messageIdList.append( matchObj.group(2) )
-
-    return messageIdList
+    for line in log_lines:
+        for matchObj in re.finditer('.*Topic:(.*?):.*:MessageID:(.*?):', line):
+            if len(topic) == 0 or topic == matchObj.group(1):
+                message_ids.append(matchObj.group(2))
+    logger.info("Number of messages found in file: %s is: %d", log_path, len(message_ids))
+    return message_ids
 
 def get_message_checksum(logPathName):
     logLines = open(logPathName, "r").readlines()
@@ -2633,6 +2627,7 @@ def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
 
         # cluster configurations:
 
+        files_to_check = []
         # loop through all topicPartition directories such as : test_1-0, test_1-1, ...
         for topicPartition in os.listdir(localLogSegmentPath):
             # found a topic-partition directory
@@ -2642,29 +2637,28 @@ def validate_index_log(systemTestEnv, testcaseEnv, clusterName="source"):
 
                 # log segment files are located in : localLogSegmentPath + "/" + topicPartition
                 # sort the log segment files under each topic-partition and verify index
-                files_to_check = []
                 for logFile in sorted(os.listdir(localLogSegmentPath + "/" + topicPartition)):
                     # only process index file: *.index
                     if logFile.endswith(".index"):
                         offsetLogSegmentPathName = remoteLogSegmentPathName + "/" + topicPartition + "/" + logFile
                         files_to_check.append(offsetLogSegmentPathName)
-                cmdStrList = ["ssh " + hostname,
-                              "JAVA_HOME=" + javaHome,
-                              kafkaRunClassBin + " kafka.tools.DumpLogSegments",
-                              " --files " + ",".join(files_to_check),
-                              "--verify-index-only 2>&1"]
-                cmdStr     = " ".join(cmdStrList)
-                logger.info("executing command [" + cmdStr + "]", extra=d)
-                subproc = system_test_utils.sys_call_return_subproc(cmdStr)
-                for line in subproc.stdout.readlines():
-                    line = line.rstrip('\n')
-                    logger.info(line)
-                    if "Mismatches in :" in line:
-                        logger.error("#### error found [" + line + "]", extra=d)
-                        failureCount += 1
-                if subproc.wait() != 0:
-                    logger.error("#### error found [DumpLogSegments exited abnormally]", extra=d)
-                    failureCount += 1
+        cmdStrList = ["ssh " + hostname,
+                      "JAVA_HOME=" + javaHome,
+                      kafkaRunClassBin + " kafka.tools.DumpLogSegments",
+                      " --files " + ",".join(files_to_check),
+                      "--verify-index-only 2>&1"]
+        cmdStr = " ".join(cmdStrList)
+        logger.info("executing command [" + cmdStr + "]", extra=d)
+        subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+        for line in subproc.stdout.readlines():
+            line = line.rstrip('\n')
+            logger.info(line)
+            if "Mismatches in :" in line:
+                logger.error("#### error found [" + line + "]", extra=d)
+                failureCount += 1
+        if subproc.wait() != 0:
+            logger.error("#### error found [DumpLogSegments exited abnormally]", extra=d)
+            failureCount += 1
 
     index_match_key = "Validate index log in cluster [" + clusterName + "]"
     if failureCount == 0:
