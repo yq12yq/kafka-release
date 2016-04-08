@@ -53,11 +53,14 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
     testSuiteAbsPathName  = os.path.abspath(os.path.dirname(testModuleAbsPathName))
 
     def __init__(self, systemTestEnv):
+        """
+        SystemTestEnv - provides cluster level environment settings
+             such as entity_id, hostname, kafka_home, java_home which
+             are available in a list of dictionary named
+             "clusterEntityConfigDictList"
 
-        # SystemTestEnv - provides cluster level environment settings
-        #     such as entity_id, hostname, kafka_home, java_home which
-        #     are available in a list of dictionary named 
-        #     "clusterEntityConfigDictList"
+        :type systemTestEnv: SystemTestEnv
+        """
         self.systemTestEnv = systemTestEnv
 
         super(MirrorMakerTest, self).__init__(self)
