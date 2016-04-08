@@ -5,7 +5,7 @@
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
- *
+ * 
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -271,7 +271,7 @@ class LogSegment(val log: FileMessageSet,
       case e: IOException => throw kafkaStorageException("index", e)
     }
   }
-
+  
   /**
    * Close this log segment
    */
@@ -289,6 +289,12 @@ class LogSegment(val log: FileMessageSet,
     val deletedIndex = index.delete()
     if(!deletedLog && log.file.exists)
       throw new KafkaStorageException("Delete of log " + log.file.getName + " failed.")
+    if(!deletedIndex && index.file.exists)
+      throw new KafkaStorageException("Delete of index " + index.file.getName + " failed.")
+  }
+
+  def deleteIndex() {
+    val deletedIndex = index.forceDelete()
     if(!deletedIndex && index.file.exists)
       throw new KafkaStorageException("Delete of index " + index.file.getName + " failed.")
   }

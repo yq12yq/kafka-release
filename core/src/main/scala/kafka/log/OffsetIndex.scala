@@ -326,10 +326,16 @@ class OffsetIndex(@volatile private[this] var _file: File, val baseOffset: Long,
    * Delete this index file
    */
   def delete(): Boolean = {
-    info("Deleting index " + _file.getAbsolutePath)
+    info("Deleting index " + this.file.getAbsolutePath)
     if (Os.isWindows)
-      CoreUtils.swallow(forceUnmap(mmap))
-    _file.delete()
+      CoreUtils.swallow(forceUnmap(this.mmap))
+    this.file.delete()
+  }
+
+  def forceDelete(): Boolean = {
+    info("Deleting index " + this.file.getAbsolutePath)
+    CoreUtils.swallow(forceUnmap(this.mmap))
+    this.file.delete()
   }
   
   /** The number of entries in this index */

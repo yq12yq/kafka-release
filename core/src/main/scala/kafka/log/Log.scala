@@ -195,6 +195,7 @@ class Log(val dir: File,
           } catch {
             case e: java.lang.IllegalArgumentException =>
               warn("Found a corrupted index file, %s, deleting and rebuilding index...".format(indexFile.getAbsolutePath))
+              segment.deleteIndex()
               indexFile.delete()
               segment.recover(config.maxMessageSize)
           }
