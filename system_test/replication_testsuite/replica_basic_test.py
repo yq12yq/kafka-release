@@ -41,6 +41,7 @@ from   utils.replication_utils  import ReplicationUtils
 from utils import system_test_utils
 from   utils.testcase_env       import TestcaseEnv
 from utils.test_constants import *
+from utils import timeutils
 
 # product specific: Kafka
 from utils import kafka_system_test_utils
@@ -204,9 +205,7 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 if secureMode:
                     self.log_message("Issuing cluster level permissions")
                     kafka_system_test_utils.give_permissions_to_user_on_cluster(self.systemTestEnv, self.testcaseEnv)
-                    self.anonLogger.info("sleeping for 5s")
-                    time.sleep(5)
-
+                    timeutils.sleep(20)
 
                 # =============================================
                 # start ConsoleConsumer if this is a Log Retention test
