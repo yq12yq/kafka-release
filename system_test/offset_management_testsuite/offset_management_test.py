@@ -297,6 +297,8 @@ class OffsetManagementTest(ReplicationUtils, SetupUtils):
                 self.log_message("Exception while running test {0}".format(e))
                 traceback.print_exc()
                 self.testcaseEnv.validationStatusDict[TEST_COMPLETED] = "FAILED"
+                logger.info("Collecting logs post failure.")
+                kafka_system_test_utils.collect_logs_from_remote_hosts(self.systemTestEnv, self.testcaseEnv)
 
             finally:
                 log_test_summary(self.testcaseEnv.validationStatusDict, testcaseDirName)
