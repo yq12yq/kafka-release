@@ -771,6 +771,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                   logPathName + "/entity_" + entityId + "_pid'"]
 
     elif role == "mirror_maker":
+        topic = system_test_utils.get_data_by_lookup_keyval(testcaseConfigsList, "entity_id", entityId, "topic") if secureMode else ".*"
         if useNewProducer.lower() == "true":
             cmdList = ["ssh " + hostname,
                       "'JAVA_HOME=" + javaHome,
@@ -779,7 +780,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                       "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
                       "--producer.config " + configPathName + "/" + mmProducerConfigFile,
                       "--new.consumer",
-                      "--whitelist=\".*\" >> ",
+                      "--whitelist=\"" + topic + "\" >> ",
                       logPathName + "/" + logFile + " 2>&1 & echo pid:$! > ",
                       logPathName + "/entity_" + entityId + "_pid'"]
         else:
@@ -790,7 +791,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
                       "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
                       "--producer.config " + configPathName + "/" + mmProducerConfigFile,
                       "--new.consumer",
-                      "--whitelist=\".*\" >> ",
+                      "--whitelist=\"" + topic + "\" >> ",
                       logPathName + "/" + logFile + " 2>&1 & echo pid:$! > ",
                       logPathName + "/entity_" + entityId + "_pid'"]
 
