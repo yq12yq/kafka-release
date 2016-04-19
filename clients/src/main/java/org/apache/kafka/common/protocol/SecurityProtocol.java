@@ -54,7 +54,7 @@ public enum SecurityProtocol {
             if (!proto.isTesting)
                 nonTestingValues.add(proto);
         }
-        Code_TO_SECURITY_PROTOCOL = Collections.unmodifiableMap(codeToSecurityProtocol);
+        CODE_TO_SECURITY_PROTOCOL = Collections.unmodifiableMap(codeToSecurityProtocol);
         NAMES = Collections.unmodifiableList(names);
         NON_TESTING_VALUES = Collections.unmodifiableSet(nonTestingValues);
     }

@@ -199,13 +199,10 @@ class ReplicaBasicTest(ReplicationUtils, SetupUtils):
                 if autoCreateTopic.lower() == "false":
                     self.log_message("creating topics")
                     kafka_system_test_utils.create_topic_for_producer_performance(self.systemTestEnv, self.testcaseEnv)
-                    self.anonLogger.info("sleeping for 5s")
-                    time.sleep(5)
 
                 if secureMode:
                     self.log_message("Issuing cluster level permissions")
                     kafka_system_test_utils.give_permissions_to_user_on_cluster(self.systemTestEnv, self.testcaseEnv)
-                    timeutils.sleep(20)
 
                 # =============================================
                 # start ConsoleConsumer if this is a Log Retention test

@@ -176,15 +176,11 @@ class MirrorMakerTest(ReplicationUtils, SetupUtils):
 
                 self.log_message("creating topics")
                 kafka_system_test_utils.create_topic_for_producer_performance(self.systemTestEnv, self.testcaseEnv)
-                self.anonLogger.info("sleeping for 5s")
-                time.sleep(5)
 
                 secureMode = self.systemTestEnv.SECURE_MODE
                 if secureMode:
                     self.log_message("Issuing cluster level permissions")
                     kafka_system_test_utils.give_permissions_to_user_for_mirror_maker(self.systemTestEnv, self.testcaseEnv)
-                    self.anonLogger.info("sleeping for 5s")
-                    time.sleep(5)
 
                 self.log_message("starting mirror makers")
                 kafka_system_test_utils.start_mirror_makers(self.systemTestEnv, self.testcaseEnv)

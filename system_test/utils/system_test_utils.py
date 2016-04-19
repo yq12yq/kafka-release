@@ -311,6 +311,28 @@ def sys_call_return_subproc(cmd_str):
     return p
 
 
+def wait_on_proc_termination(proc, wait_time=60):
+    assert isinstance(proc, subprocess.Popen), "proc is not popen object: %s" % proc
+    assert isinstance(wait_time, int), "wait_time is not int: %s" % wait_time
+    # manual polling to ensure better portability across python versions
+    sleep_sec = 2
+    for i in range(0, wait_time, sleep_sec):
+        if proc.poll() is not None:
+            break
+        time.sleep(sleep_sec)
+    try:
+        proc.terminate()
+    except OSError:
+        pass
+    stdoutdata, stderrdata = proc.communicate()
+    exit_code = proc.returncode
+    logger.info("Exit status: %s", exit_code)
+    logger.info("stdout = %s", stdoutdata)
+    logger.info("stderr = %s", stderrdata)
+    if exit_code != 0:
+        logger.error("exit code not zero: %s timeout = %s exit code: %s" % (str(proc), wait_time, exit_code))
+
+
 def remote_host_file_exists(hostname, pathname):
     cmdStr = "ssh " + hostname + " 'ls " + pathname + "'"
     logger.debug("executing command: [" + cmdStr + "]", extra=d)

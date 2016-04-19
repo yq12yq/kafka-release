@@ -1344,6 +1344,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
             cmdStr = " ".join(cmdList)
             logger.info("executing command: [" + cmdStr + "]", extra=d)
             subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+            system_test_utils.wait_on_proc_termination(subproc)
             if secureMode:
                 kafkaAclCmdList = ["ssh " + zkHost,
                                    "JAVA_HOME=" + javaHome,
@@ -1357,6 +1358,7 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                 subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+                system_test_utils.wait_on_proc_termination(subproc)
 
 
 def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_partitions):
@@ -1398,6 +1400,7 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
     cmdStr = " ".join(cmdList)
     logger.info("executing command: [" + cmdStr + "]", extra=d)
     subproc = system_test_utils.sys_call_return_subproc(cmdStr)
+    system_test_utils.wait_on_proc_termination(subproc)
     if secureMode:
         kafkaAclCmdList = ["ssh " + zkHost,
                            "JAVA_HOME=" + javaHome,
@@ -1411,6 +1414,7 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
         kafkaAclCmdStr = " ".join(kafkaAclCmdList)
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+        system_test_utils.wait_on_proc_termination(subproc)
 
 def give_permissions_to_user_for_mirror_maker(systemTestEnv, testcaseEnv):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
@@ -1449,6 +1453,7 @@ def give_permissions_to_user_for_mirror_maker(systemTestEnv, testcaseEnv):
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                 subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+                system_test_utils.wait_on_proc_termination(subproc)
 
 def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
     clusterEntityConfigDictList = systemTestEnv.clusterEntityConfigDictList
@@ -1487,6 +1492,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
         kafkaAclCmdStr = " ".join(kafkaAclCmdList)
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+        system_test_utils.wait_on_proc_termination(subproc)
 
         prodPerfCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "producer_performance")
         for prodPerfCfg in prodPerfCfgList:
@@ -1508,6 +1514,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                     kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                     logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                     subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+                    system_test_utils.wait_on_proc_termination(subproc)
 
 
 
@@ -1534,6 +1541,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                 subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+                system_test_utils.wait_on_proc_termination(subproc)
 
                 logger.info("creating topic: [" + topic + "] at: [" + zkConnectStr + "]", extra=d)
                 cmdList = ["ssh " + zkHost,
@@ -1549,7 +1557,7 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                 cmdStr = " ".join(cmdList)
                 logger.info("executing command: [" + cmdStr + "]", extra=d)
                 csubproc = system_test_utils.sys_call_return_subproc(cmdStr)
-                time.sleep(5)
+                system_test_utils.wait_on_proc_termination(csubproc)
 
 
 def get_message_id(log_path, topic=""):
