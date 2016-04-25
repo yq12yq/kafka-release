@@ -247,6 +247,13 @@ object ConsoleProducer {
       .ofType(classOf[String])
     val useOldProducerOpt = parser.accepts("old-producer", "Use the old producer implementation.")
 
+    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
+      .withRequiredArg
+      .describedAs("security-protocol")
+      .ofType(classOf[String])
+      .defaultsTo("PLAINTEXT")
+
+
     val options = parser.parse(args : _*)
     if(args.length == 0)
       CommandLineUtils.printUsageAndDie(parser, "Read data from standard input and publish it to Kafka.")

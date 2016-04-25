@@ -17,8 +17,11 @@ import org.ajoberstar.grgit.Grgit
 
 buildscript {
   repositories {
-    mavenCentral()
-    jcenter()
+      maven {
+        url = "$repoUrl"
+        jcenter()
+      }
+      mavenLocal()
   }
   apply from: file('gradle/buildscript.gradle'), to: buildscript
 
@@ -36,7 +39,10 @@ allprojects {
   apply plugin: "jacoco"
 
   repositories {
-    mavenCentral()
+    maven {
+      url = "$repoUrl"
+    }
+    mavenLocal()
   }
 
   apply plugin: 'com.github.ben-manes.versions'
@@ -104,7 +110,10 @@ if (new File('.git').exists()) {
         'CONTRIBUTING.md',
         'gradlew',
         'gradlew.bat',
-        '**/README.md'
+        '**/README.md',
+        '**/config/**',
+        '**/system_test/**',
+        '**/contrib/**'
     ])
   }
 }
@@ -560,6 +569,21 @@ project(':examples') {
   checkstyle {
     configProperties = [importControlFile: "$rootDir/checkstyle/import-control-core.xml"]
   }
+}
+project(':contrib:kafka-ganglia') {
+  archivesBaseName = "kafka-ganglia"
+
+  dependencies {
+    compile project(':core')
+    compile "net.sf.jopt-simple:jopt-simple:3.2"
+    compile "com.yammer.metrics:metrics-core:2.2.0"
+    compile "com.yammer.metrics:metrics-ganglia:2.2.0"
+  }
+  task copyToLib( type: Copy ) {
+    into "$buildDir/libs/lib"
+    from configurations.runtime
+  }
+  jar { dependsOn copyToLib }
 }
 
 project(':clients') {

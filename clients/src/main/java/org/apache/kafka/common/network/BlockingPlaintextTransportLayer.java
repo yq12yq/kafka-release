@@ -47,8 +47,8 @@ public class BlockingPlaintextTransportLayer implements TransportLayer {
     }
 
     @Override
-    public void finishConnect() throws IOException {
-        socketChannel.finishConnect();
+    public boolean finishConnect() throws IOException {
+        return socketChannel.finishConnect();
     }
 
     @Override

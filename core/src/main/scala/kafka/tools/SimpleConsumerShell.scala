@@ -149,7 +149,7 @@ object SimpleConsumerShell extends Logging {
     val brokerList = options.valueOf(brokerListOpt)
     ToolsUtils.validatePortOrDie(parser,brokerList)
     val metadataTargetBrokers = ClientUtils.parseBrokerList(brokerList)
-    val topicsMetadata = ClientUtils.fetchTopicMetadata(Set(topic), metadataTargetBrokers, clientId, maxWaitMs).topicsMetadata
+    val topicsMetadata = ClientUtils.fetchTopicMetadata(Set(topic), metadataTargetBrokers, clientId, maxWaitMs, securityProtocol=securityProtocol).topicsMetadata
     if(topicsMetadata.size != 1 || !topicsMetadata(0).topic.equals(topic)) {
       System.err.println(("Error: no valid topic metadata for topic: %s, " + "what we get from server is only: %s").format(topic, topicsMetadata))
       System.exit(1)
@@ -192,7 +192,7 @@ object SimpleConsumerShell extends Logging {
       val simpleConsumer = new SimpleConsumer(fetchTargetBroker.host,
                                               fetchTargetBroker.port,
                                               ConsumerConfig.SocketTimeout,
-                                              ConsumerConfig.SocketBufferSize, clientId)
+                                              ConsumerConfig.SocketBufferSize, clientId, securityProtocol)
       try {
         startingOffset = simpleConsumer.earliestOrLatestOffset(TopicAndPartition(topic, partitionId), startingOffset,
                                                                Request.DebuggingConsumerId)
@@ -217,7 +217,7 @@ object SimpleConsumerShell extends Logging {
                          fetchTargetBroker.port, startingOffset))
     val simpleConsumer = new SimpleConsumer(fetchTargetBroker.host,
                                             fetchTargetBroker.port,
-                                            10000, 64*1024, clientId)
+                                            10000, 64*1024, clientId, securityProtocol)
     val thread = Utils.newThread("kafka-simpleconsumer-shell", new Runnable() {
       def run() {
         var offset = startingOffset
