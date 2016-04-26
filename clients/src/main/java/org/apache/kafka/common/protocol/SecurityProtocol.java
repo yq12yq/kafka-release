@@ -34,6 +34,8 @@ public enum SecurityProtocol {
     SASL_PLAINTEXT(2, "SASL_PLAINTEXT", false),
     /** SASL authenticated, SSL channel */
     SASL_SSL(3, "SASL_SSL", false),
+    /** Deprecated, same as SASL_PLAINTEXT */
+    PLAINTEXTSASL(4, "PLAINTEXTSASL", false),
     /** Currently identical to PLAINTEXT and used for testing only. We may implement extra instrumentation when testing channel code. */
     TRACE(Short.MAX_VALUE, "TRACE", true);
 
@@ -52,7 +54,7 @@ public enum SecurityProtocol {
             if (!proto.isTesting)
                 nonTestingValues.add(proto);
         }
-        CODE_TO_SECURITY_PROTOCOL = Collections.unmodifiableMap(codeToSecurityProtocol);
+        Code_TO_SECURITY_PROTOCOL = Collections.unmodifiableMap(codeToSecurityProtocol);
         NAMES = Collections.unmodifiableList(names);
         NON_TESTING_VALUES = Collections.unmodifiableSet(nonTestingValues);
     }
