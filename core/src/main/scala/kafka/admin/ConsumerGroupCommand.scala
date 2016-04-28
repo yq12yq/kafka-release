@@ -26,7 +26,6 @@ import kafka.common.{TopicAndPartition, _}
 import kafka.consumer.SimpleConsumer
 import kafka.utils._
 import org.I0Itec.zkclient.exception.ZkNoNodeException
-import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.BrokerNotAvailableException
@@ -289,17 +288,11 @@ object ConsumerGroupCommand {
 
     private def getZkConsumer(brokerId: Int, securityProtocol: SecurityProtocol): Option[SimpleConsumer] = {
       try {
-        zkUtils.readDataMaybeNull(ZkUtils.BrokerIdsPath + "/" + brokerId)._1 match {
-          case Some(brokerInfoString) =>
-            Json.parseFull(brokerInfoString) match {
-              case Some(m) =>
-                val brokerInfo = m.asInstanceOf[Map[String, Any]]
-                val host = brokerInfo.get("host").get.asInstanceOf[String]
-                val port = brokerInfo.get("port").get.asInstanceOf[Int]
-                Some(new SimpleConsumer(host, port, 10000, 100000, "ConsumerGroupCommand", securityProtocol))
-              case None =>
-                throw new BrokerNotAvailableException("Broker id %d does not exist".format(brokerId))
-            }
+        zkUtils.getBrokerInfo(brokerId) match {
+          case Some(brokerInfo) =>
+            Some(new SimpleConsumer(brokerInfo.getBrokerEndPoint(securityProtocol).host,
+                                    brokerInfo.getBrokerEndPoint(securityProtocol).port,
+                                    10000, 100000, "ConsumerGroupCommand", securityProtocol))
           case None =>
             throw new BrokerNotAvailableException("Broker id %d does not exist".format(brokerId))
         }
