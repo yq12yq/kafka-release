@@ -19,12 +19,10 @@ package kafka.tools
 
 
 import joptsimple._
-import org.I0Itec.zkclient.ZkClient
 import kafka.utils._
 import kafka.consumer.SimpleConsumer
 import kafka.api.{OffsetFetchResponse, OffsetFetchRequest, OffsetRequest}
 import kafka.common.{OffsetMetadataAndError, ErrorMapping, BrokerNotAvailableException, TopicAndPartition}
-import org.apache.kafka.common.protocol.SecurityProtocol
 import org.apache.kafka.common.security.JaasUtils
 import scala.collection._
 import kafka.client.ClientUtils
@@ -32,7 +30,6 @@ import kafka.network.BlockingChannel
 import kafka.api.PartitionOffsetRequestInfo
 import org.I0Itec.zkclient.exception.ZkNoNodeException
 import kafka.common.security.LoginManager
-import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.common.protocol.SecurityProtocol
 
@@ -42,20 +39,15 @@ object ConsumerOffsetChecker extends Logging {
   private val consumerMap: mutable.Map[Int, Option[SimpleConsumer]] = mutable.Map()
   private val offsetMap: mutable.Map[TopicAndPartition, Long] = mutable.Map()
   private var topicPidMap: immutable.Map[String, Seq[Int]] = immutable.Map()
-
+  private var securityProtocol: String = _
   private def getConsumer(zkUtils: ZkUtils, bid: Int): Option[SimpleConsumer] = {
     try {
-      zkUtils.readDataMaybeNull(ZkUtils.BrokerIdsPath + "/" + bid)._1 match {
-        case Some(brokerInfoString) =>
-          Json.parseFull(brokerInfoString) match {
-            case Some(m) =>
-              val brokerInfo = m.asInstanceOf[Map[String, Any]]
-              val host = brokerInfo.get("host").get.asInstanceOf[String]
-              val port = brokerInfo.get("port").get.asInstanceOf[Int]
-              Some(new SimpleConsumer(host, port, 10000, 100000, "ConsumerOffsetChecker"))
-            case None =>
-              throw new BrokerNotAvailableException("Broker id %d does not exist".format(bid))
-          }
+      zkUtils.getBrokerInfo(bid) match {
+        case Some(brokerInfo) =>
+          val protocol = SecurityProtocol.valueOf(securityProtocol);
+          Some(new SimpleConsumer(brokerInfo.getBrokerEndPoint(protocol).host,
+                                  brokerInfo.getBrokerEndPoint(protocol).port,
+                                  10000, 100000, "ConsumerOffsetChecker", protocol))
         case None =>
           throw new BrokerNotAvailableException("Broker id %d does not exist".format(bid))
       }
@@ -157,7 +149,7 @@ object ConsumerOffsetChecker extends Logging {
 
     val channelSocketTimeoutMs = options.valueOf(channelSocketTimeoutMsOpt).intValue()
     val channelRetryBackoffMs = options.valueOf(channelRetryBackoffMsOpt).intValue()
-    val securityProtocol = options.valueOf(securityProtocolOpt)
+    securityProtocol = options.valueOf(securityProtocolOpt)
     val topics = if (options.has(topicsOpt)) Some(options.valueOf(topicsOpt)) else None
 
     if (CoreUtils.isSaslProtocol(SecurityProtocol.valueOf(securityProtocol))) {
