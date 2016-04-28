@@ -290,10 +290,14 @@ object ConsumerGroupCommand {
 
     private def getZkConsumer(brokerId: Int, securityProtocol: SecurityProtocol): Option[SimpleConsumer] = {
       try {
-        zkUtils.getBrokerInfo(brokerId)
-          .map(_.getBrokerEndPoint(SecurityProtocol.PLAINTEXT))
-          .map(endPoint => new SimpleConsumer(endPoint.host, endPoint.port, 10000, 100000, "ConsumerGroupCommand"))
-          .orElse(throw new BrokerNotAvailableException("Broker id %d does not exist".format(brokerId)))
+        zkUtils.getBrokerInfo(brokerId) match {
+          case Some(brokerInfo) =>
+            Some(new SimpleConsumer(brokerInfo.getBrokerEndPoint(securityProtocol).host,
+                                    brokerInfo.getBrokerEndPoint(securityProtocol).port,
+                                    10000, 100000, "ConsumerGroupCommand", securityProtocol))
+          case None =>
+            throw new BrokerNotAvailableException("Broker id %d does not exist".format(brokerId))
+        }
       } catch {
         case t: Throwable =>
           println("Could not parse broker info due to " + t.getMessage)
@@ -350,9 +354,11 @@ object ConsumerGroupCommand {
       adminClient.close()
       if (consumer != null) consumer.close()
     }
-
+    
     private def createAdminClient(): AdminClient = {
-      val props = if (opts.options.has(opts.commandConfigOpt)) Utils.loadProps(opts.options.valueOf(opts.commandConfigOpt)) else new Properties()
+      val props = new Properties()
+      props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, opts.securityProtocol)
+      if (opts.options.has(opts.commandConfigOpt)) props.putAll(Utils.loadProps(opts.options.valueOf(opts.commandConfigOpt)))
       props.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, opts.options.valueOf(opts.bootstrapServerOpt))
       AdminClient.create(props)
     }
@@ -442,7 +448,11 @@ object ConsumerGroupCommand {
     val useOldConsumer = options.has(zkConnectOpt)
 
     val allConsumerGroupLevelOpts: Set[OptionSpec[_]] = Set(listOpt, describeOpt, deleteOpt)
-    val securityProtocol = options.valueOf(securityProtocolOpt)
+
+    val props = new Properties()
+    props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, options.valueOf(securityProtocolOpt))
+    if (options.has(commandConfigOpt)) props.putAll(Utils.loadProps(options.valueOf(commandConfigOpt)))
+    val securityProtocol = props.getProperty(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG)
 
     def checkArgs() {
       // check required args
