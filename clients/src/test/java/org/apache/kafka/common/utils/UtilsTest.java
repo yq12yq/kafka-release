@@ -33,16 +33,22 @@ public class UtilsTest {
     public void testGetHost() {
         assertEquals("127.0.0.1", getHost("127.0.0.1:8000"));
         assertEquals("mydomain.com", getHost("PLAINTEXT://mydomain.com:8080"));
+        assertEquals("MyDomain.com", getHost("PLAINTEXT://MyDomain.com:8080"));
         assertEquals("::1", getHost("[::1]:1234"));
         assertEquals("2001:db8:85a3:8d3:1319:8a2e:370:7348", getHost("PLAINTEXT://[2001:db8:85a3:8d3:1319:8a2e:370:7348]:5678"));
+        assertEquals("2001:DB8:85A3:8D3:1319:8A2E:370:7348", getHost("PLAINTEXT://[2001:DB8:85A3:8D3:1319:8A2E:370:7348]:5678"));
+        assertEquals("fe80::b1da:69ca:57f7:63d8%3", getHost("PLAINTEXT://[fe80::b1da:69ca:57f7:63d8%3]:5678"));
     }
 
     @Test
     public void testGetPort() {
         assertEquals(8000, getPort("127.0.0.1:8000").intValue());
         assertEquals(8080, getPort("mydomain.com:8080").intValue());
+        assertEquals(8080, getPort("MyDomain.com:8080").intValue());
         assertEquals(1234, getPort("[::1]:1234").intValue());
         assertEquals(5678, getPort("[2001:db8:85a3:8d3:1319:8a2e:370:7348]:5678").intValue());
+        assertEquals(5678, getPort("[2001:DB8:85A3:8D3:1319:8A2E:370:7348]:5678").intValue());
+        assertEquals(5678, getPort("[fe80::b1da:69ca:57f7:63d8%3]:5678").intValue());
     }
 
     @Test
@@ -52,7 +58,7 @@ public class UtilsTest {
         assertEquals("[::1]:1234", formatAddress("::1", 1234));
         assertEquals("[2001:db8:85a3:8d3:1319:8a2e:370:7348]:5678", formatAddress("2001:db8:85a3:8d3:1319:8a2e:370:7348", 5678));
     }
-    
+
     @Test
     public void testJoin() {
         assertEquals("", Utils.join(Collections.emptyList(), ","));
@@ -101,5 +107,11 @@ public class UtilsTest {
         this.subTest(buffer);
     }
 
-
+    @Test
+    public void testMin() {
+        assertEquals(1, Utils.min(1));
+        assertEquals(1, Utils.min(1, 2, 3));
+        assertEquals(1, Utils.min(2, 1, 3));
+        assertEquals(1, Utils.min(2, 3, 1));
+    }
 }

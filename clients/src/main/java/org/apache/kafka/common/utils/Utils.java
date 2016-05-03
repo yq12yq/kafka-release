@@ -23,9 +23,16 @@ import java.io.StringWriter;
 import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Properties;
@@ -40,11 +47,23 @@ public class Utils {
 
     // This matches URIs of formats: host:port and protocol:\\host:port
     // IPv6 is supported with [ip] pattern
-    private static final Pattern HOST_PORT_PATTERN = Pattern.compile(".*?\\[?([0-9a-z\\-.:]*)\\]?:([0-9]+)");
+    private static final Pattern HOST_PORT_PATTERN = Pattern.compile(".*?\\[?([0-9a-zA-Z\\-%.:]*)\\]?:([0-9]+)");
 
     public static final String NL = System.getProperty("line.separator");
 
     private static final Logger log = LoggerFactory.getLogger(Utils.class);
+
+    /**
+     * Get a sorted list representation of a collection.
+     * @param collection The collection to sort
+     * @param <T> The class of objects in the collection
+     * @return An unmodifiable sorted list with the contents of the collection
+     */
+    public static <T extends Comparable<? super T>> List<T> sorted(Collection<T> collection) {
+        List<T> res = new ArrayList<>(collection);
+        Collections.sort(res);
+        return Collections.unmodifiableList(res);
+    }
 
     /**
      * Turn the given UTF8 byte array into a string
@@ -107,6 +126,21 @@ public class Utils {
              | (in.read() << 8 * 2)
              | (in.read() << 8 * 3);
     }
+
+    /**
+     * Get the little-endian value of an integer as a byte array.
+     * @param val The value to convert to a litte-endian array
+     * @return The little-endian encoded array of bytes for the value
+     */
+    public static byte[] toArrayLE(int val) {
+        return new byte[] {
+            (byte) (val >> 8 * 0),
+            (byte) (val >> 8 * 1),
+            (byte) (val >> 8 * 2),
+            (byte) (val >> 8 * 3)
+        };
+    }
+
 
     /**
      * Read an unsigned integer stored in little-endian format from a byte array
@@ -179,6 +213,21 @@ public class Utils {
      */
     public static int abs(int n) {
         return (n == Integer.MIN_VALUE) ? 0 : Math.abs(n);
+    }
+
+    /**
+     * Get the minimum of some long values.
+     * @param first Used to ensure at least one value
+     * @param rest The rest of longs to compare
+     * @return The minimum of all passed argument.
+     */
+    public static long min(long first, long ... rest) {
+        long min = first;
+        for (int i = 0; i < rest.length; i++) {
+            if (rest[i] < min)
+                min = rest[i];
+        }
+        return min;
     }
 
     /**
@@ -256,14 +305,27 @@ public class Utils {
     /**
      * Instantiate the class
      */
-    public static Object newInstance(Class<?> c) {
+    public static <T> T newInstance(Class<T> c) {
         try {
             return c.newInstance();
         } catch (IllegalAccessException e) {
             throw new KafkaException("Could not instantiate class " + c.getName(), e);
         } catch (InstantiationException e) {
             throw new KafkaException("Could not instantiate class " + c.getName() + " Does it have a public no-argument constructor?", e);
+        } catch (NullPointerException e) {
+            throw new KafkaException("Requested class was null", e);
         }
+    }
+
+    /**
+     * Look up the class by name and instantiate it.
+     * @param klass class name
+     * @param base super class of the class to be instantiated
+     * @param <T>
+     * @return the new instance
+     */
+    public static <T> T newInstance(String klass, Class<T> base) throws ClassNotFoundException {
+        return Utils.newInstance(Class.forName(klass, true, Utils.getContextOrKafkaClassLoader()).asSubclass(base));
     }
 
     /**
@@ -389,6 +451,17 @@ public class Utils {
     }
 
     /**
+     * Converts a Properties object to a Map<String, String>, calling {@link #toString} to ensure all keys and values
+     * are Strings.
+     */
+    public static Map<String, String> propsToStringMap(Properties props) {
+        Map<String, String> result = new HashMap<>();
+        for (Map.Entry<Object, Object> entry : props.entrySet())
+            result.put(entry.getKey().toString(), entry.getValue().toString());
+        return result;
+    }
+
+    /**
      * Get the stack trace from an exception as a string
      */
     public static String stackTrace(Throwable e) {
@@ -480,6 +553,12 @@ public class Utils {
         return Utils.readFileAsString(path, Charset.defaultCharset());
     }
 
+    /**
+     * Check if the given ByteBuffer capacity
+     * @param existingBuffer ByteBuffer capacity to check
+     * @param newLength new length for the ByteBuffer.
+     * returns ByteBuffer
+     */
     public static ByteBuffer ensureCapacity(ByteBuffer existingBuffer, int newLength) {
         if (newLength > existingBuffer.capacity()) {
             ByteBuffer newBuffer = ByteBuffer.allocate(newLength);
@@ -490,32 +569,94 @@ public class Utils {
         return existingBuffer;
     }
 
-    /**
-     * Converts 4 bytes to an int at the specified offset in the given byte array
-     * @param buf the byte array containing the 4 bytes to be converted to int
-     * @param offset  the offset in the byte array
-     * @return the int value of the 4 bytes.
+    /*
+     * Creates a set
+     * @param elems the elements
+     * @param <T> the type of element
+     * @return Set
      */
-    public static int toInt(byte[] buf, int off) {
-        int lg = (buf[off] & 0xff) << 24;
-        lg |= (buf[off+1] & 0xff) << 16;
-        lg |= (buf[off+2] & 0xff) << 8;
-        lg |= (buf[off+3] & 0xff);
-        return lg;
+    public static <T> Set<T> mkSet(T... elems) {
+        return new HashSet<>(Arrays.asList(elems));
+    }
+
+    /*
+     * Creates a list
+     * @param elems the elements
+     * @param <T> the type of element
+     * @return List
+     */
+    public static <T> List<T> mkList(T... elems) {
+        return Arrays.asList(elems);
+    }
+
+
+    /*
+     * Create a string from a collection
+     * @param coll the collection
+     * @param separator the separator
+     */
+    public static <T> CharSequence mkString(Collection<T> coll, String separator) {
+        StringBuilder sb = new StringBuilder();
+        Iterator<T> iter = coll.iterator();
+        if (iter.hasNext()) {
+            sb.append(iter.next().toString());
+
+            while (iter.hasNext()) {
+                sb.append(separator);
+                sb.append(iter.next().toString());
+            }
+        }
+        return sb;
     }
 
     /**
-     * Converts the specified int value to 4 bytes. The bytes are put into the specified
-     * byte array at given offset location.
-     * @param value the int value conver into 4 bytes.
-     * @param buf the byte array to put the resulting 4 bytes
-     * @param offset in the byte array
+     * Recursively delete the given file/directory and any subfiles (if any exist)
+     *
+     * @param file The root file at which to begin deleting
      */
-    public static void writeInt(byte[] buf, int off, int value) {
-        buf[off] = (byte)((value >>> 24) & 0xFF);
-        buf[off+1] = (byte)((value >>> 16) & 0xFF);
-        buf[off+2] = (byte)((value >>>  8) & 0xFF);
-        buf[off+3] = (byte)((value >>>  0) & 0xFF);
+    public static void delete(File file) {
+        if (file == null) {
+            return;
+        } else if (file.isDirectory()) {
+            File[] files = file.listFiles();
+            if (files != null) {
+                for (File f : files)
+                    delete(f);
+            }
+            file.delete();
+        } else {
+            file.delete();
+        }
+    }
+
+    /**
+     * Returns an empty collection if this list is null
+     * @param other
+     * @return
+     */
+    public static <T> List<T> safe(List<T> other) {
+        return other == null ? Collections.<T>emptyList() : other;
+    }
+
+   /**
+    * Get the ClassLoader which loaded Kafka.
+    */
+    public static ClassLoader getKafkaClassLoader() {
+        return Utils.class.getClassLoader();
+    }
+
+    /**
+     * Get the Context ClassLoader on this thread or, if not present, the ClassLoader that
+     * loaded Kafka.
+     *
+     * This should be used whenever passing a ClassLoader to Class.forName
+     */
+    public static ClassLoader getContextOrKafkaClassLoader() {
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        if (cl == null)
+            return getKafkaClassLoader();
+        else
+            return cl;
     }
 
 }
