@@ -27,6 +27,7 @@ import java.io._
 
 import joptsimple._
 import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
+import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.common.utils.Utils
 
 object ConsoleProducer {
@@ -123,6 +124,7 @@ object ConsoleProducer {
     props.put(ProducerConfig.LINGER_MS_CONFIG, config.sendTimeout.toString)
     props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, config.maxMemoryBytes.toString)
     props.put(ProducerConfig.BATCH_SIZE_CONFIG, config.maxPartitionMemoryBytes.toString)
+    props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, config.securityProtocol.toString)
     props.put(ProducerConfig.CLIENT_ID_CONFIG, "console-producer")
     props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer")
     props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer")
