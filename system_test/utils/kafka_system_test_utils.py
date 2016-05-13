@@ -1342,9 +1342,8 @@ def create_topic_for_producer_performance(systemTestEnv, testcaseEnv):
                                   " --topic " + topic,
                                    " --add " +
                                    ALLOW_PRINCIPLE_TEST_USER,
-                                   " --allow-principals " + "User:hrt_qa",
                                    " --operation All",
-                                   " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
+                                   " --authorizer-properties " + "zookeeper.connect=" + zkOneConnect]
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                 subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
@@ -1398,9 +1397,8 @@ def create_topic(systemTestEnv, testcaseEnv, topic, replication_factor, num_part
                            " --topic " + topic,
                            " --add " +
                            ALLOW_PRINCIPLE_TEST_USER,
-                           " --allow-principals " + "User:hrt_qa",
                            " --operation All",
-                           " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
+                           " --authorizer-properties " + "zookeeper.connect=" + zkOneConnect]
         kafkaAclCmdStr = " ".join(kafkaAclCmdList)
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
@@ -1476,9 +1474,8 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                            " --cluster ",
                            " --add " +
                            ALLOW_PRINCIPLE_TEST_USER,
-                           " --allow-principals " + "User:hrt_qa",
                            " --operation All",
-                           " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
+                           " --authorizer-properties " + "zookeeper.connect=" + zkOneConnect]
         kafkaAclCmdStr = " ".join(kafkaAclCmdList)
         logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
         subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
@@ -1498,9 +1495,8 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                                        " --topic " + topic,
                                        " --add " +
                                        ALLOW_PRINCIPLE_TEST_USER,
-                                       " --allow-principals " + "User:hrt_qa",
                                        " --operation All",
-                                       " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
+                                       " --authorizer-properties " + "zookeeper.connect=" + zkOneConnect]
                     kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                     logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                     subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
@@ -1525,9 +1521,8 @@ def give_permissions_to_user_on_cluster(systemTestEnv, testcaseEnv):
                                    " --topic " + topic,
                                    " --add " +
                                    ALLOW_PRINCIPLE_TEST_USER,
-                                   " --allow-principals " + "User:hrt_qa",
                                    " --operation All",
-                                   " --authorizer-properties " + "zookeeper.connect="+zkOneConnect]
+                                   " --authorizer-properties " + "zookeeper.connect=" + zkOneConnect]
                 kafkaAclCmdStr = " ".join(kafkaAclCmdList)
                 logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
                 subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
