@@ -774,7 +774,7 @@ def start_entity_in_background(systemTestEnv, testcaseEnv, entityId):
         kinitCmd = TestConfig.get_kinit_cmd(secureMode)
         cmdList = ["ssh " + hostname,
                    "'(", kinitCmd,
-                   "'JAVA_HOME=" + javaHome,
+                   "JAVA_HOME=" + javaHome,
                   "JMX_PORT=" + jmxPort,
                   kafkaHome + "/bin/kafka-run-class.sh kafka.tools.MirrorMaker",
                   "--consumer.config " + configPathName + "/" + mmConsumerConfigFile,
