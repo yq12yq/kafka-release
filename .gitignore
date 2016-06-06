@@ -38,5 +38,6 @@ tests/results
 .ducktape
 tests/.ducktape
 .cache
-
+gradlew
+gradlew.bat
 docs/generated/
