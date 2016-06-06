@@ -568,10 +568,6 @@ project(':examples') {
     compile project(':core')
   }
 
-  javadoc {
-    enabled = false
-  }
-
   checkstyle {
     configProperties = [importControlFile: "$rootDir/checkstyle/import-control-core.xml"]
   }
