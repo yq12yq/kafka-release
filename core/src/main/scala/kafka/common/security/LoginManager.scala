@@ -17,7 +17,7 @@
 
 package kafka.common.security
 
-import org.apache.kafka.common.security.kerberos.Login
+import org.apache.kafka.common.security.kerberos.KerberosLogin
 import org.apache.kafka.common.security.JaasUtils
 import javax.security.auth.Subject
 import java.util.concurrent._
@@ -25,7 +25,7 @@ import atomic.AtomicBoolean
 import kafka.utils.Logging
 
 object LoginManager extends Logging {
-  var login: Login = null
+  var login: KerberosLogin = null
   var serviceName: String = null
   var loginContext: String = null
   var isStarted = new AtomicBoolean(false)
@@ -33,8 +33,8 @@ object LoginManager extends Logging {
   def init(loginContext:String, configs: java.util.Map[String, _]) {
     if(isStarted.compareAndSet(false, true)) {
       this.loginContext = loginContext
-      login = new Login(loginContext, configs)
-      login.startThreadIfNeeded()
+      login = new KerberosLogin()
+      login.configure(configs, loginContext)
       serviceName = JaasUtils.jaasConfig(loginContext, JaasUtils.SERVICE_NAME)
     }
   }
@@ -49,7 +49,7 @@ object LoginManager extends Logging {
   def shutdown {
     if (login != null) {
       isStarted.set(false)
-      login.shutdown()
+      login.close()
     }
   }
 

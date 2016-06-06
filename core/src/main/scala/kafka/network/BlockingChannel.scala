@@ -25,8 +25,8 @@ import kafka.api.RequestOrResponse
 import kafka.common.security.LoginManager
 import org.apache.kafka.common.security.auth.{PrincipalBuilder, DefaultPrincipalBuilder}
 import org.apache.kafka.common.protocol.SecurityProtocol
-import org.apache.kafka.common.security.JaasUtils
 import org.apache.kafka.common.security.authenticator.SaslClientAuthenticator
+import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.clients.{CommonClientConfigs, ClientUtils}
 import org.apache.kafka.common.network.{TransportLayer, KafkaChannel, BlockingPlaintextTransportLayer,
   NetworkReceive, DefaultAuthenticator, Authenticator}
@@ -147,7 +147,7 @@ class BlockingChannel( val host: String,
     val principalBuilder = new DefaultPrincipalBuilder()
     if (CoreUtils.isSaslProtocol(protocol))
       authenticator = new SaslClientAuthenticator(id, LoginManager.subject, LoginManager.serviceName,
-        socketChannel.socket().getInetAddress().getHostName())
+        socketChannel.socket().getInetAddress().getHostName(), SaslConfigs.DEFAULT_SASL_MECHANISM, true)
     else
       authenticator = new DefaultAuthenticator()
 
