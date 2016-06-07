@@ -16,3 +16,4 @@ Changes only in Hortonworks github and not in Apache Kafka release 0.9.0.1 and h
  * KAFKA-2880: consumer should handle disconnect/timeout for metadata requests
  * KAFKA-2942: inadvertent auto-commit when pre-fetching can cause message loss
  * KAFKA-2950: Fix performance regression in the producer
+ * KAFKA-3448: Support zone index in IPv6 regex
