@@ -277,7 +277,7 @@ class LogSegment(val log: FileMessageSet,
    */
   def delete() {
     val deletedLog = log.delete()
-    val deletedIndex = index.forceDelete()
+    val deletedIndex = index.delete()
     if(!deletedLog && log.file.exists)
       throw new KafkaStorageException("Delete of log " + log.file.getName + " failed.")
     if(!deletedIndex && index.file.exists)
