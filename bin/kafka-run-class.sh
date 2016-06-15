@@ -55,6 +55,12 @@ if [ -z "$SCALA_BINARY_VERSION" ]; then
 	SCALA_BINARY_VERSION=2.10
 fi
 
+# run kafka-env.sh
+KAFKA_ENV=$base_dir/config/kafka-env.sh
+if [ -f $KAFKA_ENV ]; then
+    . $KAFKA_ENV
+fi
+
 # run ./gradlew copyDependantLibs to get all dependant jars in a local dir
 shopt -s nullglob
 for dir in "$base_dir"/core/build/dependant-libs-${SCALA_VERSION}*;
