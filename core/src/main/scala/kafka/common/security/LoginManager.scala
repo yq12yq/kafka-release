@@ -35,6 +35,7 @@ object LoginManager extends Logging {
       this.loginContext = loginContext
       login = new KerberosLogin()
       login.configure(configs, loginContext)
+      login.login()
       serviceName = JaasUtils.jaasConfig(loginContext, JaasUtils.SERVICE_NAME)
     }
   }
