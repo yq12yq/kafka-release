@@ -262,7 +262,7 @@ subprojects {
   checkstyle {
     configFile = new File(rootDir, "checkstyle/checkstyle.xml")
     configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
-    checkstyleMain.exclude '**/contrib/**'
+    checkstyleMain.exclude '**/kafka/ganglia/**'
   }
   test.dependsOn('checkstyleMain', 'checkstyleTest')
 
