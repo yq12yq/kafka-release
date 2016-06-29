@@ -1429,6 +1429,24 @@ def give_permissions_to_user_for_mirror_maker(systemTestEnv, testcaseEnv):
     if not secureMode:
         logger.warning("This method should not get called in unsecure setup.")
         return
+
+    #give write permissions to  __consumer_offsets topic
+    zkSrcConnectStr = testcaseEnv.userDefinedEnvVarDict["sourceZkConnectStr"]
+    zkSrcConnect = zkSrcConnectStr.split(',')[0]
+    kafkaAclCmdList = ["ssh " + zkHost,
+                           "JAVA_HOME=" + javaHome,
+                           kafkaAclCommand,
+                           " --topic __consumer_offsets",
+                           " --add " ,
+                           " --cluster ",
+                            ALLOW_PRINCIPLE_TEST_USER,
+                           " --producer",
+                           " --authorizer-properties " + "zookeeper.connect="+zkSrcConnect]
+    kafkaAclCmdStr = " ".join(kafkaAclCmdList)
+    logger.info("executing command: [" + kafkaAclCmdStr + "]", extra=d)
+    subproc = system_test_utils.sys_call_return_subproc(kafkaAclCmdStr)
+    system_test_utils.wait_on_proc_termination(subproc)
+
     prodPerfCfgList = system_test_utils.get_dict_from_list_of_dicts(clusterEntityConfigDictList, "role", "producer_performance")
 
     #/--group mm_regtest_grp  --add  --allow-host "*" --allow-principals User:hrt_qa --authorizer-properties zookeeper.connect=zk1-kfk4-h.hdinsight.net:2138
