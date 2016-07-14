@@ -1,0 +1,19 @@
+Changes only in Hortonworks github and not in Apache Kafka release 0.10.0.0 and hence not covered in releaes notes htp://apache.arvixe.com/kafka/0.9.0.1/RELEASE_NOTES.html
+
+ * KAFKA-3787; Preserve the message timestamp in mirror maker
+ * KAFKA-3789; Upgrade Snappy to fix snappy decompression errors
+ * KAFKA-3728; EndToEndAuthorizationTest offsets_topic misconfigured
+ * KAFKA-3784: TimeWindows#windowsFor calculation is incorrect
+ * KAFKA-3785; Fetcher spending unnecessary time during metrics recording
+ * KAFKA-3660: Log exception message in ControllerBrokerRequestBatch
+ * KAFKA-3718; propagate all KafkaConfig __consumer_offsets configs to OffsetConfig instantiation
+ * KAFKA-3683; Add file descriptor recommendation to ops guide
+ * KAFKA-3747; Close `RecordBatch.records` when append to batch fails
+ * KAFKA-3258; Delete broker topic metrics of deleted topics
+ * KAFKA-3393; Updated the docs to reflect the deprecation of block.on.buffer.full and usage of max.block.ms
+ * KAFKA-3717; Support building aggregate javadoc for all project modules
+ * KAFKA-3721; Put UpdateMetadataRequest V2 in 0.10.0-IV1
+ * KAFKA-3704; Revert "Remove hard-coded block size in KafkaProducer"
+ 
+
+
