@@ -108,6 +108,7 @@ if (new File('.git').exists()) {
         '**/.git/**',
         '**/build/**',
         'CONTRIBUTING.md',
+        'HDP-CHANGES.txt',
         'gradlew',
         'gradlew.bat',
         '**/README.md',
