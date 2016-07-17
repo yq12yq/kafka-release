@@ -242,18 +242,6 @@ subprojects {
   tasks.withType(ScalaCompile) {
     scalaCompileOptions.useAnt = false
 
-    scalaCompileOptions.additionalParameters = [
-      "-deprecation",
-      "-unchecked",
-      "-encoding", "utf8",
-      "-target:jvm-${sourceCompatibility}".toString(),
-      "-Xlog-reflective-calls",
-      "-feature",
-      "-language:postfixOps",
-      "-language:implicitConversions",
-      "-language:existentials"
-    ]
-
     configure(scalaCompileOptions.forkOptions) {
       memoryMaximumSize = '1g'
       jvmArgs = ['-XX:MaxPermSize=512m', '-Xss2m']
