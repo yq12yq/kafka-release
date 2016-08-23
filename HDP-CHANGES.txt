@@ -17,3 +17,4 @@ Changes only in Hortonworks github and not in Apache Kafka release 0.9.0.1 and h
  * KAFKA-2942: inadvertent auto-commit when pre-fetching can cause message loss
  * KAFKA-2950: Fix performance regression in the producer
  * KAFKA-3448: Support zone index in IPv6 regex
+ * KAFKA-3409: Mirror maker hangs indefinitely due to commit
