@@ -27,6 +27,7 @@ kafka.iws
 .vagrant
 Vagrantfile.local
 /logs
+.DS_Store
 
 config/server-*
 config/zookeeper-*
@@ -40,4 +41,7 @@ tests/.ducktape
 .cache
 gradlew
 gradlew.bat
+tests/venv
+.cache
 docs/generated/
+gradlew

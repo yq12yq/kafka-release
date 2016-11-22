@@ -85,6 +85,11 @@ public class InMemoryKeyValueLoggedStore<K, V> implements KeyValueStore<K, V> {
     }
 
     @Override
+    public boolean isOpen() {
+        return inner.isOpen();
+    }
+
+    @Override
     public V get(K key) {
         return this.inner.get(key);
     }
@@ -146,6 +151,11 @@ public class InMemoryKeyValueLoggedStore<K, V> implements KeyValueStore<K, V> {
     @Override
     public KeyValueIterator<K, V> all() {
         return this.inner.all();
+    }
+
+    @Override
+    public long approximateNumEntries() {
+        return this.inner.approximateNumEntries();
     }
 
     @Override

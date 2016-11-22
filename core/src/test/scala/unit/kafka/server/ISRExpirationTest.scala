@@ -52,7 +52,7 @@ class IsrExpirationTest {
 
   @Before
   def setUp() {
-    replicaManager = new ReplicaManager(configs.head, metrics, time, jTime, null, null, null, new AtomicBoolean(false))
+    replicaManager = new ReplicaManager(configs.head, metrics, time, jTime, null, null, null, new AtomicBoolean(false), QuotaFactory.instantiate(configs.head, metrics, SystemTime).follower)
   }
 
   @After
@@ -126,7 +126,7 @@ class IsrExpirationTest {
     val leaderReplica = partition0.getReplica(configs.head.brokerId).get
 
     // Make the remote replica not read to the end of log. It should be not be out of sync for at least 100 ms
-    for(replica <- (partition0.assignedReplicas() - leaderReplica))
+    for(replica <- partition0.assignedReplicas() - leaderReplica)
       replica.updateLogReadResult(new LogReadResult(FetchDataInfo(new LogOffsetMetadata(10L), MessageSet.Empty), -1L, -1, false))
 
     // Simulate 2 fetch requests spanning more than 100 ms which do not read to the end of the log.

@@ -29,7 +29,7 @@ buildscript {
     // For Apache Rat plugin to ignore non-Git files
     classpath "org.ajoberstar:grgit:1.5.0"
     classpath 'com.github.ben-manes:gradle-versions-plugin:0.12.0'
-    classpath 'org.scoverage:gradle-scoverage:2.0.1'
+    classpath 'org.scoverage:gradle-scoverage:2.1.0'
   }
 }
 
@@ -74,8 +74,12 @@ allprojects {
 }
 
 ext {
-  gradleVersion = "2.13"
+  gradleVersion = "3.0"
   buildVersionFileName = "kafka-version.properties"
+
+  maxPermSizeArgs = []
+  if (!JavaVersion.current().isJava8Compatible())
+    maxPermSizeArgs = ['-XX:MaxPermSize=512m']
 
   userMaxForks = project.hasProperty('maxParallelForks') ? maxParallelForks.toInteger() : null
 
@@ -167,11 +171,17 @@ subprojects {
 
   test {
     maxParallelForks = userMaxForks ?: Runtime.runtime.availableProcessors()
+
+    minHeapSize = "256m"
+    maxHeapSize = "2048m"
+    jvmArgs = maxPermSizeArgs
+
     testLogging {
       events = userTestLoggingEvents ?: ["passed", "skipped", "failed"]
       showStandardStreams = userShowStandardStreams ?: false
       exceptionFormat = 'full'
     }
+
   }
 
   jar {
@@ -194,6 +204,12 @@ subprojects {
   }
 
   task docsJar(dependsOn: javadocJar)
+
+  javadoc {
+    options.charSet = 'UTF-8'
+    options.docEncoding = 'UTF-8'
+    options.encoding = 'UTF-8'
+  }
 
   task systemTestLibs(dependsOn: jar)
 
@@ -240,11 +256,21 @@ subprojects {
   }
 
   tasks.withType(ScalaCompile) {
-    scalaCompileOptions.useAnt = false
+    scalaCompileOptions.additionalParameters = [
+      "-deprecation",
+      "-unchecked",
+      "-encoding", "utf8",
+      "-target:jvm-${sourceCompatibility}".toString(),
+      "-Xlog-reflective-calls",
+      "-feature",
+      "-language:postfixOps",
+      "-language:implicitConversions",
+      "-language:existentials"
+    ]
 
     configure(scalaCompileOptions.forkOptions) {
       memoryMaximumSize = '1g'
-      jvmArgs = ['-XX:MaxPermSize=512m', '-Xss2m']
+      jvmArgs = ['-Xss2m'] + maxPermSizeArgs
     }
   }
 
@@ -439,10 +465,6 @@ project(':core') {
     duplicatesStrategy 'exclude'
   }
 
-  systemTestLibs {
-    dependsOn testJar
-  }
-
   task genProtocolErrorDocs(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'org.apache.kafka.common.protocol.Errors'
@@ -485,9 +507,17 @@ project(':core') {
     standardOutput = new File(generatedDocsDir, "kafka_config.html").newOutputStream()
   }
 
+  task genTopicConfigDocs(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'kafka.log.LogConfig'
+    if( !generatedDocsDir.exists() ) { generatedDocsDir.mkdirs() }
+    standardOutput = new File(generatedDocsDir, "topic_config.html").newOutputStream()
+  }
+
   task siteDocsTar(dependsOn: ['genProtocolErrorDocs', 'genProtocolApiKeyDocs', 'genProtocolMessageDocs',
                                'genProducerConfigDocs', 'genConsumerConfigDocs', 'genKafkaConfigDocs',
-                               ':connect:runtime:genConnectConfigDocs', ':streams:genStreamsConfigDocs'], type: Tar) {
+                               'genTopicConfigDocs', ':connect:runtime:genConnectConfigDocs', 
+                               ':streams:genStreamsConfigDocs'], type: Tar) {
     classifier = 'site-docs'
     compression = Compression.GZIP
     from project.file("../docs")
@@ -503,12 +533,7 @@ project(':core') {
     from '../LICENSE'
     from '../NOTICE'
     from(configurations.runtime) { into("libs/") }
-    from(configurations.archives.artifacts.files) {
-      exclude("**/*.asc")
-      exclude("**/*-test*.jar")
-      exclude("**/*-source*.jar")
-      into("libs/")
-    }
+    from(configurations.archives.artifacts.files) { into("libs/") }
     from(project.siteDocsTar) { into("site-docs/") }
     from(project(':tools').jar) { into("libs/") }
     from(project(':tools').configurations.runtime) { into("libs/") }
@@ -528,7 +553,7 @@ project(':core') {
   }
 
   jar {
-    dependsOn('copyDependantLibs', 'copyDependantTestLibs')
+    dependsOn('copyDependantLibs')
   }
 
   jar.manifest {
@@ -545,6 +570,8 @@ project(':core') {
     duplicatesStrategy 'exclude'
   }
 
+  systemTestLibs.dependsOn('jar', 'testJar', 'copyDependantTestLibs')
+
   checkstyle {
     configProperties = [importControlFile: "$rootDir/checkstyle/import-control-core.xml"]
   }
@@ -555,6 +582,10 @@ project(':examples') {
 
   dependencies {
     compile project(':core')
+  }
+
+  javadoc {
+    enabled = false
   }
 
   checkstyle {
@@ -587,6 +618,9 @@ project(':clients') {
 
     testCompile libs.bcpkix
     testCompile libs.junit
+    testCompile libs.easymock
+    testCompile libs.powermock
+    testCompile libs.powermockEasymock
 
     testRuntime libs.slf4jlog4j
   }
@@ -695,7 +729,12 @@ project(':streams') {
       exclude module: 'jline'
       exclude module: 'netty'
     }
-    compile libs.jacksonDatabind // this dependency should be removed after KIP-4
+
+    // zkclient has a hard log4j dependency, we set it here as well to avoid copying an older
+    // version to the binary package; the following two dependencies should be removed after KIP-4
+    // (along with the zkclient dependency)
+    compile libs.log4j
+    compile libs.jacksonDatabind
 
     testCompile project(':clients').sourceSets.test.output
     testCompile project(':core')
@@ -743,6 +782,7 @@ project(':streams:examples') {
   dependencies {
     compile project(':streams')
     compile project(':connect:json')  // this dependency should be removed after we unify data API
+    compile libs.slf4jlog4j           // this dependency should be removed after KIP-4
   }
 
   javadoc {
@@ -874,8 +914,7 @@ project(':connect:runtime') {
     testCompile libs.junit
     testCompile libs.powermock
     testCompile libs.powermockEasymock
-
-    testRuntime project(":connect:json")
+    testCompile project(":connect:json")
     testRuntime libs.slf4jlog4j
   }
 

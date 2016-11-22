@@ -30,23 +30,13 @@ public abstract class Windows<W extends Window> {
 
     private static final long DEFAULT_MAINTAIN_DURATION = 24 * 60 * 60 * 1000L;   // one day
 
-    protected String name;
-
     private long maintainDurationMs;
 
     public int segments;
 
-    protected Windows(String name) {
-        if (name == null || name.isEmpty()) {
-            throw new IllegalArgumentException("name must not be null or empty");
-        }
-        this.name = name;
+    protected Windows() {
         this.segments = DEFAULT_NUM_SEGMENTS;
         this.maintainDurationMs = DEFAULT_MAINTAIN_DURATION;
-    }
-
-    public String name() {
-        return name;
     }
 
     /**
@@ -89,4 +79,5 @@ public abstract class Windows<W extends Window> {
      */
     public abstract Map<Long, W> windowsFor(long timestamp);
 
+    public abstract long size();
 }

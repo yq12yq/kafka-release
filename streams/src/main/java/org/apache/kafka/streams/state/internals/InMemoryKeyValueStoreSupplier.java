@@ -23,7 +23,6 @@ import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.StateRestoreCallback;
 import org.apache.kafka.streams.processor.StateStore;
-import org.apache.kafka.streams.processor.StateStoreSupplier;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.StateSerdes;
@@ -46,32 +45,21 @@ import java.util.TreeMap;
  *
  * @see org.apache.kafka.streams.state.Stores#create(String)
  */
-public class InMemoryKeyValueStoreSupplier<K, V> implements StateStoreSupplier {
+public class InMemoryKeyValueStoreSupplier<K, V> extends AbstractStoreSupplier<K, V> {
 
-    private final String name;
-    private final Time time;
-    private final Serde<K> keySerde;
-    private final Serde<V> valueSerde;
 
-    public InMemoryKeyValueStoreSupplier(String name, Serde<K> keySerde, Serde<V> valueSerde) {
-        this(name, keySerde, valueSerde, null);
+    public InMemoryKeyValueStoreSupplier(String name, Serde<K> keySerde, Serde<V> valueSerde, boolean logged, Map<String, String> logConfig) {
+        this(name, keySerde, valueSerde, null, logged, logConfig);
     }
 
-    public InMemoryKeyValueStoreSupplier(String name, Serde<K> keySerde, Serde<V> valueSerde, Time time) {
-        this.name = name;
-        this.time = time;
-        this.keySerde = keySerde;
-        this.valueSerde = valueSerde;
-    }
-
-    public String name() {
-        return name;
+    public InMemoryKeyValueStoreSupplier(String name, Serde<K> keySerde, Serde<V> valueSerde, Time time, boolean logged, Map<String, String> logConfig) {
+        super(name, keySerde, valueSerde, time, logged, logConfig);
     }
 
     public StateStore get() {
         MemoryStore<K, V> store = new MemoryStore<>(name, keySerde, valueSerde);
 
-        return new MeteredKeyValueStore<>(store.enableLogging(), "in-memory-state", time);
+        return new MeteredKeyValueStore<>(logged ? store.enableLogging() : store, "in-memory-state", time);
     }
 
     private static class MemoryStore<K, V> implements KeyValueStore<K, V> {
@@ -79,6 +67,7 @@ public class InMemoryKeyValueStoreSupplier<K, V> implements StateStoreSupplier {
         private final Serde<K> keySerde;
         private final Serde<V> valueSerde;
         private final NavigableMap<K, V> map;
+        private volatile boolean open = false;
 
         private StateSerdes<K, V> serdes;
 
@@ -121,6 +110,7 @@ public class InMemoryKeyValueStoreSupplier<K, V> implements StateStoreSupplier {
                     }
                 }
             });
+            this.open = true;
         }
 
         @Override
@@ -129,17 +119,22 @@ public class InMemoryKeyValueStoreSupplier<K, V> implements StateStoreSupplier {
         }
 
         @Override
-        public V get(K key) {
+        public boolean isOpen() {
+            return this.open;
+        }
+
+        @Override
+        public synchronized V get(K key) {
             return this.map.get(key);
         }
 
         @Override
-        public void put(K key, V value) {
+        public synchronized void put(K key, V value) {
             this.map.put(key, value);
         }
 
         @Override
-        public V putIfAbsent(K key, V value) {
+        public synchronized V putIfAbsent(K key, V value) {
             V originalValue = get(key);
             if (originalValue == null) {
                 put(key, value);
@@ -148,24 +143,30 @@ public class InMemoryKeyValueStoreSupplier<K, V> implements StateStoreSupplier {
         }
 
         @Override
-        public void putAll(List<KeyValue<K, V>> entries) {
+        public synchronized void putAll(List<KeyValue<K, V>> entries) {
             for (KeyValue<K, V> entry : entries)
                 put(entry.key, entry.value);
         }
 
         @Override
-        public V delete(K key) {
+        public synchronized V delete(K key) {
             return this.map.remove(key);
         }
 
         @Override
-        public KeyValueIterator<K, V> range(K from, K to) {
+        public synchronized KeyValueIterator<K, V> range(K from, K to) {
             return new MemoryStoreIterator<>(this.map.subMap(from, true, to, false).entrySet().iterator());
         }
 
         @Override
-        public KeyValueIterator<K, V> all() {
-            return new MemoryStoreIterator<>(this.map.entrySet().iterator());
+        public synchronized KeyValueIterator<K, V> all() {
+            final TreeMap<K, V> copy = new TreeMap<>(this.map);
+            return new MemoryStoreIterator<>(copy.entrySet().iterator());
+        }
+
+        @Override
+        public long approximateNumEntries() {
+            return this.map.size();
         }
 
         @Override
@@ -175,7 +176,7 @@ public class InMemoryKeyValueStoreSupplier<K, V> implements StateStoreSupplier {
 
         @Override
         public void close() {
-            // do-nothing
+            this.open = false;
         }
 
         private static class MemoryStoreIterator<K, V> implements KeyValueIterator<K, V> {

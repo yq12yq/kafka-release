@@ -100,7 +100,7 @@ class ControllerChannelManager(controllerContext: ControllerContext, config: Kaf
       )
       val selector = new Selector(
         NetworkReceive.UNLIMITED,
-        config.connectionsMaxIdleMs,
+        Selector.NO_IDLE_TIMEOUT_MS,
         metrics,
         time,
         "controller-channel",
@@ -167,7 +167,7 @@ class RequestSendThread(val controllerId: Int,
 
   override def doWork(): Unit = {
 
-    def backoff(): Unit = CoreUtils.swallowTrace(Thread.sleep(300))
+    def backoff(): Unit = CoreUtils.swallowTrace(Thread.sleep(100))
 
     val QueueItem(apiKey, apiVersion, request, callback) = queue.take()
     import NetworkClientBlockingOps._
@@ -226,18 +226,14 @@ class RequestSendThread(val controllerId: Int,
   private def brokerReady(): Boolean = {
     import NetworkClientBlockingOps._
     try {
-
-      if (networkClient.isReady(brokerNode, time.milliseconds()))
-        true
-      else {
-        val ready = networkClient.blockingReady(brokerNode, socketTimeoutMs)(time)
-
-        if (!ready)
+      if (!networkClient.isReady(brokerNode)(time)) {
+        if (!networkClient.blockingReady(brokerNode, socketTimeoutMs)(time))
           throw new SocketTimeoutException(s"Failed to connect within $socketTimeoutMs ms")
 
         info("Controller %d connected to %s for sending state change requests".format(controllerId, brokerNode.toString()))
-        true
       }
+
+      true
     } catch {
       case e: Throwable =>
         warn("Controller %d's connection to broker %s was unsuccessful".format(controllerId, brokerNode.toString()), e)
@@ -258,13 +254,13 @@ class ControllerBrokerRequestBatch(controller: KafkaController) extends  Logging
 
   def newBatch() {
     // raise error if the previous batch is not empty
-    if (leaderAndIsrRequestMap.size > 0)
+    if (leaderAndIsrRequestMap.nonEmpty)
       throw new IllegalStateException("Controller to broker state change requests batch is not empty while creating " +
         "a new one. Some LeaderAndIsr state changes %s might be lost ".format(leaderAndIsrRequestMap.toString()))
-    if (stopReplicaRequestMap.size > 0)
+    if (stopReplicaRequestMap.nonEmpty)
       throw new IllegalStateException("Controller to broker state change requests batch is not empty while creating a " +
         "new one. Some StopReplica state changes %s might be lost ".format(stopReplicaRequestMap.toString()))
-    if (updateMetadataRequestMap.size > 0)
+    if (updateMetadataRequestMap.nonEmpty)
       throw new IllegalStateException("Controller to broker state change requests batch is not empty while creating a " +
         "new one. Some UpdateMetadata state changes %s might be lost ".format(updateMetadataRequestMap.toString()))
   }
@@ -425,15 +421,15 @@ class ControllerBrokerRequestBatch(controller: KafkaController) extends  Logging
       stopReplicaRequestMap.clear()
     } catch {
       case e : Throwable => {
-        if (leaderAndIsrRequestMap.size > 0) {
+        if (leaderAndIsrRequestMap.nonEmpty) {
           error("Haven't been able to send leader and isr requests, current state of " +
               s"the map is $leaderAndIsrRequestMap. Exception message: $e")
         }
-        if (updateMetadataRequestMap.size > 0) {
+        if (updateMetadataRequestMap.nonEmpty) {
           error("Haven't been able to send metadata update requests, current state of " +
               s"the map is $updateMetadataRequestMap. Exception message: $e")
         }
-        if (stopReplicaRequestMap.size > 0) {
+        if (stopReplicaRequestMap.nonEmpty) {
           error("Haven't been able to send stop replica requests, current state of " +
               s"the map is $stopReplicaRequestMap. Exception message: $e")
         }

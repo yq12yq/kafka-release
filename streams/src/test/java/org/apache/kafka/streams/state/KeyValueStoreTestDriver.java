@@ -33,8 +33,10 @@ import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.StreamPartitioner;
 import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.internals.RecordCollector;
+import org.apache.kafka.streams.state.internals.ThreadCache;
 import org.apache.kafka.test.MockProcessorContext;
 import org.apache.kafka.test.MockTimestampExtractor;
+import org.apache.kafka.test.TestUtils;
 
 import java.io.File;
 import java.util.HashMap;
@@ -130,6 +132,8 @@ import java.util.Set;
  */
 public class KeyValueStoreTestDriver<K, V> {
 
+    private final Properties props;
+
     /**
      * Create a driver object that will have a {@link #context()} that records messages
      * {@link ProcessorContext#forward(Object, Object) forwarded} by the store and that provides default serializers and
@@ -175,6 +179,8 @@ public class KeyValueStoreTestDriver<K, V> {
     private final List<KeyValue<K, V>> restorableEntries = new LinkedList<>();
     private final MockProcessorContext context;
     private final Map<String, StateStore> storeMap = new HashMap<>();
+    private static final long DEFAULT_CACHE_SIZE_BYTES = 1 * 1024 * 1024L;
+    private final ThreadCache cache = new ThreadCache(DEFAULT_CACHE_SIZE_BYTES);
     private final StreamsMetrics metrics = new StreamsMetrics() {
         @Override
         public Sensor addLatencySensor(String scopeName, String entityName, String operationName, String... tags) {
@@ -192,7 +198,7 @@ public class KeyValueStoreTestDriver<K, V> {
         ByteArraySerializer rawSerializer = new ByteArraySerializer();
         Producer<byte[], byte[]> producer = new MockProducer<>(true, rawSerializer, rawSerializer);
 
-        this.recordCollector = new RecordCollector(producer) {
+        this.recordCollector = new RecordCollector(producer, "KeyValueStoreTestDriver") {
             @SuppressWarnings("unchecked")
             @Override
             public <K1, V1> void send(ProducerRecord<K1, V1> record, Serializer<K1> keySerializer, Serializer<V1> valueSerializer) {
@@ -210,16 +216,19 @@ public class KeyValueStoreTestDriver<K, V> {
                 send(record, keySerializer, valueSerializer);
             }
         };
-        this.stateDir = StateTestUtils.tempDir();
+        this.stateDir = TestUtils.tempDirectory();
         this.stateDir.mkdirs();
 
-        Properties props = new Properties();
+        props = new Properties();
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "applicationId");
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
         props.put(StreamsConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, MockTimestampExtractor.class);
         props.put(StreamsConfig.KEY_SERDE_CLASS_CONFIG, serdes.keySerde().getClass());
         props.put(StreamsConfig.VALUE_SERDE_CLASS_CONFIG, serdes.valueSerde().getClass());
 
-        this.context = new MockProcessorContext(null, this.stateDir, serdes.keySerde(), serdes.valueSerde(), recordCollector) {
+
+
+        this.context = new MockProcessorContext(null, this.stateDir, serdes.keySerde(), serdes.valueSerde(), recordCollector, null) {
             @Override
             public TaskId taskId() {
                 return new TaskId(0, 1);
@@ -249,6 +258,20 @@ public class KeyValueStoreTestDriver<K, V> {
             @Override
             public File stateDir() {
                 return stateDir;
+            }
+
+            @Override
+            public Map<String, Object> appConfigs() {
+                return new StreamsConfig(props).originals();
+            }
+
+            @Override
+            public Map<String, Object> appConfigsWithPrefix(String prefix) {
+                return new StreamsConfig(props).originalsWithPrefix(prefix);
+            }
+            @Override
+            public ThreadCache getCache() {
+                return cache;
             }
         };
     }
@@ -407,5 +430,9 @@ public class KeyValueStoreTestDriver<K, V> {
         restorableEntries.clear();
         flushedEntries.clear();
         flushedRemovals.clear();
+    }
+
+    public void setConfig(final String configName, final Object configValue) {
+        props.put(configName, configValue);
     }
 }

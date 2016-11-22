@@ -156,6 +156,9 @@ public class WorkerSourceTaskTest extends ThreadedTest {
         statusListener.onShutdown(taskId);
         EasyMock.expectLastCall();
 
+        producer.close(EasyMock.anyLong(), EasyMock.anyObject(TimeUnit.class));
+        EasyMock.expectLastCall();
+
         PowerMock.replayAll();
 
         workerTask.initialize(TASK_CONFIG);
@@ -193,6 +196,9 @@ public class WorkerSourceTaskTest extends ThreadedTest {
         expectOffsetFlush(true);
 
         statusListener.onShutdown(taskId);
+        EasyMock.expectLastCall();
+
+        producer.close(EasyMock.anyLong(), EasyMock.anyObject(TimeUnit.class));
         EasyMock.expectLastCall();
 
         PowerMock.replayAll();
@@ -238,6 +244,9 @@ public class WorkerSourceTaskTest extends ThreadedTest {
         statusListener.onShutdown(taskId);
         EasyMock.expectLastCall();
 
+        producer.close(EasyMock.anyLong(), EasyMock.anyObject(TimeUnit.class));
+        EasyMock.expectLastCall();
+
         PowerMock.replayAll();
 
         workerTask.initialize(TASK_CONFIG);
@@ -280,6 +289,9 @@ public class WorkerSourceTaskTest extends ThreadedTest {
         EasyMock.expectLastCall();
         expectOffsetFlush(true);
 
+        producer.close(EasyMock.anyLong(), EasyMock.anyObject(TimeUnit.class));
+        EasyMock.expectLastCall();
+
         PowerMock.replayAll();
 
         workerTask.initialize(TASK_CONFIG);
@@ -317,6 +329,8 @@ public class WorkerSourceTaskTest extends ThreadedTest {
         statusListener.onShutdown(taskId);
         EasyMock.expectLastCall();
 
+        producer.close(EasyMock.anyLong(), EasyMock.anyObject(TimeUnit.class));
+        EasyMock.expectLastCall();
 
         PowerMock.replayAll();
 
@@ -356,6 +370,9 @@ public class WorkerSourceTaskTest extends ThreadedTest {
         statusListener.onShutdown(taskId);
         EasyMock.expectLastCall();
 
+        producer.close(EasyMock.anyLong(), EasyMock.anyObject(TimeUnit.class));
+        EasyMock.expectLastCall();
+
         PowerMock.replayAll();
 
         workerTask.initialize(TASK_CONFIG);
@@ -387,6 +404,27 @@ public class WorkerSourceTaskTest extends ThreadedTest {
         Whitebox.invokeMethod(workerTask, "sendRecords");
         assertEquals(SERIALIZED_KEY, sent.getValue().key());
         assertEquals(SERIALIZED_RECORD, sent.getValue().value());
+
+        PowerMock.verifyAll();
+    }
+
+    @Test
+    public void testSendRecordsPropagatesTimestamp() throws Exception {
+        final Long timestamp = System.currentTimeMillis();
+
+        createWorkerTask();
+
+        List<SourceRecord> records = Collections.singletonList(
+                new SourceRecord(PARTITION, OFFSET, "topic", null, KEY_SCHEMA, KEY, RECORD_SCHEMA, RECORD, timestamp)
+        );
+
+        Capture<ProducerRecord<byte[], byte[]>> sent = expectSendRecordAnyTimes();
+
+        PowerMock.replayAll();
+
+        Whitebox.setInternalState(workerTask, "toSend", records);
+        Whitebox.invokeMethod(workerTask, "sendRecords");
+        assertEquals(timestamp, sent.getValue().timestamp());
 
         PowerMock.verifyAll();
     }
@@ -476,6 +514,9 @@ public class WorkerSourceTaskTest extends ThreadedTest {
         expectOffsetFlush(true);
 
         statusListener.onShutdown(taskId);
+        EasyMock.expectLastCall();
+
+        producer.close(EasyMock.anyLong(), EasyMock.anyObject(TimeUnit.class));
         EasyMock.expectLastCall();
 
         PowerMock.replayAll();

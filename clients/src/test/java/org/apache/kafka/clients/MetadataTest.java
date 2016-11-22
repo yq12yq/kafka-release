@@ -12,6 +12,7 @@
  */
 package org.apache.kafka.clients;
 
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -20,9 +21,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.kafka.common.Cluster;
+import org.apache.kafka.common.internals.ClusterResourceListeners;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.test.MockClusterResourceListener;
 import org.apache.kafka.test.TestUtils;
 import org.junit.After;
 import org.junit.Ignore;
@@ -120,7 +123,7 @@ public class MetadataTest {
         assertEquals(100, metadata.lastSuccessfulUpdate());
 
         metadata.needMetadataForAllTopics(true);
-        metadata.update(null, time);
+        metadata.update(Cluster.empty(), time);
         assertEquals(100, metadata.timeToNextUpdate(1000));
     }
 
@@ -132,11 +135,12 @@ public class MetadataTest {
 
         final List<String> expectedTopics = Collections.singletonList("topic");
         metadata.setTopics(expectedTopics);
-        metadata.update(new Cluster(
+        metadata.update(new Cluster(null,
                 Collections.singletonList(new Node(0, "host1", 1000)),
                 Arrays.asList(
                     new PartitionInfo("topic", 0, null, null, null),
                     new PartitionInfo("topic1", 0, null, null, null)),
+                Collections.<String>emptySet(),
                 Collections.<String>emptySet()),
             100);
 
@@ -144,6 +148,36 @@ public class MetadataTest {
             expectedTopics.toArray(), metadata.topics().toArray());
 
         metadata.needMetadataForAllTopics(false);
+    }
+
+    @Test
+    public void testClusterListenerGetsNotifiedOfUpdate() {
+        long time = 0;
+        MockClusterResourceListener mockClusterListener = new MockClusterResourceListener();
+        ClusterResourceListeners listeners = new ClusterResourceListeners();
+        listeners.maybeAdd(mockClusterListener);
+        metadata = new Metadata(refreshBackoffMs, metadataExpireMs, false, listeners);
+
+        String hostName = "www.example.com";
+        Cluster cluster = Cluster.bootstrap(Arrays.asList(new InetSocketAddress(hostName, 9002)));
+        metadata.update(cluster, time);
+        assertFalse("ClusterResourceListener should not called when metadata is updated with bootstrap Cluster",
+                MockClusterResourceListener.IS_ON_UPDATE_CALLED.get());
+
+        metadata.update(new Cluster(
+                        "dummy",
+                        Arrays.asList(new Node(0, "host1", 1000)),
+                        Arrays.asList(
+                                new PartitionInfo("topic", 0, null, null, null),
+                                new PartitionInfo("topic1", 0, null, null, null)),
+                        Collections.<String>emptySet(),
+                        Collections.<String>emptySet()),
+                100);
+
+        assertEquals("MockClusterResourceListener did not get cluster metadata correctly",
+                "dummy", mockClusterListener.clusterResource().clusterId());
+        assertTrue("MockClusterResourceListener should be called when metadata is updated with non-bootstrap Cluster",
+                MockClusterResourceListener.IS_ON_UPDATE_CALLED.get());
     }
 
     @Test
@@ -160,10 +194,12 @@ public class MetadataTest {
         });
 
         metadata.update(new Cluster(
+                null,
                 Arrays.asList(new Node(0, "host1", 1000)),
                 Arrays.asList(
                     new PartitionInfo("topic", 0, null, null, null),
                     new PartitionInfo("topic1", 0, null, null, null)),
+                Collections.<String>emptySet(),
                 Collections.<String>emptySet()),
             100);
 
@@ -186,25 +222,92 @@ public class MetadataTest {
         metadata.addListener(listener);
 
         metadata.update(new Cluster(
+                "cluster",
                 Collections.singletonList(new Node(0, "host1", 1000)),
                 Arrays.asList(
                     new PartitionInfo("topic", 0, null, null, null),
                     new PartitionInfo("topic1", 0, null, null, null)),
+                Collections.<String>emptySet(),
                 Collections.<String>emptySet()),
             100);
 
         metadata.removeListener(listener);
 
         metadata.update(new Cluster(
+                "cluster",
                 Arrays.asList(new Node(0, "host1", 1000)),
                 Arrays.asList(
                     new PartitionInfo("topic2", 0, null, null, null),
                     new PartitionInfo("topic3", 0, null, null, null)),
+                Collections.<String>emptySet(),
                 Collections.<String>emptySet()),
             100);
 
         assertEquals("Listener did not update topics list correctly",
             new HashSet<>(Arrays.asList("topic", "topic1")), topics);
+    }
+
+    @Test
+    public void testTopicExpiry() throws Exception {
+        metadata = new Metadata(refreshBackoffMs, metadataExpireMs, true, new ClusterResourceListeners());
+
+        // Test that topic is expired if not used within the expiry interval
+        long time = 0;
+        metadata.add("topic1");
+        metadata.update(Cluster.empty(), time);
+        time += Metadata.TOPIC_EXPIRY_MS;
+        metadata.update(Cluster.empty(), time);
+        assertFalse("Unused topic not expired", metadata.containsTopic("topic1"));
+
+        // Test that topic is not expired if used within the expiry interval
+        metadata.add("topic2");
+        metadata.update(Cluster.empty(), time);
+        for (int i = 0; i < 3; i++) {
+            time += Metadata.TOPIC_EXPIRY_MS / 2;
+            metadata.update(Cluster.empty(), time);
+            assertTrue("Topic expired even though in use", metadata.containsTopic("topic2"));
+            metadata.add("topic2");
+        }
+
+        // Test that topics added using setTopics expire
+        HashSet<String> topics = new HashSet<>();
+        topics.add("topic4");
+        metadata.setTopics(topics);
+        metadata.update(Cluster.empty(), time);
+        time += Metadata.TOPIC_EXPIRY_MS;
+        metadata.update(Cluster.empty(), time);
+        assertFalse("Unused topic not expired", metadata.containsTopic("topic4"));
+    }
+
+    @Test
+    public void testNonExpiringMetadata() throws Exception {
+        metadata = new Metadata(refreshBackoffMs, metadataExpireMs, false, new ClusterResourceListeners());
+
+        // Test that topic is not expired if not used within the expiry interval
+        long time = 0;
+        metadata.add("topic1");
+        metadata.update(Cluster.empty(), time);
+        time += Metadata.TOPIC_EXPIRY_MS;
+        metadata.update(Cluster.empty(), time);
+        assertTrue("Unused topic expired when expiry disabled", metadata.containsTopic("topic1"));
+
+        // Test that topic is not expired if used within the expiry interval
+        metadata.add("topic2");
+        metadata.update(Cluster.empty(), time);
+        for (int i = 0; i < 3; i++) {
+            time += Metadata.TOPIC_EXPIRY_MS / 2;
+            metadata.update(Cluster.empty(), time);
+            assertTrue("Topic expired even though in use", metadata.containsTopic("topic2"));
+            metadata.add("topic2");
+        }
+
+        // Test that topics added using setTopics don't expire
+        HashSet<String> topics = new HashSet<>();
+        topics.add("topic4");
+        metadata.setTopics(topics);
+        time += metadataExpireMs * 2;
+        metadata.update(Cluster.empty(), time);
+        assertTrue("Unused topic expired when expiry disabled", metadata.containsTopic("topic4"));
     }
 
     private Thread asyncFetch(final String topic) {

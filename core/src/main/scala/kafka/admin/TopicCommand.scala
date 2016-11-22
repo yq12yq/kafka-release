@@ -19,20 +19,19 @@ package kafka.admin
 
 import java.util.Properties
 import joptsimple._
-import kafka.common.{AdminCommandFailedException, Topic, TopicExistsException}
+import kafka.common.{AdminCommandFailedException, Topic}
 import kafka.consumer.{ConsumerConfig => OldConsumerConfig, Whitelist}
-import kafka.coordinator.GroupCoordinator
 import kafka.log.{Defaults, LogConfig}
 import kafka.server.ConfigType
 import kafka.utils.ZkUtils._
 import kafka.utils._
 import org.I0Itec.zkclient.exception.ZkNodeExistsException
+import org.apache.kafka.common.errors.TopicExistsException
 import org.apache.kafka.common.security.JaasUtils
 import org.apache.kafka.common.utils.Utils
 import scala.collection.JavaConversions._
 import scala.collection._
 import org.apache.kafka.clients.consumer.{ConsumerConfig => NewConsumerConfig}
-import org.apache.kafka.common.internals.TopicConstants
 
 
 object TopicCommand extends Logging {
@@ -92,19 +91,17 @@ object TopicCommand extends Logging {
   def createTopic(zkUtils: ZkUtils, opts: TopicCommandOptions) {
     val topic = opts.options.valueOf(opts.topicOpt)
     val configs = parseTopicConfigsToBeAdded(opts)
-    val ifNotExists = if (opts.options.has(opts.ifNotExistsOpt)) true else false
+    val ifNotExists = opts.options.has(opts.ifNotExistsOpt)
     if (Topic.hasCollisionChars(topic))
       println("WARNING: Due to limitations in metric names, topics with a period ('.') or underscore ('_') could collide. To avoid issues it is best to use either, but not both.")
     try {
       if (opts.options.has(opts.replicaAssignmentOpt)) {
         val assignment = parseReplicaAssignment(opts.options.valueOf(opts.replicaAssignmentOpt))
-        warnOnMaxMessagesChange(configs, assignment.valuesIterator.next().length)
         AdminUtils.createOrUpdateTopicPartitionAssignmentPathInZK(zkUtils, topic, assignment, configs, update = false)
       } else {
         CommandLineUtils.checkRequiredArgs(opts.parser, opts.options, opts.partitionsOpt, opts.replicationFactorOpt)
         val partitions = opts.options.valueOf(opts.partitionsOpt).intValue
         val replicas = opts.options.valueOf(opts.replicationFactorOpt).intValue
-        warnOnMaxMessagesChange(configs, replicas)
         val rackAwareMode = if (opts.options.has(opts.disableRackAware)) RackAwareMode.Disabled
                             else RackAwareMode.Enforced
         AdminUtils.createTopic(zkUtils, topic, partitions, replicas, configs, rackAwareMode)
@@ -117,8 +114,8 @@ object TopicCommand extends Logging {
 
   def alterTopic(zkUtils: ZkUtils, opts: TopicCommandOptions) {
     val topics = getTopics(zkUtils, opts)
-    val ifExists = if (opts.options.has(opts.ifExistsOpt)) true else false
-    if (topics.length == 0 && !ifExists) {
+    val ifExists = opts.options.has(opts.ifExistsOpt)
+    if (topics.isEmpty && !ifExists) {
       throw new IllegalArgumentException("Topic %s does not exist on ZK path %s".format(opts.options.valueOf(opts.topicOpt),
           opts.options.valueOf(opts.zkConnectOpt)))
     }
@@ -138,7 +135,7 @@ object TopicCommand extends Logging {
       }
 
       if(opts.options.has(opts.partitionsOpt)) {
-        if (topic == TopicConstants.GROUP_METADATA_TOPIC_NAME) {
+        if (topic == Topic.GroupMetadataTopicName) {
           throw new IllegalArgumentException("The number of partitions for the offsets topic cannot be changed.")
         }
         println("WARNING: If partitions are increased for a topic that has a key, the partition " +
@@ -164,8 +161,8 @@ object TopicCommand extends Logging {
 
   def deleteTopic(zkUtils: ZkUtils, opts: TopicCommandOptions) {
     val topics = getTopics(zkUtils, opts)
-    val ifExists = if (opts.options.has(opts.ifExistsOpt)) true else false
-    if (topics.length == 0 && !ifExists) {
+    val ifExists = opts.options.has(opts.ifExistsOpt)
+    if (topics.isEmpty && !ifExists) {
       throw new IllegalArgumentException("Topic %s does not exist on ZK path %s".format(opts.options.valueOf(opts.topicOpt),
           opts.options.valueOf(opts.zkConnectOpt)))
     }
@@ -191,9 +188,9 @@ object TopicCommand extends Logging {
 
   def describeTopic(zkUtils: ZkUtils, opts: TopicCommandOptions) {
     val topics = getTopics(zkUtils, opts)
-    val reportUnderReplicatedPartitions = if (opts.options.has(opts.reportUnderReplicatedPartitionsOpt)) true else false
-    val reportUnavailablePartitions = if (opts.options.has(opts.reportUnavailablePartitionsOpt)) true else false
-    val reportOverriddenConfigs = if (opts.options.has(opts.topicsWithOverridesOpt)) true else false
+    val reportUnderReplicatedPartitions = opts.options.has(opts.reportUnderReplicatedPartitionsOpt)
+    val reportUnavailablePartitions = opts.options.has(opts.reportUnavailablePartitionsOpt)
+    val reportOverriddenConfigs = opts.options.has(opts.topicsWithOverridesOpt)
     val liveBrokers = zkUtils.getAllBrokersInCluster().map(_.id).toSet
     for (topic <- topics) {
       zkUtils.getPartitionAssignmentForTopics(List(topic)).get(topic) match {
@@ -216,7 +213,7 @@ object TopicCommand extends Logging {
               val leader = zkUtils.getLeaderForPartition(topic, partitionId)
               if ((!reportUnderReplicatedPartitions && !reportUnavailablePartitions) ||
                   (reportUnderReplicatedPartitions && inSyncReplicas.size < assignedReplicas.size) ||
-                  (reportUnavailablePartitions && (!leader.isDefined || !liveBrokers.contains(leader.get)))) {
+                  (reportUnavailablePartitions && (leader.isEmpty || !liveBrokers.contains(leader.get)))) {
                 print("\tTopic: " + topic)
                 print("\tPartition: " + partitionId)
                 print("\tLeader: " + (if(leader.isDefined) leader.get else "none"))
@@ -327,6 +324,9 @@ object TopicCommand extends Logging {
                                         "if set when creating topics, the action will only execute if the topic does not already exist")
 
     val disableRackAware = parser.accepts("disable-rack-aware", "Disable rack aware replica assignment")
+
+    val forceOpt = parser.accepts("force", "Suppress console prompts")
+
     val options = parser.parse(args : _*)
 
     val allTopicLevelOpts: Set[OptionSpec[_]] = Set(alterOpt, createOpt, describeOpt, listOpt, deleteOpt)
@@ -355,19 +355,6 @@ object TopicCommand extends Logging {
       CommandLineUtils.checkInvalidArgs(parser, options, ifNotExistsOpt, allTopicLevelOpts -- Set(createOpt))
     }
   }
-  def warnOnMaxMessagesChange(configs: Properties, replicas: Integer): Unit = {
-    val maxMessageBytes =  configs.get(LogConfig.MaxMessageBytesProp) match {
-      case n: String => n.toInt
-      case _ => -1
-    }
-    if (maxMessageBytes > Defaults.MaxMessageSize)
-      if (replicas > 1) {
-        error(longMessageSizeWarning(maxMessageBytes))
-        askToProceed
-      }
-      else
-        warn(shortMessageSizeWarning(maxMessageBytes))
-  }
 
   def askToProceed: Unit = {
     println("Are you sure you want to continue? [y/n]")
@@ -377,36 +364,5 @@ object TopicCommand extends Logging {
     }
   }
 
-  def shortMessageSizeWarning(maxMessageBytes: Int): String = {
-    "\n\n" +
-      "*****************************************************************************************************\n" +
-      "*** WARNING: you are creating a topic where the max.message.bytes is greater than the broker's    ***\n" +
-      "*** default max.message.bytes. This operation is potentially dangerous. Consumers will get        ***\n" +
-      s"*** failures if their fetch.message.max.bytes (old consumer) or ${NewConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG}         ***\n"+ 
-      "*** (new consumer) < the value you are using.                                                     ***\n" +
-      "*****************************************************************************************************\n" +
-      s"- value set here: $maxMessageBytes\n" +
-      s"- Default Old Consumer fetch.message.max.bytes: ${OldConsumerConfig.FetchSize}\n" +
-      s"- Default New Consumer ${NewConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG}: ${NewConsumerConfig.DEFAULT_MAX_PARTITION_FETCH_BYTES}\n" +
-      s"- Default Broker max.message.bytes: ${kafka.server.Defaults.MessageMaxBytes}\n\n"
-  }
-
-  def longMessageSizeWarning(maxMessageBytes: Int): String = {
-    "\n\n" +
-      "*****************************************************************************************************\n" +
-      "*** WARNING: you are creating a topic where the max.message.bytes is greater than the broker's    ***\n" +
-      "*** default max.message.bytes. This operation is dangerous. There are two potential side effects: ***\n" +
-      "*** - Consumers will get failures if their fetch.message.max.bytes (old consumer) or              ***\n" +
-      s"***   ${NewConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG} (new consumer) < the value you are using                          ***\n" +
-      "*** - Producer requests larger than replica.fetch.max.bytes will not replicate and hence have     ***\n" +
-      "***   a higher risk of data loss                                                                  ***\n" +
-      "*** You should ensure both of these settings are greater than the value set here before using     ***\n" +
-      "*** this topic.                                                                                   ***\n" +
-      "*****************************************************************************************************\n" +
-      s"- value set here: $maxMessageBytes\n" +
-      s"- Default Broker replica.fetch.max.bytes: ${kafka.server.Defaults.ReplicaFetchMaxBytes}\n" +
-      s"- Default Broker max.message.bytes: ${kafka.server.Defaults.MessageMaxBytes}\n" +
-      s"- Default Old Consumer fetch.message.max.bytes: ${OldConsumerConfig.FetchSize}\n" +
-      s"- Default New Consumer ${NewConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG}: ${NewConsumerConfig.DEFAULT_MAX_PARTITION_FETCH_BYTES}\n\n"
-  }
 }
+

@@ -23,6 +23,7 @@ import kafka.consumer._
 import kafka.client.ClientUtils
 import kafka.api.{FetchRequestBuilder, OffsetRequest, Request}
 import kafka.cluster.BrokerEndPoint
+
 import scala.collection.JavaConversions._
 import kafka.common.{MessageFormatter, TopicAndPartition}
 import kafka.common.security.LoginManager
@@ -31,6 +32,7 @@ import org.apache.kafka.common.protocol.SecurityProtocol
 import org.apache.kafka.common.security.JaasUtils
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.clients.consumer.ConsumerRecord
+import org.apache.kafka.common.utils.Utils
 
 /**
  * Command line program to dump out messages to standard out using the simple consumer
@@ -150,15 +152,15 @@ object SimpleConsumerShell extends Logging {
     ToolsUtils.validatePortOrDie(parser,brokerList)
     val metadataTargetBrokers = ClientUtils.parseBrokerList(brokerList)
     val topicsMetadata = ClientUtils.fetchTopicMetadata(Set(topic), metadataTargetBrokers, clientId, maxWaitMs, securityProtocol=securityProtocol).topicsMetadata
-    if(topicsMetadata.size != 1 || !topicsMetadata(0).topic.equals(topic)) {
+    if(topicsMetadata.size != 1 || !topicsMetadata.head.topic.equals(topic)) {
       System.err.println(("Error: no valid topic metadata for topic: %s, " + "what we get from server is only: %s").format(topic, topicsMetadata))
       System.exit(1)
     }
 
     // validating partition id
-    val partitionsMetadata = topicsMetadata(0).partitionsMetadata
+    val partitionsMetadata = topicsMetadata.head.partitionsMetadata
     val partitionMetadataOpt = partitionsMetadata.find(p => p.partitionId == partitionId)
-    if (!partitionMetadataOpt.isDefined) {
+    if (partitionMetadataOpt.isEmpty) {
       System.err.println("Error: partition %d does not exist for topic %s".format(partitionId, topic))
       System.exit(1)
     }
@@ -168,7 +170,7 @@ object SimpleConsumerShell extends Logging {
     var replicaOpt: Option[BrokerEndPoint] = null
     if (replicaId == UseLeaderReplica) {
       replicaOpt = partitionMetadataOpt.get.leader
-      if (!replicaOpt.isDefined) {
+      if (replicaOpt.isEmpty) {
         System.err.println("Error: user specifies to fetch from leader for partition (%s, %d) which has not been elected yet".format(topic, partitionId))
         System.exit(1)
       }
@@ -176,7 +178,7 @@ object SimpleConsumerShell extends Logging {
     else {
       val replicasForPartition = partitionMetadataOpt.get.replicas
       replicaOpt = replicasForPartition.find(r => r.id == replicaId)
-      if(!replicaOpt.isDefined) {
+      if(replicaOpt.isEmpty) {
         System.err.println("Error: replica %d does not exist for partition (%s, %d)".format(replicaId, topic, partitionId))
         System.exit(1)
       }

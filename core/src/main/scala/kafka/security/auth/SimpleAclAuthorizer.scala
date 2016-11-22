@@ -127,9 +127,9 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
     //check if there is any Deny acl match that would disallow this operation.
     val denyMatch = aclMatch(session, operation, resource, principal, host, Deny, acls)
 
-    //if principal is allowed to read or write we allow describe by default, the reverse does not apply to Deny.
+    //if principal is allowed to read, write or delete we allow describe by default, the reverse does not apply to Deny.
     val ops = if (Describe == operation)
-      Set[Operation](operation, Read, Write)
+      Set[Operation](operation, Read, Write, Delete)
     else
       Set[Operation](operation)
 
@@ -154,7 +154,7 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
   }
 
   def isSuperUser(operation: Operation, resource: Resource, principal: KafkaPrincipal, host: String): Boolean = {
-    if (superUsers.exists( _ == principal)) {
+    if (superUsers.contains(principal)) {
       authorizerLogger.debug(s"principal = $principal is a super user, allowing operation without checking acls.")
       true
     } else false
@@ -275,7 +275,7 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
       val newAcls = getNewAcls(currentVersionedAcls.acls)
       val data = Json.encode(Acl.toJsonCompatibleMap(newAcls))
       val (updateSucceeded, updateVersion) =
-        if (!newAcls.isEmpty) {
+        if (newAcls.nonEmpty) {
          updatePath(path, data, currentVersionedAcls.zkVersion)
         } else {
           trace(s"Deleting path for $resource because it had no ACLs remaining")
@@ -285,7 +285,7 @@ class SimpleAclAuthorizer extends Authorizer with Logging {
       if (!updateSucceeded) {
         trace(s"Failed to update ACLs for $resource. Used version ${currentVersionedAcls.zkVersion}. Reading data and retrying update.")
         Thread.sleep(backoffTime)
-        currentVersionedAcls = getAclsFromZk(resource);
+        currentVersionedAcls = getAclsFromZk(resource)
         retries += 1
       } else {
         newVersionedAcls = VersionedAcls(newAcls, updateVersion)

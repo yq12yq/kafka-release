@@ -17,6 +17,7 @@
 
 package org.apache.kafka.streams.integration.utils;
 
+import kafka.utils.Time;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -27,6 +28,8 @@ import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.test.TestCondition;
+import org.apache.kafka.test.TestUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -113,12 +116,13 @@ public class IntegrationTestUtils {
      * @param streamsConfiguration Streams configuration settings
      */
     public static void purgeLocalStreamsState(final Properties streamsConfiguration) throws IOException {
+        final String tmpDir = TestUtils.IO_TMP_DIR.getPath();
         final String path = streamsConfiguration.getProperty(StreamsConfig.STATE_DIR_CONFIG);
         if (path != null) {
             final File node = Paths.get(path).normalize().toFile();
-            // Only purge state when it's under /tmp.  This is a safety net to prevent accidentally
+            // Only purge state when it's under java.io.tmpdir.  This is a safety net to prevent accidentally
             // deleting important local directory trees.
-            if (node.getAbsolutePath().startsWith("/tmp")) {
+            if (node.getAbsolutePath().startsWith(tmpDir)) {
                 Utils.delete(new File(node.getAbsolutePath()));
             }
         }
@@ -132,16 +136,15 @@ public class IntegrationTestUtils {
      * @param <V>            Value type of the data records
      */
     public static <K, V> void produceKeyValuesSynchronously(
-        final String topic, final Collection<KeyValue<K, V>> records, final Properties producerConfig)
+        final String topic, final Collection<KeyValue<K, V>> records, final Properties producerConfig, final Time time)
         throws ExecutionException, InterruptedException {
-        final Producer<K, V> producer = new KafkaProducer<>(producerConfig);
         for (final KeyValue<K, V> record : records) {
-            final Future<RecordMetadata> f = producer.send(
-                new ProducerRecord<>(topic, record.key, record.value));
-            f.get();
+            produceKeyValuesSynchronouslyWithTimestamp(topic,
+                Collections.singleton(record),
+                producerConfig,
+                time.milliseconds());
+            time.sleep(1L);
         }
-        producer.flush();
-        producer.close();
     }
 
     public static <K, V> void produceKeyValuesSynchronouslyWithTimestamp(final String topic,
@@ -160,14 +163,14 @@ public class IntegrationTestUtils {
     }
 
     public static <V> void produceValuesSynchronously(
-        final String topic, final Collection<V> records, final Properties producerConfig)
+        final String topic, final Collection<V> records, final Properties producerConfig, final Time time)
         throws ExecutionException, InterruptedException {
         final Collection<KeyValue<Object, V>> keyedRecords = new ArrayList<>();
         for (final V value : records) {
             final KeyValue<Object, V> kv = new KeyValue<>(null, value);
             keyedRecords.add(kv);
         }
-        produceKeyValuesSynchronously(topic, keyedRecords, producerConfig);
+        produceKeyValuesSynchronously(topic, keyedRecords, producerConfig, time);
     }
 
     public static <K, V> List<KeyValue<K, V>> waitUntilMinKeyValueRecordsReceived(final Properties consumerConfig,
@@ -193,18 +196,21 @@ public class IntegrationTestUtils {
                                                                                   final int expectedNumRecords,
                                                                                   final long waitTime) throws InterruptedException {
         final List<KeyValue<K, V>> accumData = new ArrayList<>();
-        final long startTime = System.currentTimeMillis();
-        while (true) {
-            final List<KeyValue<K, V>> readData = readKeyValues(topic, consumerConfig);
-            accumData.addAll(readData);
-            if (accumData.size() >= expectedNumRecords)
-                return accumData;
-            if (System.currentTimeMillis() > startTime + waitTime)
-                throw new AssertionError("Expected " + expectedNumRecords +
-                    " but received only " + accumData.size() +
-                    " records before timeout " + waitTime + " ms");
-            Thread.sleep(Math.min(waitTime, 100L));
-        }
+
+        final TestCondition valuesRead = new TestCondition() {
+            @Override
+            public boolean conditionMet() {
+                final List<KeyValue<K, V>> readData = readKeyValues(topic, consumerConfig);
+                accumData.addAll(readData);
+                return accumData.size() >= expectedNumRecords;
+            }
+        };
+
+        final String conditionDetails = "Did not receive " + expectedNumRecords + " number of records";
+
+        TestUtils.waitForCondition(valuesRead, waitTime, conditionDetails);
+
+        return accumData;
     }
 
     public static <V> List<V> waitUntilMinValuesRecordsReceived(final Properties consumerConfig,
@@ -230,17 +236,21 @@ public class IntegrationTestUtils {
                                                                 final int expectedNumRecords,
                                                                 final long waitTime) throws InterruptedException {
         final List<V> accumData = new ArrayList<>();
-        final long startTime = System.currentTimeMillis();
-        while (true) {
-            final List<V> readData = readValues(topic, consumerConfig, expectedNumRecords);
-            accumData.addAll(readData);
-            if (accumData.size() >= expectedNumRecords)
-                return accumData;
-            if (System.currentTimeMillis() > startTime + waitTime)
-                throw new AssertionError("Expected " + expectedNumRecords +
-                    " but received only " + accumData.size() +
-                    " records before timeout " + waitTime + " ms");
-            Thread.sleep(Math.min(waitTime, 100L));
-        }
+
+        final TestCondition valuesRead = new TestCondition() {
+            @Override
+            public boolean conditionMet() {
+                final List<V> readData = readValues(topic, consumerConfig, expectedNumRecords);
+                accumData.addAll(readData);
+                return accumData.size() >= expectedNumRecords;
+            }
+        };
+
+        final String conditionDetails = "Did not receive " + expectedNumRecords + " number of records";
+
+        TestUtils.waitForCondition(valuesRead, waitTime, conditionDetails);
+
+        return accumData;
     }
+
 }
