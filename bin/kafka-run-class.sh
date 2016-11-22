@@ -152,8 +152,15 @@ if [ -z "$KAFKA_JMX_OPTS" ]; then
 fi
 
 # JMX port to use
-if [  $JMX_PORT ]; then
-  KAFKA_JMX_OPTS="$KAFKA_JMX_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT "
+if [ $ISKAFKASERVER = "true" ]; then
+    JMX_REMOTE_PORT=$JMX_PORT
+else
+    JMX_REMOTE_PORT=$CLIENT_JMX_PORT
+fi
+
+# JMX port to use
+if [  $JMX_REMOTE_PORT ]; then
+  KAFKA_JMX_OPTS="$KAFKA_JMX_OPTS -Dcom.sun.management.jmxremote.port=$JMX_REMOTE_PORT "
 fi
 
 # Log directory to use
