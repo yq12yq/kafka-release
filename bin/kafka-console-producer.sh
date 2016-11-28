@@ -25,4 +25,5 @@ if [ -f $KAFKA_JAAS_CONF ]; then
     export KAFKA_CLIENT_KERBEROS_PARAMS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_client_jaas.conf"
 fi
 
+JMX_PORT=""
 exec $(dirname $0)/kafka-run-class.sh kafka.tools.ConsoleProducer $@
