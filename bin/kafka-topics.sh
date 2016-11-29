@@ -14,5 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-JMX_PORT=""
 exec $(dirname $0)/kafka-run-class.sh kafka.admin.TopicCommand "$@"
