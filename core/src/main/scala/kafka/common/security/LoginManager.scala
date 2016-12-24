@@ -19,6 +19,7 @@ package kafka.common.security
 
 import org.apache.kafka.common.security.kerberos.KerberosLogin
 import org.apache.kafka.common.security.JaasUtils
+import org.apache.kafka.common.network.LoginType
 import javax.security.auth.Subject
 import java.util.concurrent._
 import atomic.AtomicBoolean
@@ -29,12 +30,16 @@ object LoginManager extends Logging {
   var serviceName: String = null
   var loginContext: String = null
   var isStarted = new AtomicBoolean(false)
+  var loginType:LoginType = LoginType.SERVER
 
   def init(loginContext:String, configs: java.util.Map[String, _]) {
     if(isStarted.compareAndSet(false, true)) {
       this.loginContext = loginContext
       login = new KerberosLogin()
-      login.configure(configs, loginContext)
+      if (loginContext.equals(JaasUtils.LOGIN_CONTEXT_CLIENT))
+        loginType = LoginType.CLIENT
+
+      login.configure(configs, JaasUtils.jaasConfig(loginType, configs), loginContext)
       login.login()
       serviceName = JaasUtils.jaasConfig(loginContext, JaasUtils.SERVICE_NAME)
     }

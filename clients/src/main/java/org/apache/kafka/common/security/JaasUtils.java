@@ -20,9 +20,13 @@ import javax.security.auth.login.Configuration;
 import javax.security.auth.login.AppConfigurationEntry;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Map;
 import java.io.IOException;
 
 import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.config.types.Password;
+import org.apache.kafka.common.network.LoginType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +42,26 @@ public class JaasUtils {
     public static final String ZK_LOGIN_CONTEXT_NAME_KEY = "zookeeper.sasl.clientconfig";
 
     /**
+     * Returns a JAAS Configuration object. For loginType SERVER, default Configuration
+     * is returned. For loginType CLIENT, if JAAS configuration property
+     * {@link SaslConfigs#SASL_JAAS_CONFIG} is specified, the configuration object
+     * is created by parsing the property value. Otherwise, the default Configuration
+     * is returned.
+     * @throws IllegalArgumentException if JAAS configuration property is specified
+     * for loginType SERVER
+     */
+    public static Configuration jaasConfig(LoginType loginType, Map<String, ?> configs) {
+        Password jaasConfigArgs = (Password) configs.get(SaslConfigs.SASL_JAAS_CONFIG);
+        if (jaasConfigArgs != null) {
+            if (loginType == LoginType.SERVER)
+                throw new IllegalArgumentException("JAAS config property not supported for server");
+            else
+                return new JaasConfig(loginType, jaasConfigArgs.value());
+        } else
+            return defaultJaasConfig(loginType);
+    }
+
+    /**
      * Construct a JAAS configuration object per kafka jaas configuration file
      * @param loginContextName
      * @param key
@@ -47,6 +71,53 @@ public class JaasUtils {
         AppConfigurationEntry[] configurationEntries = Configuration.getConfiguration().getAppConfigurationEntry(loginContextName);
         if (configurationEntries == null) {
             String errorMessage = "Could not find a '" + loginContextName + "' entry in this configuration.";
+            throw new IOException(errorMessage);
+        }
+
+        for (AppConfigurationEntry entry: configurationEntries) {
+            Object val = entry.getOptions().get(key);
+            if (val != null)
+                return (String) val;
+        }
+        return null;
+    }
+
+    private static Configuration defaultJaasConfig(LoginType loginType) {
+        String jaasConfigFile = System.getProperty(JaasUtils.JAVA_LOGIN_CONFIG_PARAM);
+        if (jaasConfigFile == null) {
+            LOG.debug("System property '" + JaasUtils.JAVA_LOGIN_CONFIG_PARAM + "' and Kafka SASL property '" +
+                      SaslConfigs.SASL_JAAS_CONFIG + "' are not set, using default JAAS configuration.");
+        }
+
+        Configuration jaasConfig = Configuration.getConfiguration();
+
+        String loginContextName = loginType.contextName();
+        AppConfigurationEntry[] configEntries = jaasConfig.getAppConfigurationEntry(loginContextName);
+        if (configEntries == null) {
+            String errorMessage;
+            errorMessage = "Could not find a '" + loginContextName + "' entry in the JAAS configuration. System property '" +
+                    JaasUtils.JAVA_LOGIN_CONFIG_PARAM + "' is " + (jaasConfigFile == null ? "not set" : jaasConfigFile);
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return jaasConfig;
+    }
+
+    /**
+     * Returns the configuration option for <code>key</code> from the server login context
+     * of the default JAAS configuration.
+     */
+    public static String defaultServerJaasConfigOption(String key) throws IOException {
+        return jaasConfigOption(Configuration.getConfiguration(), LoginType.SERVER.contextName(), key);
+    }
+
+    /**
+     * Returns the configuration option for <code>key</code> from the login context
+     * <code>loginContextName</code> of the specified JAAS configuration.
+     */
+    public static String jaasConfigOption(Configuration jaasConfig, String loginContextName, String key) throws IOException {
+        AppConfigurationEntry[] configurationEntries = jaasConfig.getAppConfigurationEntry(loginContextName);
+        if (configurationEntries == null) {
+            String errorMessage = "Could not find a '" + loginContextName + "' entry in this JAAS configuration.";
             throw new IOException(errorMessage);
         }
 
