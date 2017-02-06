@@ -20,11 +20,13 @@ import kafka.log.Log
 import kafka.zk.ZooKeeperTestHarness
 import kafka.utils.TestUtils
 import kafka.utils.ZkUtils._
-import kafka.server.{KafkaServer, KafkaConfig}
+import kafka.server.{KafkaConfig, KafkaServer}
 import org.junit.Assert._
 import org.junit.Test
 import java.util.Properties
+
 import kafka.common.{TopicAlreadyMarkedForDeletionException, TopicAndPartition}
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException
 
 class DeleteTopicTest extends ZooKeeperTestHarness {
 
@@ -121,9 +123,9 @@ class DeleteTopicTest extends ZooKeeperTestHarness {
     assertTrue("Partition reassignment should fail for [test,0]", reassignPartitionsCommand.reassignPartitions())
     // wait until reassignment is completed
     TestUtils.waitUntilTrue(() => {
-      val partitionsBeingReassigned = zkUtils.getPartitionsBeingReassigned().mapValues(_.newReplicas);
-      ReassignPartitionsCommand.checkIfPartitionReassignmentSucceeded(zkUtils, topicAndPartition, newReplicas,
-        Map(topicAndPartition -> newReplicas), partitionsBeingReassigned) == ReassignmentFailed;
+      val partitionsBeingReassigned = zkUtils.getPartitionsBeingReassigned().mapValues(_.newReplicas)
+      ReassignPartitionsCommand.checkIfPartitionReassignmentSucceeded(zkUtils, topicAndPartition,
+        Map(topicAndPartition -> newReplicas), partitionsBeingReassigned) == ReassignmentFailed
     }, "Partition reassignment shouldn't complete.")
     val controllerId = zkUtils.getController()
     val controller = servers.filter(s => s.config.brokerId == controllerId).head
@@ -202,7 +204,12 @@ class DeleteTopicTest extends ZooKeeperTestHarness {
     val topic = topicAndPartition.topic
     val servers = createTestTopicAndCluster(topic)
     // start topic deletion
-    AdminUtils.deleteTopic(zkUtils, "test2")
+    try {
+      AdminUtils.deleteTopic(zkUtils, "test2")
+      fail("Expected UnknownTopicOrPartitionException")
+    } catch {
+      case e: UnknownTopicOrPartitionException => // expected exception
+    }
     // verify delete topic path for test2 is removed from zookeeper
     TestUtils.verifyTopicDeletion(zkUtils, "test2", 1, servers)
     // verify that topic test is untouched
@@ -223,17 +230,17 @@ class DeleteTopicTest extends ZooKeeperTestHarness {
     val topic = topicAndPartition.topic
 
     val brokerConfigs = TestUtils.createBrokerConfigs(3, zkConnect, false)
-    brokerConfigs(0).setProperty("delete.topic.enable", "true")
-    brokerConfigs(0).setProperty("log.cleaner.enable","true")
-    brokerConfigs(0).setProperty("log.cleanup.policy","compact")
-    brokerConfigs(0).setProperty("log.segment.bytes","100")
-    brokerConfigs(0).setProperty("log.segment.delete.delay.ms","1000")
-    brokerConfigs(0).setProperty("log.cleaner.dedupe.buffer.size","1048577")
+    brokerConfigs.head.setProperty("delete.topic.enable", "true")
+    brokerConfigs.head.setProperty("log.cleaner.enable","true")
+    brokerConfigs.head.setProperty("log.cleanup.policy","compact")
+    brokerConfigs.head.setProperty("log.segment.bytes","100")
+    brokerConfigs.head.setProperty("log.segment.delete.delay.ms","1000")
+    brokerConfigs.head.setProperty("log.cleaner.dedupe.buffer.size","1048577")
 
     val servers = createTestTopicAndCluster(topic,brokerConfigs)
 
     // for simplicity, we are validating cleaner offsets on a single broker
-    val server = servers(0)
+    val server = servers.head
     val log = server.logManager.getLog(topicAndPartition).get
 
     // write to the topic to activate cleaner

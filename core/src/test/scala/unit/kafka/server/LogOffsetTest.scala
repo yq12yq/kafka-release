@@ -132,7 +132,7 @@ class LogOffsetTest extends ZooKeeperTestHarness {
       val consumerOffsets =
         simpleConsumer.getOffsetsBefore(offsetRequest).partitionErrorAndOffsets(topicAndPartition).offsets
 
-      if(consumerOffsets(0) == 1) {
+      if(consumerOffsets.head == 1) {
         offsetChanged = true
       }
     }
@@ -210,6 +210,25 @@ class LogOffsetTest extends ZooKeeperTestHarness {
     EasyMock.replay(logSegment)
     val logSegments = Seq(logSegment)
     EasyMock.expect(log.logSegments).andStubReturn(logSegments)
+    EasyMock.replay(log)
+    server.apis.fetchOffsetsBefore(log, System.currentTimeMillis, 100)
+  }
+
+  /* We test that `fetchOffsetsBefore` works correctly if `Log.logSegments` content and size are
+   * different (simulating a race condition) */
+  @Test
+  def testFetchOffsetsBeforeWithChangingSegments() {
+    val log = EasyMock.niceMock(classOf[Log])
+    val logSegment = EasyMock.niceMock(classOf[LogSegment])
+    EasyMock.expect(log.logSegments).andStubAnswer {
+      new IAnswer[Iterable[LogSegment]] {
+        def answer = new Iterable[LogSegment] {
+          override def size = 2
+          def iterator = Seq(logSegment).iterator
+        }
+      }
+    }
+    EasyMock.replay(logSegment)
     EasyMock.replay(log)
     server.apis.fetchOffsetsBefore(log, System.currentTimeMillis, 100)
   }

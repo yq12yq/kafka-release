@@ -17,26 +17,26 @@
 
 package org.apache.kafka.streams;
 
-import org.apache.kafka.streams.integration.utils.EmbeddedSingleNodeKafkaCluster;
+import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.streams.integration.utils.EmbeddedKafkaCluster;
 import org.apache.kafka.streams.kstream.KStreamBuilder;
+import org.apache.kafka.streams.processor.StreamPartitioner;
 import org.apache.kafka.test.MockMetricsReporter;
-import org.apache.kafka.test.TestUtils;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import java.io.File;
 import java.util.Properties;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class KafkaStreamsTest {
 
+    private static final int NUM_BROKERS = 1;
     // We need this to avoid the KafkaConsumer hanging on poll (this may occur if the test doesn't complete
-    // quick enough
+    // quick enough)
     @ClassRule
-    public static final EmbeddedSingleNodeKafkaCluster CLUSTER = new EmbeddedSingleNodeKafkaCluster();
+    public static final EmbeddedKafkaCluster CLUSTER = new EmbeddedKafkaCluster(NUM_BROKERS);
 
     @Test
     public void testStartAndClose() throws Exception {
@@ -118,6 +118,45 @@ public class KafkaStreamsTest {
         }
     }
 
+    @Test(expected = IllegalStateException.class)
+    public void shouldNotGetAllTasksWhenNotRunning() throws Exception {
+        final KafkaStreams streams = createKafkaStreams();
+        streams.allMetadata();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void shouldNotGetAllTasksWithStoreWhenNotRunning() throws Exception {
+        final KafkaStreams streams = createKafkaStreams();
+        streams.allMetadataForStore("store");
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void shouldNotGetTaskWithKeyAndSerializerWhenNotRunning() throws Exception {
+        final KafkaStreams streams = createKafkaStreams();
+        streams.metadataForKey("store", "key", Serdes.String().serializer());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void shouldNotGetTaskWithKeyAndPartitionerWhenNotRunning() throws Exception {
+        final KafkaStreams streams = createKafkaStreams();
+        streams.metadataForKey("store", "key", new StreamPartitioner<String, Object>() {
+            @Override
+            public Integer partition(final String key, final Object value, final int numPartitions) {
+                return 0;
+            }
+        });
+    }
+
+
+    private KafkaStreams createKafkaStreams() {
+        final Properties props = new Properties();
+        props.setProperty(StreamsConfig.APPLICATION_ID_CONFIG, "appId");
+        props.setProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CLUSTER.bootstrapServers());
+
+        final KStreamBuilder builder = new KStreamBuilder();
+        return new KafkaStreams(builder, props);
+    }
+
     @Test
     public void testCleanup() throws Exception {
         final Properties props = new Properties();
@@ -131,40 +170,6 @@ public class KafkaStreamsTest {
         streams.start();
         streams.close();
         streams.cleanUp();
-    }
-
-    @Test
-    public void testCleanupIsolation() throws Exception {
-        final KStreamBuilder builder = new KStreamBuilder();
-
-        final String appId1 = "testIsolation-1";
-        final String appId2 = "testIsolation-2";
-        final String stateDir = TestUtils.tempDirectory("kafka-test").getPath();
-        final File stateDirApp1 = new File(stateDir + File.separator + appId1);
-        final File stateDirApp2 = new File(stateDir + File.separator + appId2);
-
-        final Properties props = new Properties();
-        props.setProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CLUSTER.bootstrapServers());
-        props.put(StreamsConfig.STATE_DIR_CONFIG, stateDir);
-
-        assertFalse(stateDirApp1.exists());
-        assertFalse(stateDirApp2.exists());
-
-        props.setProperty(StreamsConfig.APPLICATION_ID_CONFIG, appId1);
-        final KafkaStreams streams1 = new KafkaStreams(builder, props);
-        props.setProperty(StreamsConfig.APPLICATION_ID_CONFIG, appId2);
-        final KafkaStreams streams2 = new KafkaStreams(builder, props);
-
-        assertTrue(stateDirApp1.exists());
-        assertTrue(stateDirApp2.exists());
-
-        streams1.cleanUp();
-        assertFalse(stateDirApp1.exists());
-        assertTrue(stateDirApp2.exists());
-
-        streams2.cleanUp();
-        assertFalse(stateDirApp1.exists());
-        assertFalse(stateDirApp2.exists());
     }
 
     @Test(expected = IllegalStateException.class)

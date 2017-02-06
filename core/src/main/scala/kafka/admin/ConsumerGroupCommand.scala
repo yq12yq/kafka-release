@@ -26,17 +26,14 @@ import kafka.common.{TopicAndPartition, _}
 import kafka.consumer.SimpleConsumer
 import kafka.utils._
 import org.I0Itec.zkclient.exception.ZkNoNodeException
+import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.BrokerNotAvailableException
-import org.apache.kafka.common.protocol.Errors
+import org.apache.kafka.common.protocol.{Errors, SecurityProtocol}
 import org.apache.kafka.common.security.JaasUtils
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.utils.Utils
-import kafka.common.security.LoginManager
-import org.apache.kafka.clients.CommonClientConfigs
-import org.apache.kafka.common.config.SaslConfigs
-import org.apache.kafka.common.protocol.SecurityProtocol
 
 import scala.collection.JavaConverters._
 import scala.collection.{Set, mutable}
@@ -55,18 +52,13 @@ object ConsumerGroupCommand {
       CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --list, --describe, --delete")
 
     opts.checkArgs()
-    if (CoreUtils.isSaslProtocol(SecurityProtocol.valueOf(opts.securityProtocol))) {
-      val saslConfigs = new java.util.HashMap[String, Any]()
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_KINIT_CMD, SaslConfigs.DEFAULT_KERBEROS_KINIT_CMD)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_JITTER, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_WINDOW_FACTOR, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_MIN_TIME_BEFORE_RELOGIN, SaslConfigs.DEFAULT_KERBEROS_MIN_TIME_BEFORE_RELOGIN)
-      LoginManager.init(JaasUtils.LOGIN_CONTEXT_CLIENT, saslConfigs)
-    }
 
     val consumerGroupService = {
-      if (opts.options.has(opts.newConsumerOpt)) new KafkaConsumerGroupService(opts)
-      else new ZkConsumerGroupService(opts)
+      if (opts.useOldConsumer) {
+        new ZkConsumerGroupService(opts)
+      } else {
+        new KafkaConsumerGroupService(opts)
+      }
     }
 
     try {
@@ -185,7 +177,7 @@ object ConsumerGroupCommand {
           topicPartition -> owner
         }
       }.toMap
-      val partitionOffsets = getPartitionOffsets(group, topicPartitions, channelSocketTimeoutMs, channelRetryBackoffMs, SecurityProtocol.valueOf(opts.securityProtocol))
+      val partitionOffsets = getPartitionOffsets(group, topicPartitions, channelSocketTimeoutMs, channelRetryBackoffMs)
       describeTopicPartition(group, topicPartitions, partitionOffsets.get, ownerByTopicPartition.get)
     }
 
@@ -199,7 +191,7 @@ object ConsumerGroupCommand {
       zkUtils.getLeaderForPartition(topic, partition) match {
         case Some(-1) => LogEndOffsetResult.Unknown
         case Some(brokerId) =>
-          getZkConsumer(brokerId, SecurityProtocol.valueOf(opts.securityProtocol)).map { consumer =>
+          getZkConsumer(brokerId).map { consumer =>
             val topicAndPartition = new TopicAndPartition(topic, partition)
             val request = OffsetRequest(Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)))
             val logEndOffset = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets.head
@@ -215,9 +207,9 @@ object ConsumerGroupCommand {
     private def getPartitionOffsets(group: String,
                                     topicPartitions: Seq[TopicAndPartition],
                                     channelSocketTimeoutMs: Int,
-                                    channelRetryBackoffMs: Int, securityProtocol: SecurityProtocol): Map[TopicAndPartition, Long] = {
+                                    channelRetryBackoffMs: Int): Map[TopicAndPartition, Long] = {
       val offsetMap = mutable.Map[TopicAndPartition, Long]()
-      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs, protocol=securityProtocol)
+      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs)
       channel.send(OffsetFetchRequest(group, topicPartitions))
       val offsetFetchResponse = OffsetFetchResponse.readFrom(channel.receive().payload())
 
@@ -286,16 +278,12 @@ object ConsumerGroupCommand {
       println("Deleted consumer group information for all inactive consumer groups for topic %s in zookeeper.".format(topic))
     }
 
-    private def getZkConsumer(brokerId: Int, securityProtocol: SecurityProtocol): Option[SimpleConsumer] = {
+    private def getZkConsumer(brokerId: Int): Option[SimpleConsumer] = {
       try {
-        zkUtils.getBrokerInfo(brokerId) match {
-          case Some(brokerInfo) =>
-            Some(new SimpleConsumer(brokerInfo.getBrokerEndPoint(securityProtocol).host,
-                                    brokerInfo.getBrokerEndPoint(securityProtocol).port,
-                                    10000, 100000, "ConsumerGroupCommand", securityProtocol))
-          case None =>
-            throw new BrokerNotAvailableException("Broker id %d does not exist".format(brokerId))
-        }
+        zkUtils.getBrokerInfo(brokerId)
+          .map(_.getBrokerEndPoint(SecurityProtocol.PLAINTEXT))
+          .map(endPoint => new SimpleConsumer(endPoint.host, endPoint.port, 10000, 100000, "ConsumerGroupCommand"))
+          .orElse(throw new BrokerNotAvailableException("Broker id %d does not exist".format(brokerId)))
       } catch {
         case t: Throwable =>
           println("Could not parse broker info due to " + t.getMessage)
@@ -317,22 +305,25 @@ object ConsumerGroupCommand {
     }
 
     protected def describeGroup(group: String) {
-      val consumerSummaries = adminClient.describeConsumerGroup(group)
-      if (consumerSummaries.isEmpty)
-        println(s"Consumer group `${group}` does not exist or is rebalancing.")
-      else {
-        val consumer = getConsumer()
-        printDescribeHeader()
-        consumerSummaries.foreach { consumerSummary =>
-          val topicPartitions = consumerSummary.assignment.map(tp => TopicAndPartition(tp.topic, tp.partition))
-          val partitionOffsets = topicPartitions.flatMap { topicPartition =>
-            Option(consumer.committed(new TopicPartition(topicPartition.topic, topicPartition.partition))).map { offsetAndMetadata =>
-              topicPartition -> offsetAndMetadata.offset
+      adminClient.describeConsumerGroup(group) match {
+        case None => println(s"Consumer group `${group}` does not exist.")
+        case Some(consumerSummaries) =>
+          if (consumerSummaries.isEmpty)
+            println(s"Consumer group `${group}` is rebalancing.")
+          else {
+            val consumer = getConsumer()
+            printDescribeHeader()
+            consumerSummaries.foreach { consumerSummary =>
+              val topicPartitions = consumerSummary.assignment.map(tp => TopicAndPartition(tp.topic, tp.partition))
+              val partitionOffsets = topicPartitions.flatMap { topicPartition =>
+                Option(consumer.committed(new TopicPartition(topicPartition.topic, topicPartition.partition))).map { offsetAndMetadata =>
+                  topicPartition -> offsetAndMetadata.offset
+                }
+              }.toMap
+              describeTopicPartition(group, topicPartitions, partitionOffsets.get,
+                _ => Some(s"${consumerSummary.clientId}_${consumerSummary.clientHost}"))
             }
-          }.toMap
-          describeTopicPartition(group, topicPartitions, partitionOffsets.get,
-            _ => Some(s"${consumerSummary.clientId}_${consumerSummary.clientHost}"))
-        }
+          }
       }
     }
 
@@ -366,7 +357,6 @@ object ConsumerGroupCommand {
       val properties = new Properties()
       val deserializer = (new StringDeserializer).getClass.getName
       val brokerUrl = opts.options.valueOf(opts.bootstrapServerOpt)
-      properties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, opts.securityProtocol)
       properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerUrl)
       properties.put(ConsumerConfig.GROUP_ID_CONFIG, opts.options.valueOf(opts.groupOpt))
       properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
@@ -389,13 +379,13 @@ object ConsumerGroupCommand {
   }
 
   class ConsumerGroupCommandOptions(args: Array[String]) {
-    val ZkConnectDoc = "REQUIRED (unless new-consumer is used): The connection string for the zookeeper connection in the form host:port. " +
+    val ZkConnectDoc = "REQUIRED (only when using old consumer): The connection string for the zookeeper connection in the form host:port. " +
       "Multiple URLS can be given to allow fail-over."
-    val BootstrapServerDoc = "REQUIRED (only when using new-consumer): The server to connect to."
+    val BootstrapServerDoc = "REQUIRED (unless old consumer is used): The server to connect to."
     val GroupDoc = "The consumer group we wish to act on."
     val TopicDoc = "The topic whose consumer group information should be deleted."
     val ListDoc = "List all consumer groups."
-    val DescribeDoc = "Describe consumer group and list offset lag related to given group."
+    val DescribeDoc = "Describe consumer group and list offset lag (number of messages not yet processed) related to given group."
     val nl = System.getProperty("line.separator")
     val DeleteDoc = "Pass in groups to delete topic partition offsets and ownership information " +
       "over the entire consumer group. For instance --group g1 --group g2" + nl +
@@ -404,7 +394,7 @@ object ConsumerGroupCommand {
       "Pass in just a topic to delete the given topic's partition offsets and ownership information " +
       "for every consumer group. For instance --topic t1" + nl +
       "WARNING: Group deletion only works for old ZK-based consumer groups, and one has to use it carefully to only delete groups that are not active."
-    val NewConsumerDoc = "Use new consumer."
+    val NewConsumerDoc = "Use new consumer. This is the default."
     val CommandConfigDoc = "Property file containing configs to be passed to Admin Client and Consumer."
     val parser = new OptionParser
     val zkConnectOpt = parser.accepts("zookeeper", ZkConnectDoc)
@@ -426,11 +416,6 @@ object ConsumerGroupCommand {
     val listOpt = parser.accepts("list", ListDoc)
     val describeOpt = parser.accepts("describe", DescribeDoc)
     val deleteOpt = parser.accepts("delete", DeleteDoc)
-    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
-      .withRequiredArg
-      .describedAs("security-protocol")
-      .ofType(classOf[String])
-      .defaultsTo("PLAINTEXT")
     val newConsumerOpt = parser.accepts("new-consumer", NewConsumerDoc)
     val commandConfigOpt = parser.accepts("command-config", CommandConfigDoc)
                                   .withRequiredArg
@@ -438,28 +423,24 @@ object ConsumerGroupCommand {
                                   .ofType(classOf[String])
     val options = parser.parse(args : _*)
 
+    val useOldConsumer = options.has(zkConnectOpt)
+
     val allConsumerGroupLevelOpts: Set[OptionSpec[_]] = Set(listOpt, describeOpt, deleteOpt)
-    val securityProtocol = options.valueOf(securityProtocolOpt)
 
     def checkArgs() {
       // check required args
-      if (options.has(newConsumerOpt)) {
+      if (useOldConsumer) {
+        if (options.has(bootstrapServerOpt))
+          CommandLineUtils.printUsageAndDie(parser, s"Option $bootstrapServerOpt is not valid with $zkConnectOpt.")
+        else if (options.has(newConsumerOpt))
+          CommandLineUtils.printUsageAndDie(parser, s"Option $newConsumerOpt is not valid with $zkConnectOpt.")
+      } else {
         CommandLineUtils.checkRequiredArgs(parser, options, bootstrapServerOpt)
 
-        if (options.has(zkConnectOpt))
-          CommandLineUtils.printUsageAndDie(parser, s"Option $zkConnectOpt is not valid with $newConsumerOpt")
-
         if (options.has(deleteOpt))
-          CommandLineUtils.printUsageAndDie(parser, s"Option $deleteOpt is not valid with $newConsumerOpt. Note that " +
-            "there's no need to delete group metadata for the new consumer as it is automatically deleted when the last " +
-            "member leaves")
-
-      } else {
-        CommandLineUtils.checkRequiredArgs(parser, options, zkConnectOpt)
-
-        if (options.has(bootstrapServerOpt))
-          CommandLineUtils.printUsageAndDie(parser, s"Option $bootstrapServerOpt is only valid with $newConsumerOpt")
-
+          CommandLineUtils.printUsageAndDie(parser, s"Option $deleteOpt is only valid with $zkConnectOpt. Note that " +
+            "there's no need to delete group metadata for the new consumer as the group is deleted when the last " +
+            "committed offset for that group expires.")
       }
 
       if (options.has(describeOpt))

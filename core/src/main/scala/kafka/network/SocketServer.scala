@@ -31,8 +31,9 @@ import kafka.common.KafkaException
 import kafka.metrics.KafkaMetricsGroup
 import kafka.server.KafkaConfig
 import kafka.utils._
+import org.apache.kafka.common.errors.InvalidRequestException
 import org.apache.kafka.common.metrics._
-import org.apache.kafka.common.network.{ChannelBuilders, KafkaChannel, LoginType, Mode, Selector => KSelector}
+import org.apache.kafka.common.network.{ChannelBuilders, KafkaChannel, LoginType, Mode, Selectable, Selector => KSelector}
 import org.apache.kafka.common.security.auth.KafkaPrincipal
 import org.apache.kafka.common.protocol.SecurityProtocol
 import org.apache.kafka.common.protocol.types.SchemaException
@@ -279,7 +280,7 @@ private[kafka] class Acceptor(val endPoint: EndPoint,
         }
         catch {
           // We catch all the throwables to prevent the acceptor thread from exiting on exceptions due
-          // to a select operation on a specific channel or a bad request. We don't want the
+          // to a select operation on a specific channel or a bad request. We don't want
           // the broker to stop responding to requests from other clients in these scenarios.
           case e: ControlThrowable => throw e
           case e: Throwable => error("Error occurred", e)
@@ -304,7 +305,9 @@ private[kafka] class Acceptor(val endPoint: EndPoint,
         new InetSocketAddress(host, port)
     val serverChannel = ServerSocketChannel.open()
     serverChannel.configureBlocking(false)
-    serverChannel.socket().setReceiveBufferSize(recvBufferSize)
+    if (recvBufferSize != Selectable.USE_DEFAULT_BUFFER_SIZE)
+      serverChannel.socket().setReceiveBufferSize(recvBufferSize)
+
     try {
       serverChannel.socket.bind(socketAddress)
       info("Awaiting socket connections on %s:%d.".format(socketAddress.getHostString, serverChannel.socket.getLocalPort))
@@ -326,7 +329,8 @@ private[kafka] class Acceptor(val endPoint: EndPoint,
       socketChannel.configureBlocking(false)
       socketChannel.socket().setTcpNoDelay(true)
       socketChannel.socket().setKeepAlive(true)
-      socketChannel.socket().setSendBufferSize(sendBufferSize)
+      if (sendBufferSize != Selectable.USE_DEFAULT_BUFFER_SIZE)
+        socketChannel.socket().setSendBufferSize(sendBufferSize)
 
       debug("Accepted connection from %s on %s and assigned it to processor %d, sendBufferSize [actual|requested]: [%d|%d] recvBufferSize [actual|requested]: [%d|%d]"
             .format(socketChannel.socket.getRemoteSocketAddress, socketChannel.socket.getLocalSocketAddress, processor.id,
@@ -544,9 +548,10 @@ private[kafka] class Processor(val id: Int,
         // We explicitly catch all non fatal exceptions and close the socket to avoid a socket leak. The other
         // throwables will be caught in processor and logged as uncaught exceptions.
         case NonFatal(e) =>
+          val remoteAddress = channel.getRemoteAddress
           // need to close the channel here to avoid a socket leak.
           close(channel)
-          error(s"Processor $id closed connection from ${channel.getRemoteAddress}", e)
+          error(s"Processor $id closed connection from $remoteAddress", e)
       }
     }
   }

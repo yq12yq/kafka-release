@@ -23,11 +23,7 @@ import joptsimple._
 import kafka.api.{PartitionOffsetRequestInfo, OffsetRequest}
 import kafka.common.TopicAndPartition
 import kafka.client.ClientUtils
-import kafka.utils.{ToolsUtils, CommandLineUtils, CoreUtils}
-import kafka.common.security.LoginManager
-import org.apache.kafka.common.protocol.SecurityProtocol
-import org.apache.kafka.common.config.SaslConfigs
-import org.apache.kafka.common.security.JaasUtils
+import kafka.utils.{ToolsUtils, CommandLineUtils}
 
 
 object GetOffsetShell {
@@ -62,19 +58,13 @@ object GetOffsetShell {
                            .describedAs("ms")
                            .ofType(classOf[java.lang.Integer])
                            .defaultsTo(1000)
-
-    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
-      .withRequiredArg
-      .describedAs("security-protocol")
-      .ofType(classOf[String])
-      .defaultsTo("PLAINTEXT")
-
+                           
    if(args.length == 0)
       CommandLineUtils.printUsageAndDie(parser, "An interactive shell for getting consumer offsets.")
 
     val options = parser.parse(args : _*)
 
-    CommandLineUtils.checkRequiredArgs(parser, options, brokerListOpt, topicOpt, timeOpt)
+    CommandLineUtils.checkRequiredArgs(parser, options, brokerListOpt, topicOpt)
 
     val clientId = "GetOffsetShell"
     val brokerList = options.valueOf(brokerListOpt)
@@ -85,18 +75,9 @@ object GetOffsetShell {
     var time = options.valueOf(timeOpt).longValue
     val nOffsets = options.valueOf(nOffsetsOpt).intValue
     val maxWaitMs = options.valueOf(maxWaitMsOpt).intValue()
-    val securityProtocol = SecurityProtocol.valueOf(options.valueOf(securityProtocolOpt).toString)
-    if (CoreUtils.isSaslProtocol(securityProtocol)) {
-      val saslConfigs = new java.util.HashMap[String, Any]()
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_KINIT_CMD, SaslConfigs.DEFAULT_KERBEROS_KINIT_CMD)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_JITTER, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_WINDOW_FACTOR, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_MIN_TIME_BEFORE_RELOGIN, SaslConfigs.DEFAULT_KERBEROS_MIN_TIME_BEFORE_RELOGIN)
-      LoginManager.init(JaasUtils.LOGIN_CONTEXT_CLIENT, saslConfigs)
-    }
 
-    val topicsMetadata = ClientUtils.fetchTopicMetadata(Set(topic), metadataTargetBrokers, clientId, maxWaitMs, 0, securityProtocol).topicsMetadata
-    if(topicsMetadata.size != 1 || !topicsMetadata(0).topic.equals(topic)) {
+    val topicsMetadata = ClientUtils.fetchTopicMetadata(Set(topic), metadataTargetBrokers, clientId, maxWaitMs).topicsMetadata
+    if(topicsMetadata.size != 1 || !topicsMetadata.head.topic.equals(topic)) {
       System.err.println(("Error: no valid topic metadata for topic: %s, " + " probably the topic does not exist, run ").format(topic) +
         "kafka-list-topic.sh to verify")
       System.exit(1)
@@ -113,7 +94,7 @@ object GetOffsetShell {
         case Some(metadata) =>
           metadata.leader match {
             case Some(leader) =>
-              val consumer = new SimpleConsumer(leader.host, leader.port, 10000, 100000, clientId, securityProtocol)
+              val consumer = new SimpleConsumer(leader.host, leader.port, 10000, 100000, clientId)
               val topicAndPartition = TopicAndPartition(topic, partitionId)
               val request = OffsetRequest(Map(topicAndPartition -> PartitionOffsetRequestInfo(time, nOffsets)))
               val offsets = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets
@@ -124,6 +105,5 @@ object GetOffsetShell {
         case None => System.err.println("Error: partition %d does not exist".format(partitionId))
       }
     }
-    LoginManager.shutdown
   }
 }

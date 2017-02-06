@@ -62,20 +62,15 @@ allprojects {
       }
     }
   }
-
-  if (JavaVersion.current().isJava8Compatible()) {
-    tasks.withType(Javadoc) {
-      // disable the crazy super-strict doclint tool in Java 8
-      // noinspection SpellCheckingInspection
-      options.addStringOption('Xdoclint:none', '-quiet')
-    }
-  }
-
 }
 
 ext {
-  gradleVersion = "2.13"
+  gradleVersion = "3.0"
   buildVersionFileName = "kafka-version.properties"
+
+  maxPermSizeArgs = []
+  if (!JavaVersion.current().isJava8Compatible())
+    maxPermSizeArgs = ['-XX:MaxPermSize=512m']
 
   userMaxForks = project.hasProperty('maxParallelForks') ? maxParallelForks.toInteger() : null
 
@@ -167,33 +162,45 @@ subprojects {
 
   test {
     maxParallelForks = userMaxForks ?: Runtime.runtime.availableProcessors()
+
+    minHeapSize = "256m"
+    maxHeapSize = "2048m"
+    jvmArgs = maxPermSizeArgs
+
     testLogging {
       events = userTestLoggingEvents ?: ["passed", "skipped", "failed"]
       showStandardStreams = userShowStandardStreams ?: false
       exceptionFormat = 'full'
     }
+
   }
 
   jar {
-    from '../LICENSE'
-    from '../NOTICE'
+    from "$rootDir/LICENSE"
+    from "$rootDir/NOTICE"
   }
 
   task srcJar(type: Jar) {
     classifier = 'sources'
-    from '../LICENSE'
-    from '../NOTICE'
+    from "$rootDir/LICENSE"
+    from "$rootDir/NOTICE"
     from sourceSets.main.allSource
   }
 
   task javadocJar(type: Jar, dependsOn: javadoc) {
     classifier 'javadoc'
-    from '../LICENSE'
-    from '../NOTICE'
+    from "$rootDir/LICENSE"
+    from "$rootDir/NOTICE"
     from javadoc.destinationDir
   }
 
   task docsJar(dependsOn: javadocJar)
+
+  javadoc {
+    options.charSet = 'UTF-8'
+    options.docEncoding = 'UTF-8'
+    options.encoding = 'UTF-8'
+  }
 
   task systemTestLibs(dependsOn: jar)
 
@@ -205,15 +212,15 @@ subprojects {
   if(!sourceSets.test.allSource.isEmpty()) {
     task testJar(type: Jar) {
       classifier = 'test'
-      from '../LICENSE'
-      from '../NOTICE'
+      from "$rootDir/LICENSE"
+      from "$rootDir/NOTICE"
       from sourceSets.test.output
     }
 
     task testSrcJar(type: Jar, dependsOn: testJar) {
       classifier = 'test-sources'
-      from '../LICENSE'
-      from '../NOTICE'
+      from "$rootDir/LICENSE"
+      from "$rootDir/NOTICE"
       from sourceSets.test.allSource
     }
 
@@ -226,8 +233,8 @@ subprojects {
   plugins.withType(ScalaPlugin) {
     task scaladocJar(type:Jar) {
       classifier = 'scaladoc'
-      from '../LICENSE'
-      from '../NOTICE'
+      from "$rootDir/LICENSE"
+      from "$rootDir/NOTICE"
       from scaladoc.destinationDir
     }
 
@@ -240,11 +247,21 @@ subprojects {
   }
 
   tasks.withType(ScalaCompile) {
-    scalaCompileOptions.useAnt = false
-
+    scalaCompileOptions.additionalParameters = [
+      "-deprecation",
+      "-unchecked",
+      "-encoding", "utf8",
+      "-target:jvm-${sourceCompatibility}".toString(),
+      "-Xlog-reflective-calls",
+      "-feature",
+      "-language:postfixOps",
+      "-language:implicitConversions",
+      "-language:existentials"
+    ]
+    ScalaCompileOptions.metaClass.useAnt = false 
     configure(scalaCompileOptions.forkOptions) {
       memoryMaximumSize = '1g'
-      jvmArgs = ['-XX:MaxPermSize=512m', '-Xss2m']
+      jvmArgs = ['-Xss2m'] + maxPermSizeArgs
     }
   }
 
@@ -298,7 +315,7 @@ task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
 
 task reportCoverage(dependsOn: ['jacocoRootReport', 'core:reportScoverage'])
 
-for ( sv in ['2_10', '2_11'] ) {
+for ( sv in ['2_10', '2_11', '2_12'] ) {
   String svInDot = sv.replaceAll( "_", ".")
 
   tasks.create(name: "jar_core_${sv}", type: GradleBuild) {
@@ -439,10 +456,6 @@ project(':core') {
     duplicatesStrategy 'exclude'
   }
 
-  systemTestLibs {
-    dependsOn testJar
-  }
-
   task genProtocolErrorDocs(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'org.apache.kafka.common.protocol.Errors'
@@ -485,12 +498,20 @@ project(':core') {
     standardOutput = new File(generatedDocsDir, "kafka_config.html").newOutputStream()
   }
 
+  task genTopicConfigDocs(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'kafka.log.LogConfig'
+    if( !generatedDocsDir.exists() ) { generatedDocsDir.mkdirs() }
+    standardOutput = new File(generatedDocsDir, "topic_config.html").newOutputStream()
+  }
+
   task siteDocsTar(dependsOn: ['genProtocolErrorDocs', 'genProtocolApiKeyDocs', 'genProtocolMessageDocs',
                                'genProducerConfigDocs', 'genConsumerConfigDocs', 'genKafkaConfigDocs',
-                               ':connect:runtime:genConnectConfigDocs', ':streams:genStreamsConfigDocs'], type: Tar) {
+                               'genTopicConfigDocs', ':connect:runtime:genConnectConfigDocs',
+                               ':streams:genStreamsConfigDocs'], type: Tar) {
     classifier = 'site-docs'
     compression = Compression.GZIP
-    from project.file("../docs")
+    from project.file("$rootDir/docs")
     into 'site-docs'
     duplicatesStrategy 'exclude'
   }
@@ -498,17 +519,12 @@ project(':core') {
   tasks.create(name: "releaseTarGz", dependsOn: configurations.archives.artifacts, type: Tar) {
     into "kafka_${versions.baseScala}-${version}"
     compression = Compression.GZIP
-    from(project.file("../bin")) { into "bin/" }
-    from(project.file("../config")) { into "config/" }
-    from '../LICENSE'
-    from '../NOTICE'
+    from(project.file("$rootDir/bin")) { into "bin/" }
+    from(project.file("$rootDir/config")) { into "config/" }
+    from "$rootDir/LICENSE"
+    from "$rootDir/NOTICE"
     from(configurations.runtime) { into("libs/") }
-    from(configurations.archives.artifacts.files) {
-      exclude("**/*.asc")
-      exclude("**/*-test*.jar")
-      exclude("**/*-source*.jar")
-      into("libs/")
-    }
+    from(configurations.archives.artifacts.files) { into("libs/") }
     from(project.siteDocsTar) { into("site-docs/") }
     from(project(':tools').jar) { into("libs/") }
     from(project(':tools').configurations.runtime) { into("libs/") }
@@ -528,7 +544,7 @@ project(':core') {
   }
 
   jar {
-    dependsOn('copyDependantLibs', 'copyDependantTestLibs')
+    dependsOn('copyDependantLibs')
   }
 
   jar.manifest {
@@ -545,6 +561,8 @@ project(':core') {
     duplicatesStrategy 'exclude'
   }
 
+  systemTestLibs.dependsOn('jar', 'testJar', 'copyDependantTestLibs')
+
   checkstyle {
     configProperties = [importControlFile: "$rootDir/checkstyle/import-control-core.xml"]
   }
@@ -555,6 +573,10 @@ project(':examples') {
 
   dependencies {
     compile project(':core')
+  }
+
+  javadoc {
+    enabled = false
   }
 
   checkstyle {
@@ -587,6 +609,9 @@ project(':clients') {
 
     testCompile libs.bcpkix
     testCompile libs.junit
+    testCompile libs.easymock
+    testCompile libs.powermock
+    testCompile libs.powermockEasymock
 
     testRuntime libs.slf4jlog4j
   }
@@ -594,12 +619,12 @@ project(':clients') {
   task determineCommitId {
     ext.commitId = "unknown"
     def takeFromHash = 16
-    if (file("../.git/HEAD").exists()) {
-      def headRef = file("../.git/HEAD").text
+    if (file("$rootDir/.git/HEAD").exists()) {
+      def headRef = file("$rootDir/.git/HEAD").text
       if (headRef.contains('ref: ')) {
         headRef = headRef.replaceAll('ref: ', '').trim()
-        if (file("../.git/$headRef").exists()) {
-        commitId = file("../.git/$headRef").text.trim().take(takeFromHash)
+        if (file("$rootDir/.git/$headRef").exists()) {
+        commitId = file("$rootDir/.git/$headRef").text.trim().take(takeFromHash)
         }
       } else {
         commitId = headRef.trim().take(takeFromHash)
@@ -695,7 +720,12 @@ project(':streams') {
       exclude module: 'jline'
       exclude module: 'netty'
     }
-    compile libs.jacksonDatabind // this dependency should be removed after KIP-4
+
+    // zkclient has a hard log4j dependency, we set it here as well to avoid copying an older
+    // version to the binary package; the following two dependencies should be removed after KIP-4
+    // (along with the zkclient dependency)
+    compile libs.log4j
+    compile libs.jacksonDatabind
 
     testCompile project(':clients').sourceSets.test.output
     testCompile project(':core')
@@ -743,6 +773,7 @@ project(':streams:examples') {
   dependencies {
     compile project(':streams')
     compile project(':connect:json')  // this dependency should be removed after we unify data API
+    compile libs.slf4jlog4j           // this dependency should be removed after KIP-4
   }
 
   javadoc {
@@ -874,8 +905,7 @@ project(':connect:runtime') {
     testCompile libs.junit
     testCompile libs.powermock
     testCompile libs.powermockEasymock
-
-    testRuntime project(":connect:json")
+    testCompile project(":connect:json")
     testRuntime libs.slf4jlog4j
   }
 

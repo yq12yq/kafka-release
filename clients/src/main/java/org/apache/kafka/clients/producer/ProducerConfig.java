@@ -23,6 +23,7 @@ import org.apache.kafka.common.serialization.Serializer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import static org.apache.kafka.common.config.ConfigDef.Range.atLeast;
 import static org.apache.kafka.common.config.ConfigDef.Range.between;
@@ -50,8 +51,9 @@ public class ProducerConfig extends AbstractConfig {
      */
     @Deprecated
     public static final String METADATA_FETCH_TIMEOUT_CONFIG = "metadata.fetch.timeout.ms";
-    private static final String METADATA_FETCH_TIMEOUT_DOC = "The first time data is sent to a topic we must fetch metadata about that topic to know which servers host the topic's partitions. This "
-                                                             + "fetch to succeed before throwing an exception back to the client.";
+    private static final String METADATA_FETCH_TIMEOUT_DOC = "The first time data is sent to a topic we must fetch metadata about that topic to know which servers "
+                                                             + "host the topic's partitions. This config specifies the maximum time, in milliseconds, for this fetch "
+                                                             + "to succeed before throwing an exception back to the client.";
 
     /** <code>metadata.max.age.ms</code> */
     public static final String METADATA_MAX_AGE_CONFIG = CommonClientConfigs.METADATA_MAX_AGE_CONFIG;
@@ -74,7 +76,7 @@ public class ProducerConfig extends AbstractConfig {
     /** <code>acks</code> */
     public static final String ACKS_CONFIG = "acks";
     private static final String ACKS_DOC = "The number of acknowledgments the producer requires the leader to have received before considering a request complete. This controls the "
-                                           + " durability of records that are sent. The following settings are common: "
+                                           + " durability of records that are sent. The following settings are allowed: "
                                            + " <ul>"
                                            + " <li><code>acks=0</code> If set to zero then the producer will not wait for any acknowledgment from the"
                                            + " server at all. The record will be immediately added to the socket buffer and considered sent. No guarantee can be"
@@ -146,7 +148,7 @@ public class ProducerConfig extends AbstractConfig {
     private static final String BLOCK_ON_BUFFER_FULL_DOC = "When our memory buffer is exhausted we must either stop accepting new records (block) or throw errors. "
                                                            + "By default this setting is false and the producer will no longer throw a BufferExhaustException but instead will use the <code>" + MAX_BLOCK_MS_CONFIG + "</code> "
                                                            + "value to block, after which it will throw a TimeoutException. Setting this property to true will set the <code>" + MAX_BLOCK_MS_CONFIG + "</code> to Long.MAX_VALUE. "
-                                                           + "<em>Also if this property is set to true, parameter <code>" + METADATA_FETCH_TIMEOUT_CONFIG + "</code> is not longer honored.</em>"
+                                                           + "<em>Also if this property is set to true, parameter <code>" + METADATA_FETCH_TIMEOUT_CONFIG + "</code> is no longer honored.</em>"
                                                            + "<p>This parameter is deprecated and will be removed in a future release. "
                                                            + "Parameter <code>" + MAX_BLOCK_MS_CONFIG + "</code> should be used instead.";
 
@@ -217,7 +219,7 @@ public class ProducerConfig extends AbstractConfig {
                                                         + "received by the producer before they are published to the Kafka cluster. By default, there are no interceptors.";
 
     static {
-        CONFIG = new ConfigDef().define(BOOTSTRAP_SERVERS_CONFIG, Type.LIST, Importance.HIGH, CommonClientConfigs.BOOSTRAP_SERVERS_DOC)
+        CONFIG = new ConfigDef().define(BOOTSTRAP_SERVERS_CONFIG, Type.LIST, Importance.HIGH, CommonClientConfigs.BOOTSTRAP_SERVERS_DOC)
                                 .define(BUFFER_MEMORY_CONFIG, Type.LONG, 32 * 1024 * 1024L, atLeast(0L), Importance.HIGH, BUFFER_MEMORY_DOC)
                                 .define(RETRIES_CONFIG, Type.INT, 0, between(0, Integer.MAX_VALUE), Importance.HIGH, RETRIES_DOC)
                                 .define(ACKS_CONFIG,
@@ -231,8 +233,8 @@ public class ProducerConfig extends AbstractConfig {
                                 .define(TIMEOUT_CONFIG, Type.INT, 30 * 1000, atLeast(0), Importance.MEDIUM, TIMEOUT_DOC)
                                 .define(LINGER_MS_CONFIG, Type.LONG, 0, atLeast(0L), Importance.MEDIUM, LINGER_MS_DOC)
                                 .define(CLIENT_ID_CONFIG, Type.STRING, "", Importance.MEDIUM, CommonClientConfigs.CLIENT_ID_DOC)
-                                .define(SEND_BUFFER_CONFIG, Type.INT, 128 * 1024, atLeast(0), Importance.MEDIUM, CommonClientConfigs.SEND_BUFFER_DOC)
-                                .define(RECEIVE_BUFFER_CONFIG, Type.INT, 32 * 1024, atLeast(0), Importance.MEDIUM, CommonClientConfigs.RECEIVE_BUFFER_DOC)
+                                .define(SEND_BUFFER_CONFIG, Type.INT, 128 * 1024, atLeast(-1), Importance.MEDIUM, CommonClientConfigs.SEND_BUFFER_DOC)
+                                .define(RECEIVE_BUFFER_CONFIG, Type.INT, 32 * 1024, atLeast(-1), Importance.MEDIUM, CommonClientConfigs.RECEIVE_BUFFER_DOC)
                                 .define(MAX_REQUEST_SIZE_CONFIG,
                                         Type.INT,
                                         1 * 1024 * 1024,
@@ -291,7 +293,7 @@ public class ProducerConfig extends AbstractConfig {
                                         CommonClientConfigs.CONNECTIONS_MAX_IDLE_MS_DOC)
                                 .define(PARTITIONER_CLASS_CONFIG,
                                         Type.CLASS,
-                                        DefaultPartitioner.class.getName(),
+                                        DefaultPartitioner.class,
                                         Importance.MEDIUM, PARTITIONER_CLASS_DOC)
                                 .define(INTERCEPTOR_CLASSES_CONFIG,
                                         Type.LIST,
@@ -334,6 +336,10 @@ public class ProducerConfig extends AbstractConfig {
 
     ProducerConfig(Map<?, ?> props) {
         super(CONFIG, props);
+    }
+
+    public static Set<String> configNames() {
+        return CONFIG.names();
     }
 
     public static void main(String[] args) {

@@ -21,38 +21,30 @@ package kafka.tools
 import joptsimple._
 import kafka.utils._
 import kafka.consumer.SimpleConsumer
-import kafka.api.{OffsetFetchResponse, OffsetFetchRequest, OffsetRequest}
+import kafka.api.{OffsetFetchRequest, OffsetFetchResponse, OffsetRequest}
 import kafka.common.{OffsetMetadataAndError, TopicAndPartition}
 import org.apache.kafka.common.errors.BrokerNotAvailableException
-import org.apache.kafka.common.protocol.Errors
+import org.apache.kafka.common.protocol.{Errors, SecurityProtocol}
 import org.apache.kafka.common.security.JaasUtils
+
 import scala.collection._
 import kafka.client.ClientUtils
 import kafka.network.BlockingChannel
 import kafka.api.PartitionOffsetRequestInfo
 import org.I0Itec.zkclient.exception.ZkNoNodeException
-import kafka.common.security.LoginManager
-import org.apache.kafka.common.config.SaslConfigs
-import org.apache.kafka.common.protocol.SecurityProtocol
-
 
 object ConsumerOffsetChecker extends Logging {
 
   private val consumerMap: mutable.Map[Int, Option[SimpleConsumer]] = mutable.Map()
   private val offsetMap: mutable.Map[TopicAndPartition, Long] = mutable.Map()
   private var topicPidMap: immutable.Map[String, Seq[Int]] = immutable.Map()
-  private var securityProtocol: String = _
+
   private def getConsumer(zkUtils: ZkUtils, bid: Int): Option[SimpleConsumer] = {
     try {
-      zkUtils.getBrokerInfo(bid) match {
-        case Some(brokerInfo) =>
-          val protocol = SecurityProtocol.valueOf(securityProtocol);
-          Some(new SimpleConsumer(brokerInfo.getBrokerEndPoint(protocol).host,
-                                  brokerInfo.getBrokerEndPoint(protocol).port,
-                                  10000, 100000, "ConsumerOffsetChecker", protocol))
-        case None =>
-          throw new BrokerNotAvailableException("Broker id %d does not exist".format(bid))
-      }
+      zkUtils.getBrokerInfo(bid)
+        .map(_.getBrokerEndPoint(SecurityProtocol.PLAINTEXT))
+        .map(endPoint => new SimpleConsumer(endPoint.host, endPoint.port, 10000, 100000, "ConsumerOffsetChecker"))
+        .orElse(throw new BrokerNotAvailableException("Broker id %d does not exist".format(bid)))
     } catch {
       case t: Throwable =>
         println("Could not parse broker info due to " + t.getCause)
@@ -123,12 +115,6 @@ object ConsumerOffsetChecker extends Logging {
     val channelRetryBackoffMsOpt = parser.accepts("retry.backoff.ms", "Retry back-off to use for failed offset queries.").
             withRequiredArg().ofType(classOf[java.lang.Integer]).defaultsTo(3000)
 
-    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
-      .withRequiredArg
-      .describedAs("security-protocol")
-      .ofType(classOf[String])
-      .defaultsTo("PLAINTEXT")
-
     parser.accepts("broker-info", "Print broker info")
     parser.accepts("help", "Print this message.")
 
@@ -151,17 +137,8 @@ object ConsumerOffsetChecker extends Logging {
 
     val channelSocketTimeoutMs = options.valueOf(channelSocketTimeoutMsOpt).intValue()
     val channelRetryBackoffMs = options.valueOf(channelRetryBackoffMsOpt).intValue()
-    securityProtocol = options.valueOf(securityProtocolOpt)
-    val topics = if (options.has(topicsOpt)) Some(options.valueOf(topicsOpt)) else None
 
-    if (CoreUtils.isSaslProtocol(SecurityProtocol.valueOf(securityProtocol))) {
-      val saslConfigs = new java.util.HashMap[String, Any]()
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_KINIT_CMD, SaslConfigs.DEFAULT_KERBEROS_KINIT_CMD)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_JITTER, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_WINDOW_FACTOR, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_MIN_TIME_BEFORE_RELOGIN, SaslConfigs.DEFAULT_KERBEROS_MIN_TIME_BEFORE_RELOGIN)
-      LoginManager.init(JaasUtils.LOGIN_CONTEXT_CLIENT, saslConfigs)
-    }
+    val topics = if (options.has(topicsOpt)) Some(options.valueOf(topicsOpt)) else None
 
     var zkUtils: ZkUtils = null
     var channel: BlockingChannel = null
@@ -178,7 +155,7 @@ object ConsumerOffsetChecker extends Logging {
 
       topicPidMap = immutable.Map(zkUtils.getPartitionsForTopics(topicList).toSeq:_*)
       val topicPartitions = topicPidMap.flatMap { case(topic, partitionSeq) => partitionSeq.map(TopicAndPartition(topic, _)) }.toSeq
-      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs, protocol=SecurityProtocol.valueOf(securityProtocol))
+      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs)
 
       debug("Sending offset fetch request to coordinator %s:%d.".format(channel.host, channel.port))
       channel.send(OffsetFetchRequest(group, topicPartitions))
