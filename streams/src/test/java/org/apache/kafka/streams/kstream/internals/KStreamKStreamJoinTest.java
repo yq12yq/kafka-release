@@ -403,7 +403,6 @@ public class KStreamKStreamJoinTest {
 
         // clear (logically)
         time = 2000L;
-
         for (int i = 0; i < expectedKeys.length; i++) {
             setRecordContext(time + i, topic2);
             driver.process(topic2, expectedKeys[i], "Y" + expectedKeys[i]);
