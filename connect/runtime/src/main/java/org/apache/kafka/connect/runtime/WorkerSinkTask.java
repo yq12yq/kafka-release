@@ -261,13 +261,7 @@ class WorkerSinkTask extends WorkerTask {
     private void doCommit(Map<TopicPartition, OffsetAndMetadata> offsets, boolean closing, final int seqno) {
         log.info("{} Committing offsets", this);
         if (closing) {
-            try {
-                consumer.commitSync(offsets);
-                lastCommittedOffsets = offsets;
-                onCommitCompleted(null, seqno);
-            } catch (KafkaException e) {
-                onCommitCompleted(e, seqno);
-            }
+            doCommitSync(offsets, seqno);
         } else {
             OffsetCommitCallback cb = new OffsetCommitCallback() {
                 @Override

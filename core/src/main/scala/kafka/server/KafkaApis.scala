@@ -170,6 +170,17 @@ class KafkaApis(val requestChannel: RequestChannel,
     val response =
       if (authorize(request.session, ClusterAction, Resource.ClusterResource)) {
         val (result, error) = replicaManager.stopReplicas(stopReplicaRequest)
+        // Clearing out the cache for groups that belong to an offsets topic partition for which this broker was the leader,
+        // since this broker is no longer a replica for that offsets topic partition.
+        // This is required to handle the following scenario :
+        // Consider old replicas : {[1,2,3], Leader = 1} is reassigned to new replicas : {[2,3,4], Leader = 2}, broker 1 does not receive a LeaderAndIsr
+        // request to become a follower due to which cache for groups that belong to an offsets topic partition for which broker 1 was the leader,
+        // is not cleared.
+        result.foreach { case (topicPartition, errorCode) =>
+          if (errorCode == Errors.NONE.code && stopReplicaRequest.deletePartitions() && topicPartition.topic == Topic.GroupMetadataTopicName) {
+            coordinator.handleGroupEmigration(topicPartition.partition)
+          }
+        }
         new StopReplicaResponse(error, result.asInstanceOf[Map[TopicPartition, JShort]].asJava)
       } else {
         val result = stopReplicaRequest.partitions.asScala.map((_, new JShort(Errors.CLUSTER_AUTHORIZATION_FAILED.code))).toMap
@@ -703,18 +714,21 @@ class KafkaApis(val requestChannel: RequestChannel,
   }
 
   private[server] def fetchOffsetsBefore(log: Log, timestamp: Long, maxNumOffsets: Int): Seq[Long] = {
-    val segsArray = log.logSegments.toArray
-    var offsetTimeArray: Array[(Long, Long)] = null
-    val lastSegmentHasSize = segsArray.last.size > 0
-    if (lastSegmentHasSize)
-      offsetTimeArray = new Array[(Long, Long)](segsArray.length + 1)
-    else
-      offsetTimeArray = new Array[(Long, Long)](segsArray.length)
+    // Cache to avoid race conditions. `toBuffer` is faster than most alternatives and provides
+    // constant time access while being safe to use with concurrent collections unlike `toArray`.
+    val segments = log.logSegments.toBuffer
+    val lastSegmentHasSize = segments.last.size > 0
 
-    for (i <- 0 until segsArray.length)
-      offsetTimeArray(i) = (segsArray(i).baseOffset, segsArray(i).lastModified)
+    val offsetTimeArray =
+      if (lastSegmentHasSize)
+        new Array[(Long, Long)](segments.length + 1)
+      else
+        new Array[(Long, Long)](segments.length)
+
+    for (i <- segments.indices)
+      offsetTimeArray(i) = (segments(i).baseOffset, segments(i).lastModified)
     if (lastSegmentHasSize)
-      offsetTimeArray(segsArray.length) = (log.logEndOffset, SystemTime.milliseconds)
+      offsetTimeArray(segments.length) = (log.logEndOffset, SystemTime.milliseconds)
 
     var startIndex = -1
     timestamp match {
