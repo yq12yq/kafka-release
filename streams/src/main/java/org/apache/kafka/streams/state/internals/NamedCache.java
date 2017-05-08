@@ -191,7 +191,7 @@ class NamedCache {
             return null;
         } else {
             numReadHits++;
-            metrics.recordCacheSensor(hitRatio, (double) numReadHits / (double) (numReadHits + numReadMisses));
+            namedCacheMetrics.hitRatioSensor.record((double) numReadHits / (double) (numReadHits + numReadMisses));
         }
         return node;
     }

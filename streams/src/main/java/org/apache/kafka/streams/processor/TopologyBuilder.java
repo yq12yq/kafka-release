@@ -192,7 +192,6 @@ public class TopologyBuilder {
             if (subscribedTopics.isEmpty())
                 return Collections.singletonList("Pattern[" + pattern + "]");
 
-        public String[] getTopics(Collection<String> subscribedTopics) {
             List<String> matchedTopics = new ArrayList<>();
             for (String update : subscribedTopics) {
                 if (this.pattern == topicToPatterns.get(update)) {
@@ -741,7 +740,6 @@ public class TopologyBuilder {
         nodeGrouper.unite(name, parentNames);
         return this;
     }
-
     /**
      * Adds a state store
      *
@@ -765,7 +763,6 @@ public class TopologyBuilder {
 
         return this;
     }
-
 
     /**
      * Connects the processor and the state stores
@@ -1318,7 +1315,6 @@ public class TopologyBuilder {
         final Map<String, List<String>> results = new HashMap<>();
         for (Map.Entry<String, Set<String>> entry : stateStoreNameToSourceTopics.entrySet()) {
             results.put(entry.getKey(), maybeDecorateInternalSourceTopics(entry.getValue()));
-
         }
         return results;
     }

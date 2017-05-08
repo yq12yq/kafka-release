@@ -123,7 +123,6 @@ public class SmokeTestDriver extends SmokeTestUtil {
         driver.join();
 
         System.out.println("driver stopped");
-
         streams2.close();
         streams3.close();
         streams4.close();
@@ -533,35 +532,6 @@ public class SmokeTestDriver extends SmokeTestUtil {
             if (print) {
                 System.out.println("verifying tagg");
             }
-            if (map.size() != expectedSize) {
-                System.out.println("fail: resultCount=" + map.size() + " expectedCount=" + expectedSize);
-                success = false;
-            }
-            for (Map.Entry<String, Long> entry : map.entrySet()) {
-                long minTime = getMinFromWKey(entry.getKey()) + START_TIME;
-                long maxTime = getMaxFromWKey(entry.getKey()) + START_TIME;
-                long winTime = getStartFromWKey(entry.getKey());
-
-                long expected = WINDOW_SIZE;
-                if (minTime > winTime) expected -= minTime - winTime;
-                if (maxTime < winTime + WINDOW_SIZE - 1) expected -= winTime + WINDOW_SIZE - 1 - maxTime;
-
-                if (expected != entry.getValue()) {
-                    System.out.println("fail: key=" + entry.getKey() + " wcnt=" + entry.getValue() + " expected=" + expected);
-                    success = false;
-                }
-            }
-        }
-        return success;
-    }
-
-    private static boolean verifyTAgg(Map<String, Long> map, Map<String, Set<Integer>> allData) {
-        boolean success = true;
-        if (map.isEmpty()) {
-            System.out.println("tagg is empty");
-            success = false;
-        } else {
-            System.out.println("verifying tagg");
 
             // generate expected answer
             Map<String, Long> expected = new HashMap<>();

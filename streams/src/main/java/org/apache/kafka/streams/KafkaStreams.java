@@ -114,7 +114,6 @@ import static org.apache.kafka.common.utils.Utils.getPort;
  * @see KStreamBuilder
  * @see TopologyBuilder
  */
-
 @InterfaceStability.Unstable
 public class KafkaStreams {
 
@@ -124,6 +123,7 @@ public class KafkaStreams {
     private GlobalStreamThread globalStreamThread;
 
     private final StreamThread[] threads;
+    private final Map<Long, StreamThread.State> threadState;
     private final Metrics metrics;
     private final QueryableStoreProvider queryableStoreProvider;
 
@@ -314,7 +314,9 @@ public class KafkaStreams {
 
         String clientId = config.getString(StreamsConfig.CLIENT_ID_CONFIG);
         if (clientId.length() <= 0)
-            clientId = applicationId + "-" + STREAM_CLIENT_ID_SEQUENCE.getAndIncrement();
+            clientId = applicationId + "-" + processId;
+
+        this.logPrefix = String.format("stream-client [%s]", clientId);
 
         final List<MetricsReporter> reporters = config.getConfiguredInstances(StreamsConfig.METRIC_REPORTER_CLASSES_CONFIG,
             MetricsReporter.class);
@@ -587,7 +589,6 @@ public class KafkaStreams {
         }
     }
 
-
     /**
      * Find all currently running {@code KafkaStreams} instances (potentially remotely) that use the same
      * {@link StreamsConfig#APPLICATION_ID_CONFIG application ID} as this instance (i.e., all instances that belong to
@@ -601,7 +602,6 @@ public class KafkaStreams {
         validateIsRunning();
         return streamsMetadataState.getAllMetadata();
     }
-
 
     /**
      * Find all currently running {@code KafkaStreams} instances (potentially remotely) that
@@ -692,7 +692,6 @@ public class KafkaStreams {
         return streamsMetadataState.getMetadataWithKey(storeName, key, partitioner);
     }
 
-
     /**
      * Get a facade wrapping the local {@link StateStore} instances with the provided {@code storeName} if the Store's
      * type is accepted by the provided {@link QueryableStoreType#accepts(StateStore) queryableStoreType}.
@@ -715,5 +714,4 @@ public class KafkaStreams {
             throw new IllegalStateException("KafkaStreams is not running. State is " + state + ".");
         }
     }
-
 }
