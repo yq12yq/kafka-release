@@ -16,8 +16,12 @@ package org.apache.kafka.test;
 
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsConfig;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -37,6 +41,8 @@ public class StreamsTestUtils {
         streamsConfiguration.put(StreamsConfig.VALUE_SERDE_CLASS_CONFIG, valueSerdeClassName);
         streamsConfiguration.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         streamsConfiguration.put(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory().getPath());
+        streamsConfiguration.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
+        streamsConfiguration.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 100);
         streamsConfiguration.putAll(additional);
         return streamsConfiguration;
 
@@ -51,6 +57,16 @@ public class StreamsTestUtils {
                 keySerdeClassName,
                 valueSerdeClassName,
                 new Properties());
+    }
+
+
+    public static <K, V> List<KeyValue<K, V>> toList(final Iterator<KeyValue<K, V>> iterator) {
+        final List<KeyValue<K, V>> results = new ArrayList<>();
+
+        while (iterator.hasNext()) {
+            results.add(iterator.next());
+        }
+        return results;
     }
 
 }

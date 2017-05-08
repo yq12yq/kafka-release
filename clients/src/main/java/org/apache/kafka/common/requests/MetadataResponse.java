@@ -15,6 +15,7 @@ package org.apache.kafka.common.requests;
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.errors.InvalidMetadataException;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.protocol.ProtoUtils;
@@ -29,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class MetadataResponse extends AbstractRequestResponse {
+public class MetadataResponse extends AbstractResponse {
 
     private static final short CURRENT_VERSION = ProtoUtils.latestVersion(ApiKeys.METADATA.id);
     private static final String BROKERS_KEY_NAME = "brokers";
@@ -259,6 +260,29 @@ public class MetadataResponse extends AbstractRequestResponse {
                 errorTopics.add(metadata.topic());
         }
         return errorTopics;
+    }
+
+    /**
+     * Returns the set of topics with an error indicating invalid metadata
+     * and topics with any partition whose error indicates invalid metadata.
+     * This includes all non-existent topics specified in the metadata request
+     * and any topic returned with one or more partitions whose leader is not known.
+     */
+    public Set<String> unavailableTopics() {
+        Set<String> invalidMetadataTopics = new HashSet<>();
+        for (TopicMetadata topicMetadata : this.topicMetadata) {
+            if (topicMetadata.error.exception() instanceof InvalidMetadataException)
+                invalidMetadataTopics.add(topicMetadata.topic);
+            else {
+                for (PartitionMetadata partitionMetadata : topicMetadata.partitionMetadata) {
+                    if (partitionMetadata.error.exception() instanceof InvalidMetadataException) {
+                        invalidMetadataTopics.add(topicMetadata.topic);
+                        break;
+                    }
+                }
+            }
+        }
+        return invalidMetadataTopics;
     }
 
     /**

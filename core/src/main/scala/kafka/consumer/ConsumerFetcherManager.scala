@@ -17,19 +17,21 @@
 
 package kafka.consumer
 
-import kafka.server.{BrokerAndInitialOffset, AbstractFetcherThread, AbstractFetcherManager}
+import kafka.server.{AbstractFetcherManager, AbstractFetcherThread, BrokerAndInitialOffset}
 import kafka.cluster.{BrokerEndPoint, Cluster}
 import org.apache.kafka.common.protocol.SecurityProtocol
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.utils.Time
+
 import scala.collection.immutable
 import collection.mutable.HashMap
 import scala.collection.mutable
 import java.util.concurrent.locks.ReentrantLock
+
 import kafka.utils.CoreUtils.inLock
 import kafka.utils.ZkUtils
-import kafka.utils.{ShutdownableThread, SystemTime}
+import kafka.utils.ShutdownableThread
 import kafka.client.ClientUtils
-import org.apache.kafka.common.protocol.SecurityProtocol
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -40,7 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class ConsumerFetcherManager(private val consumerIdString: String,
                              private val config: ConsumerConfig,
                              private val zkUtils : ZkUtils)
-        extends AbstractFetcherManager("ConsumerFetcherManager-%d".format(SystemTime.milliseconds),
+        extends AbstractFetcherManager("ConsumerFetcherManager-%d".format(Time.SYSTEM.milliseconds),
                                        config.clientId, config.numConsumerFetchers) {
   private var partitionMap: immutable.Map[TopicPartition, PartitionTopicInfo] = null
   private var cluster: Cluster = null
@@ -49,7 +51,6 @@ class ConsumerFetcherManager(private val consumerIdString: String,
   private val cond = lock.newCondition()
   private var leaderFinderThread: ShutdownableThread = null
   private val correlationId = new AtomicInteger(0)
-  private val protocol = SecurityProtocol.valueOf(config.securityProtocol)
 
   private class LeaderFinderThread(name: String) extends ShutdownableThread(name) {
     // thread responsible for adding the fetcher to the right broker when leader is available
@@ -63,13 +64,12 @@ class ConsumerFetcherManager(private val consumerIdString: String,
         }
 
         trace("Partitions without leader %s".format(noLeaderPartitionSet))
-        val brokers = zkUtils.getAllBrokerEndPointsForChannel(protocol)
+        val brokers = ClientUtils.getPlaintextBrokerEndPoints(zkUtils)
         val topicsMetadata = ClientUtils.fetchTopicMetadata(noLeaderPartitionSet.map(m => m.topic).toSet,
                                                             brokers,
                                                             config.clientId,
                                                             config.socketTimeoutMs,
-                                                            correlationId.getAndIncrement,
-                                                            protocol).topicsMetadata
+                                                            correlationId.getAndIncrement).topicsMetadata
         if(logger.isDebugEnabled) topicsMetadata.foreach(topicMetadata => debug(topicMetadata.toString()))
         topicsMetadata.foreach { tmd =>
           val topic = tmd.topic
@@ -118,7 +118,7 @@ class ConsumerFetcherManager(private val consumerIdString: String,
   override def createFetcherThread(fetcherId: Int, sourceBroker: BrokerEndPoint): AbstractFetcherThread = {
     new ConsumerFetcherThread(
       "ConsumerFetcherThread-%s-%d-%d".format(consumerIdString, fetcherId, sourceBroker.id),
-      config, sourceBroker, partitionMap, this.protocol, this)
+      config, sourceBroker, partitionMap, this)
   }
 
   def startConnections(topicInfos: Iterable[PartitionTopicInfo], cluster: Cluster) {

@@ -27,6 +27,7 @@ import org.apache.kafka.streams.errors.ProcessorStateException;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.StateRestoreCallback;
 import org.apache.kafka.streams.processor.StateStore;
+import org.apache.kafka.streams.processor.internals.ProcessorStateManager;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.RocksDBConfigSetter;
@@ -35,14 +36,13 @@ import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.CompactionStyle;
 import org.rocksdb.CompressionType;
 import org.rocksdb.FlushOptions;
+import org.rocksdb.InfoLogLevel;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
 import org.rocksdb.WriteBatch;
 import org.rocksdb.WriteOptions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.Comparator;
@@ -66,7 +66,6 @@ import java.util.Set;
  */
 public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
 
-    private static final Logger log = LoggerFactory.getLogger(RocksDBStore.class);
     private static final int TTL_NOT_USED = -1;
 
     // TODO: these values should be configurable
@@ -95,32 +94,23 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
     private WriteOptions wOptions;
     private FlushOptions fOptions;
 
-    private boolean loggingEnabled = false;
-
-    private StoreChangeLogger<Bytes, byte[]> changeLogger;
-
     protected volatile boolean open = false;
-    private ProcessorContext context;
 
-    public KeyValueStore<K, V> enableLogging() {
-        loggingEnabled = true;
-
-        return this;
-    }
-
-    public RocksDBStore(String name, Serde<K> keySerde, Serde<V> valueSerde) {
+    RocksDBStore(String name, Serde<K> keySerde, Serde<V> valueSerde) {
         this(name, DB_FILE_DIR, keySerde, valueSerde);
     }
 
-
-    public RocksDBStore(String name, String parentDir, Serde<K> keySerde, Serde<V> valueSerde) {
+    RocksDBStore(String name, String parentDir, Serde<K> keySerde, Serde<V> valueSerde) {
         this.name = name;
         this.parentDir = parentDir;
         this.keySerde = keySerde;
         this.valueSerde = valueSerde;
+    }
 
+    @SuppressWarnings("unchecked")
+    public void openDB(ProcessorContext context) {
         // initialize the default rocksdb options
-        BlockBasedTableConfig tableConfig = new BlockBasedTableConfig();
+        final BlockBasedTableConfig tableConfig = new BlockBasedTableConfig();
         tableConfig.setBlockCacheSize(BLOCK_CACHE_SIZE);
         tableConfig.setBlockSize(BLOCK_SIZE);
 
@@ -132,17 +122,18 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
         options.setMaxWriteBufferNumber(MAX_WRITE_BUFFERS);
         options.setCreateIfMissing(true);
         options.setErrorIfExists(false);
+        options.setInfoLogLevel(InfoLogLevel.ERROR_LEVEL);
+        // this is the recommended way to increase parallelism in RocksDb
+        // note that the current implementation increases the number of compaction threads
+        // but not flush threads.
+        options.setIncreaseParallelism(Runtime.getRuntime().availableProcessors());
 
         wOptions = new WriteOptions();
         wOptions.setDisableWAL(true);
 
         fOptions = new FlushOptions();
         fOptions.setWaitForFlush(true);
-    }
 
-    @SuppressWarnings("unchecked")
-    public void openDB(ProcessorContext context) {
-        this.context = context;
         final Map<String, Object> configs = context.appConfigs();
         final Class<RocksDBConfigSetter> configSetterClass = (Class<RocksDBConfigSetter>) configs.get(StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG);
         if (configSetterClass != null) {
@@ -151,9 +142,10 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
         }
         // we need to construct the serde while opening DB since
         // it is also triggered by windowed DB segments without initialization
-        this.serdes = new StateSerdes<>(name,
-                keySerde == null ? (Serde<K>) context.keySerde() : keySerde,
-                valueSerde == null ? (Serde<V>) context.valueSerde() : valueSerde);
+        this.serdes = new StateSerdes<>(
+            ProcessorStateManager.storeChangelogTopic(context.applicationId(), name),
+            keySerde == null ? (Serde<K>) context.keySerde() : keySerde,
+            valueSerde == null ? (Serde<V>) context.valueSerde() : valueSerde);
 
         this.dbDir = new File(new File(context.stateDir(), parentDir), this.name);
         this.db = openDB(this.dbDir, this.options, TTL_SECONDS);
@@ -163,10 +155,9 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
         // open the DB dir
         openDB(context);
 
-        this.changeLogger = this.loggingEnabled ? new StoreChangeLogger<>(name, context, WindowStoreUtils.INNER_SERDES) : null;
         // value getter should always read directly from rocksDB
         // since it is only for values that are already flushed
-        context.register(root, loggingEnabled, new StateRestoreCallback() {
+        context.register(root, false, new StateRestoreCallback() {
 
             @Override
             public void restore(byte[] key, byte[] value) {
@@ -239,15 +230,6 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
         byte[] rawKey = serdes.rawKey(key);
         byte[] rawValue = serdes.rawValue(value);
         putInternal(rawKey, rawValue);
-
-        if (loggingEnabled) {
-            changeLogger.logChange(Bytes.wrap(rawKey), rawValue);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    synchronized void writeToStore(K key, V value) {
-        putInternal(serdes.rawKey(key), serdes.rawValue(value));
     }
 
     @Override
@@ -262,7 +244,7 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
     private void putInternal(byte[] rawKey, byte[] rawValue) {
         if (rawValue == null) {
             try {
-                db.remove(wOptions, rawKey);
+                db.delete(wOptions, rawKey);
             } catch (RocksDBException e) {
                 throw new ProcessorStateException("Error while removing key " + serdes.keyFrom(rawKey) +
                         " from store " + this.name, e);
@@ -283,13 +265,10 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
             for (KeyValue<K, V> entry : entries) {
                 final byte[] rawKey = serdes.rawKey(entry.key);
                 if (entry.value == null) {
-                    db.remove(rawKey);
+                    db.delete(rawKey);
                 } else {
                     final byte[] value = serdes.rawValue(entry.value);
                     batch.put(rawKey, value);
-                    if (loggingEnabled) {
-                        changeLogger.logChange(Bytes.wrap(rawKey), value);
-                    }
                 }
             }
             db.write(wOptions, batch);
@@ -365,7 +344,6 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
         // flush RocksDB
         flushInternal();
     }
-
     /**
      * @throws ProcessorStateException if flushing failed because of any internal store exceptions
      */
@@ -382,6 +360,7 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
         if (!open) {
             return;
         }
+
         open = false;
         closeOpenIterators();
         options.close();
@@ -455,6 +434,15 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
             open = false;
             openIterators.remove(this);
             iter.close();
+        }
+
+        @Override
+        public K peekNextKey() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            return serdes.keyFrom(iter.key());
+
         }
 
     }

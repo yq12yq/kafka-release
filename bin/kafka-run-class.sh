@@ -59,7 +59,7 @@ if [ -z "$SCALA_VERSION" ]; then
 fi
 
 if [ -z "$SCALA_BINARY_VERSION" ]; then
-  SCALA_BINARY_VERSION=2.10
+  SCALA_BINARY_VERSION=$(echo $SCALA_VERSION | cut -f 1-2 -d '.')
 fi
 
 # run kafka-env.sh
@@ -124,7 +124,7 @@ do
   CLASSPATH="$CLASSPATH:$dir/*"
 done
 
-for cc_pkg in "api" "runtime" "file" "json" "tools"
+for cc_pkg in "api" "transforms" "runtime" "file" "json" "tools"
 do
   for file in "$base_dir"/connect/${cc_pkg}/build/libs/connect-${cc_pkg}*.jar;
   do

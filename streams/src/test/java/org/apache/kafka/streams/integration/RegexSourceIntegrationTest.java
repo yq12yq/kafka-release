@@ -23,7 +23,6 @@ import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.streams.KafkaClientSupplier;
 import org.apache.kafka.streams.KafkaStreams;
@@ -33,12 +32,15 @@ import org.apache.kafka.streams.integration.utils.EmbeddedKafkaCluster;
 import org.apache.kafka.streams.integration.utils.IntegrationTestUtils;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.KStreamBuilder;
+import org.apache.kafka.streams.processor.ProcessorSupplier;
 import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.TopologyBuilder;
 import org.apache.kafka.streams.processor.internals.DefaultKafkaClientSupplier;
 import org.apache.kafka.streams.processor.internals.StreamTask;
 import org.apache.kafka.streams.processor.internals.StreamThread;
 import org.apache.kafka.streams.processor.internals.StreamsMetadataState;
+import org.apache.kafka.test.MockProcessorSupplier;
+import org.apache.kafka.test.MockStateStoreSupplier;
 import org.apache.kafka.test.StreamsTestUtils;
 import org.apache.kafka.test.TestCondition;
 import org.apache.kafka.test.TestUtils;
@@ -54,11 +56,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -145,7 +149,7 @@ public class RegexSourceIntegrationTest {
 
         final TestStreamThread testStreamThread = new TestStreamThread(builder, streamsConfig,
             new DefaultKafkaClientSupplier(),
-            originalThread.applicationId, originalThread.clientId, originalThread.processId, new Metrics(), new SystemTime());
+            originalThread.applicationId, originalThread.clientId, originalThread.processId, new Metrics(), Time.SYSTEM);
 
         final TestCondition oneTopicAdded = new TestCondition() {
             @Override
@@ -200,7 +204,7 @@ public class RegexSourceIntegrationTest {
 
         final TestStreamThread testStreamThread = new TestStreamThread(builder, streamsConfig,
             new DefaultKafkaClientSupplier(),
-            originalThread.applicationId, originalThread.clientId, originalThread.processId, new Metrics(), new SystemTime());
+            originalThread.applicationId, originalThread.clientId, originalThread.processId, new Metrics(), Time.SYSTEM);
 
         streamThreads[0] = testStreamThread;
 
@@ -226,6 +230,31 @@ public class RegexSourceIntegrationTest {
         TestUtils.waitForCondition(oneTopicRemoved, STREAM_TASKS_NOT_UPDATED);
 
         streams.close();
+    }
+
+    @Test
+    public void shouldAddStateStoreToRegexDefinedSource() throws Exception {
+
+        ProcessorSupplier<String, String> processorSupplier = new MockProcessorSupplier<>();
+        MockStateStoreSupplier stateStoreSupplier = new MockStateStoreSupplier("testStateStore", false);
+
+        TopologyBuilder builder = new TopologyBuilder()
+                .addSource("ingest", Pattern.compile("topic-\\d+"))
+                .addProcessor("my-processor", processorSupplier, "ingest")
+                .addStateStore(stateStoreSupplier, "my-processor");
+
+
+        final KafkaStreams streams = new KafkaStreams(builder, streamsConfiguration);
+        streams.start();
+
+        final Properties producerConfig = TestUtils.producerConfig(CLUSTER.bootstrapServers(), StringSerializer.class, StringSerializer.class);
+
+        IntegrationTestUtils.produceValuesSynchronously(TOPIC_1, Arrays.asList("message for test"), producerConfig, mockTime);
+        streams.close();
+
+        Map<String, List<String>> stateStoreToSourceTopic = builder.stateStoreNameToSourceTopics();
+
+        assertThat(stateStoreToSourceTopic.get("testStateStore").get(0), is("topic-1"));
     }
 
 
@@ -308,7 +337,7 @@ public class RegexSourceIntegrationTest {
 
         final TestStreamThread leaderTestStreamThread = new TestStreamThread(builderLeader, streamsConfig,
                 new DefaultKafkaClientSupplier(),
-                originalLeaderThread.applicationId, originalLeaderThread.clientId, originalLeaderThread.processId, new Metrics(), new SystemTime());
+                originalLeaderThread.applicationId, originalLeaderThread.clientId, originalLeaderThread.processId, new Metrics(), Time.SYSTEM);
 
         leaderStreamThreads[0] = leaderTestStreamThread;
 
@@ -328,7 +357,7 @@ public class RegexSourceIntegrationTest {
 
         final TestStreamThread followerTestStreamThread = new TestStreamThread(builderFollower, streamsConfig,
                 new DefaultKafkaClientSupplier(),
-                originalFollowerThread.applicationId, originalFollowerThread.clientId, originalFollowerThread.processId, new Metrics(), new SystemTime());
+                originalFollowerThread.applicationId, originalFollowerThread.clientId, originalFollowerThread.processId, new Metrics(), Time.SYSTEM);
 
         followerStreamThreads[0] = followerTestStreamThread;
 
@@ -398,7 +427,8 @@ public class RegexSourceIntegrationTest {
         public volatile List<String> assignedTopicPartitions = new ArrayList<>();
 
         public TestStreamThread(final TopologyBuilder builder, final StreamsConfig config, final KafkaClientSupplier clientSupplier, final String applicationId, final String clientId, final UUID processId, final Metrics metrics, final Time time) {
-            super(builder, config, clientSupplier, applicationId, clientId, processId, metrics, time, new StreamsMetadataState(builder));
+            super(builder, config, clientSupplier, applicationId, clientId, processId, metrics, time, new StreamsMetadataState(builder, StreamsMetadataState.UNKNOWN_HOST),
+                  0);
         }
 
         @Override

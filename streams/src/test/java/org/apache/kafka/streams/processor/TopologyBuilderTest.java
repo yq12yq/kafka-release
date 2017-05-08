@@ -50,6 +50,7 @@ import static org.apache.kafka.common.utils.Utils.mkList;
 import static org.apache.kafka.common.utils.Utils.mkSet;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 public class TopologyBuilderTest {
 
@@ -156,12 +157,9 @@ public class TopologyBuilderTest {
         builder.addSource("source-3", "topic-3");
         builder.addInternalTopic("topic-3");
 
-        Set<String> expected = new HashSet<String>();
-        expected.add("topic-1");
-        expected.add("topic-2");
-        expected.add("X-topic-3");
+        Pattern expectedPattern = Pattern.compile("X-topic-3|topic-1|topic-2");
 
-        assertEquals(expected, builder.sourceTopics());
+        assertEquals(expectedPattern.pattern(), builder.sourceTopicPattern().pattern());
     }
 
     @Test
@@ -184,7 +182,7 @@ public class TopologyBuilderTest {
     @Test
     public void testSubscribeTopicNameAndPattern() {
         final TopologyBuilder builder = new TopologyBuilder();
-        Pattern expectedPattern = Pattern.compile(".*-\\d|topic-foo|topic-bar");
+        Pattern expectedPattern = Pattern.compile("topic-bar|topic-foo|.*-\\d");
         builder.addSource("source-1", "topic-foo", "topic-bar");
         builder.addSource("source-2", Pattern.compile(".*-\\d"));
         assertEquals(expectedPattern.pattern(), builder.sourceTopicPattern().pattern());
@@ -242,11 +240,11 @@ public class TopologyBuilderTest {
         StateStoreSupplier supplier = new MockStateStoreSupplier("store-1", false);
         builder.addStateStore(supplier);
         builder.setApplicationId("X");
+        builder.addSource("source-1", "topic-1");
+        builder.addProcessor("processor-1", new MockProcessorSupplier(), "source-1");
 
         assertEquals(0, builder.build(null).stateStores().size());
 
-        builder.addSource("source-1", "topic-1");
-        builder.addProcessor("processor-1", new MockProcessorSupplier(), "source-1");
         builder.connectProcessorAndStateStores("processor-1", "store-1");
 
         List<StateStore> suppliers = builder.build(null).stateStores();
@@ -441,9 +439,9 @@ public class TopologyBuilderTest {
         builder.addSource("source", "topic");
         builder.addProcessor("processor", new MockProcessorSupplier(), "source");
         builder.addStateStore(new MockStateStoreSupplier("store", false), "processor");
-        final Map<String, Set<String>> stateStoreNameToSourceTopic = builder.stateStoreNameToSourceTopics();
+        final Map<String, List<String>> stateStoreNameToSourceTopic = builder.stateStoreNameToSourceTopics();
         assertEquals(1, stateStoreNameToSourceTopic.size());
-        assertEquals(Collections.singleton("topic"), stateStoreNameToSourceTopic.get("store"));
+        assertEquals(Collections.singletonList("topic"), stateStoreNameToSourceTopic.get("store"));
     }
 
     @Test
@@ -452,9 +450,9 @@ public class TopologyBuilderTest {
         builder.addSource("source", "topic");
         builder.addProcessor("processor", new MockProcessorSupplier(), "source");
         builder.addStateStore(new MockStateStoreSupplier("store", false), "processor");
-        final Map<String, Set<String>> stateStoreNameToSourceTopic = builder.stateStoreNameToSourceTopics();
+        final Map<String, List<String>> stateStoreNameToSourceTopic = builder.stateStoreNameToSourceTopics();
         assertEquals(1, stateStoreNameToSourceTopic.size());
-        assertEquals(Collections.singleton("topic"), stateStoreNameToSourceTopic.get("store"));
+        assertEquals(Collections.singletonList("topic"), stateStoreNameToSourceTopic.get("store"));
     }
 
     @Test
@@ -465,9 +463,9 @@ public class TopologyBuilderTest {
         builder.addSource("source", "internal-topic");
         builder.addProcessor("processor", new MockProcessorSupplier(), "source");
         builder.addStateStore(new MockStateStoreSupplier("store", false), "processor");
-        final Map<String, Set<String>> stateStoreNameToSourceTopic = builder.stateStoreNameToSourceTopics();
+        final Map<String, List<String>> stateStoreNameToSourceTopic = builder.stateStoreNameToSourceTopics();
         assertEquals(1, stateStoreNameToSourceTopic.size());
-        assertEquals(Collections.singleton("appId-internal-topic"), stateStoreNameToSourceTopic.get("store"));
+        assertEquals(Collections.singletonList("appId-internal-topic"), stateStoreNameToSourceTopic.get("store"));
     }
 
     @SuppressWarnings("unchecked")
@@ -516,7 +514,7 @@ public class TopologyBuilderTest {
         builder.addInternalTopic("foo");
         builder.addSource("source", "foo");
         final TopicsInfo topicsInfo = builder.topicGroups().values().iterator().next();
-        final InternalTopicConfig topicConfig = topicsInfo.interSourceTopics.get("appId-foo");
+        final InternalTopicConfig topicConfig = topicsInfo.repartitionSourceTopics.get("appId-foo");
         final Properties properties = topicConfig.toProperties(0);
         assertEquals("appId-foo", topicConfig.name());
         assertEquals("delete", properties.getProperty(InternalTopicManager.CLEANUP_POLICY_PROP));
@@ -547,7 +545,6 @@ public class TopologyBuilderTest {
 
             final ProcessorTopologyTestDriver driver = new ProcessorTopologyTestDriver(streamsConfig, builder, LocalMockProcessorSupplier.STORE_NAME);
             driver.process("topic", null, null);
-
         } catch (final StreamsException e) {
             final Throwable cause = e.getCause();
             if (cause != null
@@ -614,4 +611,37 @@ public class TopologyBuilderTest {
         assertTrue(topicGroups.get(2).sourceTopics.contains("topic-3"));
 
     }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void shouldConnectRegexMatchedTopicsToStateStore() throws Exception {
+
+        final TopologyBuilder topologyBuilder = new TopologyBuilder()
+                .addSource("ingest", Pattern.compile("topic-\\d+"))
+                .addProcessor("my-processor", new MockProcessorSupplier(), "ingest")
+                .addStateStore(new MockStateStoreSupplier("testStateStore", false), "my-processor");
+
+        final StreamPartitionAssignor.SubscriptionUpdates subscriptionUpdates = new StreamPartitionAssignor.SubscriptionUpdates();
+        final Field updatedTopicsField  = subscriptionUpdates.getClass().getDeclaredField("updatedTopicSubscriptions");
+        updatedTopicsField.setAccessible(true);
+
+        final Set<String> updatedTopics = (Set<String>) updatedTopicsField.get(subscriptionUpdates);
+
+        updatedTopics.add("topic-2");
+        updatedTopics.add("topic-3");
+        updatedTopics.add("topic-A");
+
+        topologyBuilder.updateSubscriptions(subscriptionUpdates, "test-thread");
+        topologyBuilder.setApplicationId("test-app");
+
+        Map<String, List<String>> stateStoreAndTopics = topologyBuilder.stateStoreNameToSourceTopics();
+        List<String> topics = stateStoreAndTopics.get("testStateStore");
+
+        assertTrue("Expected to contain two topics", topics.size() == 2);
+
+        assertTrue(topics.contains("topic-2"));
+        assertTrue(topics.contains("topic-3"));
+        assertFalse(topics.contains("topic-A"));
+    }
+
 }

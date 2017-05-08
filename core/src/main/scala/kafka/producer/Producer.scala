@@ -119,7 +119,7 @@ class Producer[K,V](val config: ProducerConfig,
             }
           }
           catch {
-            case e: InterruptedException =>
+            case _: InterruptedException =>
               false
           }
       }

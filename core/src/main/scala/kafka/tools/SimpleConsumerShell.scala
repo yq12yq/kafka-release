@@ -23,7 +23,8 @@ import kafka.consumer._
 import kafka.client.ClientUtils
 import kafka.api.{FetchRequestBuilder, OffsetRequest, Request}
 import kafka.cluster.BrokerEndPoint
-import scala.collection.JavaConversions._
+
+import scala.collection.JavaConverters._
 import kafka.common.{MessageFormatter, TopicAndPartition}
 import kafka.common.security.LoginManager
 import org.apache.kafka.common.config.SaslConfigs
@@ -31,6 +32,7 @@ import org.apache.kafka.common.protocol.SecurityProtocol
 import org.apache.kafka.common.security.JaasUtils
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.clients.consumer.ConsumerRecord
+import org.apache.kafka.common.utils.Utils
 
 /**
  * Command line program to dump out messages to standard out using the simple consumer
@@ -127,7 +129,7 @@ object SimpleConsumerShell extends Logging {
     val noWaitAtEndOfLog = options.has(noWaitAtEndOfLogOpt)
 
     val messageFormatterClass = Class.forName(options.valueOf(messageFormatterOpt))
-    val formatterArgs = CommandLineUtils.parseKeyValueArgs(options.valuesOf(messageFormatterArgOpt))
+    val formatterArgs = CommandLineUtils.parseKeyValueArgs(options.valuesOf(messageFormatterArgOpt).asScala)
     val securityProtocol = SecurityProtocol.valueOf(options.valueOf(securityProtocolOpt).toString)
     val fetchRequestBuilder = new FetchRequestBuilder()
                        .clientId(clientId)

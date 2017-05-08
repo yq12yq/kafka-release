@@ -17,13 +17,17 @@
 
 package org.apache.kafka.streams.processor.internals;
 
+import org.apache.kafka.clients.producer.MockProducer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.utils.Bytes;
+import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.errors.StreamsException;
 import org.apache.kafka.streams.state.StateSerdes;
 import org.apache.kafka.test.MockProcessorContext;
 import org.junit.Test;
+
+import java.util.Properties;
 
 public class SinkNodeTest {
 
@@ -33,7 +37,7 @@ public class SinkNodeTest {
         final Serializer anySerializer = Serdes.Bytes().serializer();
         final StateSerdes anyStateSerde = StateSerdes.withBuiltinTypes("anyName", Bytes.class, Bytes.class);
 
-        final MockProcessorContext context = new MockProcessorContext(anyStateSerde, new RecordCollectorImpl(null, null));
+        final MockProcessorContext context = new MockProcessorContext(anyStateSerde,  new RecordCollectorImpl(null, null));
         context.setTime(-1);
 
         final SinkNode sink = new SinkNode<>("name", "output-topic", anySerializer, anySerializer, null);
@@ -41,4 +45,29 @@ public class SinkNodeTest {
 
         sink.process(null, null);
     }
+
+    @Test(expected = StreamsException.class)
+    @SuppressWarnings("unchecked")
+    public void shouldThrowStreamsExceptionOnKeyValyeTypeSerializerMissmatch() {
+        final Serializer anySerializer = Serdes.Bytes().serializer();
+        final StateSerdes anyStateSerde = StateSerdes.withBuiltinTypes("anyName", Bytes.class, Bytes.class);
+
+        Properties config = new Properties();
+        config.setProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        final MockProcessorContext context = new MockProcessorContext(anyStateSerde, new RecordCollectorImpl(new MockProducer<byte[], byte[]>(true, anySerializer, anySerializer), null));
+        context.setTime(0);
+
+        final SinkNode sink = new SinkNode<>("name", "output-topic", anySerializer, anySerializer, null);
+        sink.init(context);
+
+        try {
+            sink.process("", "");
+        } catch (final StreamsException e) {
+            if (e.getCause() instanceof ClassCastException) {
+                throw e;
+            }
+            throw new RuntimeException(e);
+        }
+    }
+
 }

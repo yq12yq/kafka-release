@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
@@ -45,6 +46,9 @@ public class StateDirectory {
     private final File stateDir;
     private final HashMap<TaskId, FileChannel> channels = new HashMap<>();
     private final HashMap<TaskId, FileLock> locks = new HashMap<>();
+
+    private FileChannel globalStateChannel;
+    private FileLock globalStateLock;
 
     public StateDirectory(final String applicationId, final String stateDirConfig) {
         final File baseDir = new File(stateDirConfig);
@@ -74,6 +78,15 @@ public class StateDirectory {
         return taskDir;
     }
 
+    public File globalStateDir() {
+        final File dir = new File(stateDir, "global");
+        if (!dir.exists() && !dir.mkdir()) {
+            throw new ProcessorStateException(String.format("global state directory [%s] doesn't exist and couldn't be created",
+                                                            dir.getPath()));
+        }
+        return dir;
+    }
+
     /**
      * Get the lock for the {@link TaskId}s directory if it is available
      * @param taskId
@@ -82,13 +95,73 @@ public class StateDirectory {
      * @throws IOException
      */
     public boolean lock(final TaskId taskId, int retry) throws IOException {
+        final File lockFile;
         // we already have the lock so bail out here
         if (locks.containsKey(taskId)) {
             return true;
         }
-        final File lockFile = new File(directoryForTask(taskId), LOCK_FILE_NAME);
-        final FileChannel channel = getOrCreateFileChannel(taskId, lockFile.toPath());
+        try {
+            lockFile = new File(directoryForTask(taskId), LOCK_FILE_NAME);
+        } catch (ProcessorStateException e) {
+            // directoryForTask could be throwing an exception if another thread
+            // has concurrently deleted the directory
+            return false;
+        }
 
+        final FileChannel channel;
+
+        try {
+            channel = getOrCreateFileChannel(taskId, lockFile.toPath());
+        } catch (NoSuchFileException e) {
+            // FileChannel.open(..) could throw NoSuchFileException when there is another thread
+            // concurrently deleting the parent directory (i.e. the directory of the taskId) of the lock
+            // file, in this case we will return immediately indicating locking failed.
+            return false;
+        }
+
+        final FileLock lock = tryLock(retry, channel);
+        if (lock != null) {
+            locks.put(taskId, lock);
+        }
+        return lock != null;
+    }
+
+    public boolean lockGlobalState(final int retry) throws IOException {
+        if (globalStateLock != null) {
+            return true;
+        }
+
+        final File lockFile = new File(globalStateDir(), LOCK_FILE_NAME);
+        final FileChannel channel;
+        try {
+            channel = FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        } catch (NoSuchFileException e) {
+            // FileChannel.open(..) could throw NoSuchFileException when there is another thread
+            // concurrently deleting the parent directory (i.e. the directory of the taskId) of the lock
+            // file, in this case we will return immediately indicating locking failed.
+            return false;
+        }
+        final FileLock fileLock = tryLock(retry, channel);
+        if (fileLock == null) {
+            channel.close();
+            return false;
+        }
+        globalStateChannel = channel;
+        globalStateLock = fileLock;
+        return true;
+    }
+
+    public void unlockGlobalState() throws IOException {
+        if (globalStateLock == null) {
+            return;
+        }
+        globalStateLock.release();
+        globalStateChannel.close();
+        globalStateLock = null;
+        globalStateChannel = null;
+    }
+
+    private FileLock tryLock(int retry, final FileChannel channel) throws IOException {
         FileLock lock = tryAcquireLock(channel);
         while (lock == null && retry > 0) {
             try {
@@ -99,11 +172,10 @@ public class StateDirectory {
             retry--;
             lock = tryAcquireLock(channel);
         }
-        if (lock != null) {
-            locks.put(taskId, lock);
-        }
-        return lock != null;
+        return lock;
     }
+
+
 
     /**
      * Unlock the state directory for the given {@link TaskId}
@@ -185,4 +257,7 @@ public class StateDirectory {
             return null;
         }
     }
+
+
+
 }

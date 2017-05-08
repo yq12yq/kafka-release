@@ -25,8 +25,10 @@ import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.KafkaStreamsTest;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.errors.InvalidStateStoreException;
 import org.apache.kafka.streams.integration.utils.EmbeddedKafkaCluster;
 import org.apache.kafka.streams.integration.utils.IntegrationTestUtils;
 import org.apache.kafka.streams.kstream.KGroupedStream;
@@ -40,13 +42,9 @@ import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.apache.kafka.streams.state.ReadOnlyWindowStore;
 import org.apache.kafka.streams.state.StreamsMetadata;
 import org.apache.kafka.streams.state.WindowStoreIterator;
-import org.apache.kafka.streams.errors.InvalidStateStoreException;
 import org.apache.kafka.test.MockKeyValueMapper;
 import org.apache.kafka.test.TestCondition;
 import org.apache.kafka.test.TestUtils;
-import static org.junit.Assert.fail;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -73,6 +71,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public class QueryableStateIntegrationTest {
@@ -80,6 +81,7 @@ public class QueryableStateIntegrationTest {
     @ClassRule
     public static final EmbeddedKafkaCluster CLUSTER =
         new EmbeddedKafkaCluster(NUM_BROKERS);
+    public static final int STREAM_THREE_PARTITIONS = 4;
     private final MockTime mockTime = CLUSTER.time;
     private String streamOne = "stream-one";
     private String streamTwo = "stream-two";
@@ -90,7 +92,7 @@ public class QueryableStateIntegrationTest {
     private String outputTopicThree = "output-three";
     // sufficiently large window size such that everything falls into 1 window
     private static final long WINDOW_SIZE = TimeUnit.MILLISECONDS.convert(2, TimeUnit.DAYS);
-    private static final int NUM_PARTITIONS = 2;
+    private static final int STREAM_TWO_PARTITIONS = 2;
     private static final int NUM_REPLICAS = NUM_BROKERS;
     private Properties streamsConfiguration;
     private List<String> inputValues;
@@ -100,7 +102,7 @@ public class QueryableStateIntegrationTest {
     private Comparator<KeyValue<String, Long>> stringLongComparator;
     private static int testNo = 0;
 
-    public void createTopics() {
+    public void createTopics() throws InterruptedException {
         streamOne = streamOne + "-" + testNo;
         streamConcurrent = streamConcurrent + "-" + testNo;
         streamThree = streamThree + "-" + testNo;
@@ -110,8 +112,8 @@ public class QueryableStateIntegrationTest {
         streamTwo = streamTwo + "-" + testNo;
         CLUSTER.createTopic(streamOne);
         CLUSTER.createTopic(streamConcurrent);
-        CLUSTER.createTopic(streamTwo, NUM_PARTITIONS, NUM_REPLICAS);
-        CLUSTER.createTopic(streamThree, 4, 1);
+        CLUSTER.createTopic(streamTwo, STREAM_TWO_PARTITIONS, NUM_REPLICAS);
+        CLUSTER.createTopic(streamThree, STREAM_THREE_PARTITIONS, 1);
         CLUSTER.createTopic(outputTopic);
         CLUSTER.createTopic(outputTopicConcurrent);
         CLUSTER.createTopic(outputTopicThree);
@@ -127,25 +129,21 @@ public class QueryableStateIntegrationTest {
     }
 
     @Before
-    public void before() throws IOException {
+    public void before() throws IOException, InterruptedException {
         testNo++;
         createTopics();
         streamsConfiguration = new Properties();
         final String applicationId = "queryable-state-" + testNo;
 
         streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId);
-        streamsConfiguration
-            .put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CLUSTER.bootstrapServers());
-        streamsConfiguration.put(StreamsConfig.ZOOKEEPER_CONNECT_CONFIG, CLUSTER.zKConnectString());
-        streamsConfiguration.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CLUSTER.bootstrapServers());
         streamsConfiguration.put(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory("qs-test").getPath());
         streamsConfiguration.put(StreamsConfig.KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        streamsConfiguration
-            .put(StreamsConfig.VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        streamsConfiguration.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1);
+        streamsConfiguration.put(StreamsConfig.VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         streamsConfiguration.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, cacheSizeBytes);
-        streamsConfiguration.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000);
-
+        streamsConfiguration.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 100);
+        streamsConfiguration.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        // override this to make the rebalances happen quickly
 
         stringComparator = new Comparator<KeyValue<String, String>>() {
 
@@ -229,11 +227,13 @@ public class QueryableStateIntegrationTest {
     private class StreamRunnable implements Runnable {
         private final KafkaStreams myStream;
         private boolean closed = false;
+        private KafkaStreamsTest.StateListenerStub stateListener = new KafkaStreamsTest.StateListenerStub();
 
         StreamRunnable(final String inputTopic, final String outputTopic, final int queryPort) {
             final Properties props = (Properties) streamsConfiguration.clone();
             props.put(StreamsConfig.APPLICATION_SERVER_CONFIG, "localhost:" + queryPort);
             myStream = createCountStream(inputTopic, outputTopic, props);
+            myStream.setStateListener(stateListener);
         }
 
         @Override
@@ -256,9 +256,14 @@ public class QueryableStateIntegrationTest {
         public final KafkaStreams getStream() {
             return myStream;
         }
+
+        public final KafkaStreamsTest.StateListenerStub getStateListener() {
+            return stateListener;
+        }
     }
 
     private void verifyAllKVKeys(final StreamRunnable[] streamRunnables, final KafkaStreams streams,
+                                 final KafkaStreamsTest.StateListenerStub stateListenerStub,
                                  final Set<String> keys, final String storeName) throws Exception {
         for (final String key : keys) {
             TestUtils.waitForCondition(new TestCondition() {
@@ -277,7 +282,8 @@ public class QueryableStateIntegrationTest {
                         // Kafka Streams instance may have closed but rebalance hasn't happened
                         return false;
                     } catch (final InvalidStateStoreException e) {
-                        // rebalance
+                        // there must have been at least one rebalance state
+                        assertTrue(stateListenerStub.mapStates.get(KafkaStreams.State.REBALANCING) >= 1);
                         return false;
                     }
 
@@ -288,6 +294,7 @@ public class QueryableStateIntegrationTest {
 
 
     private void verifyAllWindowedKeys(final StreamRunnable[] streamRunnables, final KafkaStreams streams,
+                                       final KafkaStreamsTest.StateListenerStub stateListenerStub,
                                        final Set<String> keys, final String storeName,
                                        final Long from, final Long to) throws Exception {
         for (final String key : keys) {
@@ -307,7 +314,8 @@ public class QueryableStateIntegrationTest {
                         // Kafka Streams instance may have closed but rebalance hasn't happened
                         return false;
                     } catch (InvalidStateStoreException e) {
-                        // rebalance
+                        // there must have been at least one rebalance state
+                        assertTrue(stateListenerStub.mapStates.get(KafkaStreams.State.REBALANCING) >= 1);
                         return false;
                     }
 
@@ -319,7 +327,7 @@ public class QueryableStateIntegrationTest {
 
     @Test
     public void queryOnRebalance() throws Exception {
-        final int numThreads = NUM_PARTITIONS;
+        final int numThreads = STREAM_TWO_PARTITIONS;
         final StreamRunnable[] streamRunnables = new StreamRunnable[numThreads];
         final Thread[] streamThreads = new Thread[numThreads];
         final int numIterations = 500000;
@@ -340,10 +348,11 @@ public class QueryableStateIntegrationTest {
             waitUntilAtLeastNumRecordProcessed(outputTopicThree, 1);
 
             for (int i = 0; i < numThreads; i++) {
-                verifyAllKVKeys(streamRunnables, streamRunnables[i].getStream(), inputValuesKeys,
+                verifyAllKVKeys(streamRunnables, streamRunnables[i].getStream(), streamRunnables[i].getStateListener(), inputValuesKeys,
                     "word-count-store-" + streamThree);
-                verifyAllWindowedKeys(streamRunnables, streamRunnables[i].getStream(), inputValuesKeys,
+                verifyAllWindowedKeys(streamRunnables, streamRunnables[i].getStream(), streamRunnables[i].getStateListener(), inputValuesKeys,
                                       "windowed-word-count-store-" + streamThree, 0L, WINDOW_SIZE);
+                assertEquals(streamRunnables[i].getStream().state(), KafkaStreams.State.RUNNING);
             }
 
             // kill N-1 threads
@@ -354,10 +363,11 @@ public class QueryableStateIntegrationTest {
             }
 
             // query from the remaining thread
-            verifyAllKVKeys(streamRunnables, streamRunnables[0].getStream(), inputValuesKeys,
+            verifyAllKVKeys(streamRunnables, streamRunnables[0].getStream(), streamRunnables[0].getStateListener(), inputValuesKeys,
                 "word-count-store-" + streamThree);
-            verifyAllWindowedKeys(streamRunnables, streamRunnables[0].getStream(), inputValuesKeys,
+            verifyAllWindowedKeys(streamRunnables, streamRunnables[0].getStream(), streamRunnables[0].getStateListener(), inputValuesKeys,
                                   "windowed-word-count-store-" + streamThree, 0L, WINDOW_SIZE);
+            assertEquals(streamRunnables[0].getStream().state(), KafkaStreams.State.RUNNING);
         } finally {
             for (int i = 0; i < numThreads; i++) {
                 if (!streamRunnables[i].isClosed()) {

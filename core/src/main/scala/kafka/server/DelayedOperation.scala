@@ -22,7 +22,6 @@ import java.util.concurrent.atomic._
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
 import com.yammer.metrics.core.Gauge
-
 import kafka.metrics.KafkaMetricsGroup
 import kafka.utils.CoreUtils.{inReadLock, inWriteLock}
 import kafka.utils._

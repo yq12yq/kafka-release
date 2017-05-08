@@ -44,6 +44,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+
 /**
  * Single process, in-memory "herder". Useful for a standalone Kafka Connect process.
  */
@@ -129,47 +130,56 @@ public class StandaloneHerder extends AbstractHerder {
     }
 
     @Override
+    public synchronized void deleteConnectorConfig(String connName, Callback<Created<ConnectorInfo>> callback) {
+        try {
+            if (!configState.contains(connName)) {
+                // Deletion, must already exist
+                callback.onCompletion(new NotFoundException("Connector " + connName + " not found", null), null);
+                return;
+            }
+
+            removeConnectorTasks(connName);
+            worker.stopConnector(connName);
+            configBackingStore.removeConnectorConfig(connName);
+            onDeletion(connName);
+            callback.onCompletion(null, new Created<ConnectorInfo>(false, null));
+        } catch (ConnectException e) {
+            callback.onCompletion(e, null);
+        }
+
+    }
+
+    @Override
     public synchronized void putConnectorConfig(String connName,
                                                 final Map<String, String> config,
                                                 boolean allowReplace,
                                                 final Callback<Created<ConnectorInfo>> callback) {
         try {
+            if (maybeAddConfigErrors(validateConnectorConfig(config), callback)) {
+                return;
+            }
+
             boolean created = false;
             if (configState.contains(connName)) {
                 if (!allowReplace) {
                     callback.onCompletion(new AlreadyExistsException("Connector " + connName + " already exists"), null);
                     return;
                 }
-                if (config == null) // Deletion, kill tasks as well
-                    removeConnectorTasks(connName);
                 worker.stopConnector(connName);
-                if (config == null) {
-                    configBackingStore.removeConnectorConfig(connName);
-                    onDeletion(connName);
-                }
             } else {
-                if (config == null) {
-                    // Deletion, must already exist
-                    callback.onCompletion(new NotFoundException("Connector " + connName + " not found", null), null);
-                    return;
-                }
                 created = true;
             }
-            if (config != null) {
-                if (!startConnector(config)) {
-                    callback.onCompletion(new ConnectException("Failed to start connector: " + connName), null);
-                    return;
-                }
-                updateConnectorTasks(connName);
+
+            if (!startConnector(config)) {
+                callback.onCompletion(new ConnectException("Failed to start connector: " + connName), null);
+                return;
             }
-            if (config != null)
-                callback.onCompletion(null, new Created<>(created, createConnectorInfo(connName)));
-            else
-                callback.onCompletion(null, new Created<ConnectorInfo>(false, null));
+
+            updateConnectorTasks(connName);
+            callback.onCompletion(null, new Created<>(created, createConnectorInfo(connName)));
         } catch (ConnectException e) {
             callback.onCompletion(e, null);
         }
-
     }
 
     @Override

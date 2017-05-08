@@ -68,7 +68,7 @@ public enum SecurityProtocol {
     /* Whether this security protocol is for testing/debugging */
     private final boolean isTesting;
 
-    private SecurityProtocol(int id, String name, boolean isTesting) {
+    SecurityProtocol(int id, String name, boolean isTesting) {
         this.id = (short) id;
         this.name = name;
         this.isTesting = isTesting;

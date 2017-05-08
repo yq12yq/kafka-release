@@ -18,18 +18,20 @@
 package kafka.network
 
 import java.net.InetSocketAddress
-import java.net.SocketTimeoutException;
+import java.net.SocketTimeoutException
 import java.nio.channels._
-import kafka.utils.{nonthreadsafe, Logging, SystemTime, CoreUtils}
+
+import kafka.utils.{CoreUtils, Logging, nonthreadsafe}
 import kafka.api.RequestOrResponse
 import kafka.common.security.LoginManager
-import org.apache.kafka.common.security.auth.{PrincipalBuilder, DefaultPrincipalBuilder}
+import org.apache.kafka.common.security.auth.{DefaultPrincipalBuilder, PrincipalBuilder}
 import org.apache.kafka.common.protocol.SecurityProtocol
 import org.apache.kafka.common.security.authenticator.SaslClientAuthenticator
 import org.apache.kafka.common.config.SaslConfigs
-import org.apache.kafka.clients.{CommonClientConfigs, ClientUtils}
-import org.apache.kafka.common.network.{TransportLayer, KafkaChannel, BlockingPlaintextTransportLayer,
-  NetworkReceive, DefaultAuthenticator, Authenticator}
+import org.apache.kafka.clients.{ClientUtils, CommonClientConfigs}
+import org.apache.kafka.common.network.{Authenticator, BlockingPlaintextTransportLayer, DefaultAuthenticator, KafkaChannel, NetworkReceive, TransportLayer}
+import org.apache.kafka.common.utils.Time
+
 
 
 object BlockingChannel{
@@ -73,10 +75,10 @@ class BlockingChannel( val host: String,
         socketChannel.socket.connect(new InetSocketAddress(host, port), connectTimeoutMs)
         channel = buildKafkaChannel(socketChannel, readBufferSize, id)
 
-        val handshakeInterval = SystemTime.milliseconds
+        val handshakeInterval = Time.SYSTEM.milliseconds
         while(!channel.ready) {
           channel.prepare();
-          if (!channel.ready && ((SystemTime.milliseconds - handshakeInterval) > handshakeTimeoutMs)) {
+          if (!channel.ready && ((Time.SYSTEM.milliseconds - handshakeInterval) > handshakeTimeoutMs)) {
             throw new SocketTimeoutException("Socket timeout during handshake")
           }
         }
@@ -95,7 +97,7 @@ class BlockingChannel( val host: String,
                          connectTimeoutMs))
 
       } catch {
-        case e: Throwable => disconnect()
+        case _: Throwable => disconnect()
       }
     }
   }

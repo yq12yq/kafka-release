@@ -17,11 +17,8 @@ import org.ajoberstar.grgit.Grgit
 
 buildscript {
   repositories {
-      maven {
-        url = "$repoUrl"
-        jcenter()
-      }
-      mavenLocal()
+    mavenCentral()
+    jcenter()
   }
   apply from: file('gradle/buildscript.gradle'), to: buildscript
 
@@ -29,7 +26,7 @@ buildscript {
     // For Apache Rat plugin to ignore non-Git files
     classpath "org.ajoberstar:grgit:1.5.0"
     classpath 'com.github.ben-manes:gradle-versions-plugin:0.12.0'
-    classpath 'org.scoverage:gradle-scoverage:2.0.1'
+    classpath 'org.scoverage:gradle-scoverage:2.1.0'
   }
 }
 
@@ -70,6 +67,7 @@ allprojects {
       options.addStringOption('Xdoclint:none', '-quiet')
     }
   }
+
 }
 
 ext {
@@ -117,7 +115,9 @@ if (new File('.git').exists()) {
         '**/README.md',
         '**/config/**',
         '**/system_test/**',
-        '**/contrib/**'
+        '**/contrib/**',
+        '**/id_rsa',
+        '**/id_rsa.pub'
     ])
   }
 }
@@ -266,7 +266,10 @@ subprojects {
       "-language:implicitConversions",
       "-language:existentials"
     ]
-    ScalaCompileOptions.metaClass.useAnt = false 
+      ScalaCompileOptions.metaClass.daemonServer = true
+      ScalaCompileOptions.metaClass.fork = true
+      ScalaCompileOptions.metaClass.useAnt = false
+      ScalaCompileOptions.metaClass.useCompileDaemon = false
     configure(scalaCompileOptions.forkOptions) {
       memoryMaximumSize = '1g'
       jvmArgs = ['-Xss2m'] + maxPermSizeArgs
@@ -323,7 +326,7 @@ task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
 
 task reportCoverage(dependsOn: ['jacocoRootReport', 'core:reportScoverage'])
 
-for ( sv in ['2_10', '2_11', '2_12'] ) {
+for ( sv in ['2_10', '2_11'] ) {
   String svInDot = sv.replaceAll( "_", ".")
 
   tasks.create(name: "jar_core_${sv}", type: GradleBuild) {
@@ -424,6 +427,7 @@ project(':core') {
     testCompile libs.apachedsJdbmPartition
     testCompile libs.junit
     testCompile libs.scalaTest
+    testCompile libs.jfreechart
 
     scoverage libs.scoveragePlugin
     scoverage libs.scoverageRuntime
@@ -515,7 +519,7 @@ project(':core') {
 
   task siteDocsTar(dependsOn: ['genProtocolErrorDocs', 'genProtocolApiKeyDocs', 'genProtocolMessageDocs',
                                'genProducerConfigDocs', 'genConsumerConfigDocs', 'genKafkaConfigDocs',
-                               'genTopicConfigDocs', ':connect:runtime:genConnectConfigDocs',
+                               'genTopicConfigDocs', ':connect:runtime:genConnectConfigDocs', ':connect:runtime:genConnectTransformationDocs',
                                ':streams:genStreamsConfigDocs'], type: Tar) {
     classifier = 'site-docs'
     compression = Compression.GZIP
@@ -540,6 +544,8 @@ project(':core') {
     from(project(':connect:api').configurations.runtime) { into("libs/") }
     from(project(':connect:runtime').jar) { into("libs/") }
     from(project(':connect:runtime').configurations.runtime) { into("libs/") }
+    from(project(':connect:transforms').jar) { into("libs/") }
+    from(project(':connect:transforms').configurations.runtime) { into("libs/") }
     from(project(':connect:json').jar) { into("libs/") }
     from(project(':connect:json').configurations.runtime) { into("libs/") }
     from(project(':connect:file').jar) { into("libs/") }
@@ -720,20 +726,6 @@ project(':streams') {
     compile project(':connect:json')  // this dependency should be removed after we unify data API
     compile libs.slf4jApi
     compile libs.rocksDBJni
-    // this dependency should be removed after KIP-4
-    compile (libs.zkclient) {
-      // users should be able to choose the logging implementation (and slf4j bridge)
-      exclude module: 'slf4j-log4j12'
-      exclude module: 'log4j'
-      exclude module: 'jline'
-      exclude module: 'netty'
-    }
-
-    // zkclient has a hard log4j dependency, we set it here as well to avoid copying an older
-    // version to the binary package; the following two dependencies should be removed after KIP-4
-    // (along with the zkclient dependency)
-    compile libs.log4j
-    compile libs.jacksonDatabind
 
     testCompile project(':clients').sourceSets.test.output
     testCompile project(':core')
@@ -852,6 +844,42 @@ project(':connect:api') {
   }
 }
 
+project(':connect:transforms') {
+  archivesBaseName = "connect-transforms"
+
+  dependencies {
+    compile project(':connect:api')
+    compile libs.slf4jApi
+
+    testCompile libs.easymock
+    testCompile libs.junit
+    testCompile libs.powermock
+    testCompile libs.powermockEasymock
+
+    testRuntime libs.slf4jlog4j
+  }
+
+  javadoc {
+    enabled = false
+  }
+
+  tasks.create(name: "copyDependantLibs", type: Copy) {
+    from (configurations.testRuntime) {
+      include('slf4j-log4j12*')
+    }
+    from (configurations.runtime) {
+      exclude('kafka-clients*')
+      exclude('connect-*')
+    }
+    into "$buildDir/dependant-libs"
+    duplicatesStrategy 'exclude'
+  }
+
+  jar {
+    dependsOn copyDependantLibs
+  }
+}
+
 project(':connect:json') {
   archivesBaseName = "connect-json"
 
@@ -894,6 +922,7 @@ project(':connect:runtime') {
 
   dependencies {
     compile project(':connect:api')
+    compile project(":connect:transforms")
     compile project(':clients')
     compile project(':tools')
     compile libs.slf4jApi
@@ -913,7 +942,9 @@ project(':connect:runtime') {
     testCompile libs.junit
     testCompile libs.powermock
     testCompile libs.powermockEasymock
+
     testCompile project(":connect:json")
+
     testRuntime libs.slf4jlog4j
   }
 
@@ -942,6 +973,13 @@ project(':connect:runtime') {
     main = 'org.apache.kafka.connect.runtime.distributed.DistributedConfig'
     if( !generatedDocsDir.exists() ) { generatedDocsDir.mkdirs() }
     standardOutput = new File(generatedDocsDir, "connect_config.html").newOutputStream()
+  }
+
+  task genConnectTransformationDocs(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'org.apache.kafka.connect.tools.TransformationDoc'
+    if( !generatedDocsDir.exists() ) { generatedDocsDir.mkdirs() }
+    standardOutput = new File(generatedDocsDir, "connect_transforms.html").newOutputStream()
   }
 }
 

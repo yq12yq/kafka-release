@@ -19,12 +19,15 @@ package kafka.tools
 
 import java.net.URI
 import java.text.SimpleDateFormat
-import kafka.api.{PartitionOffsetRequestInfo, FetchRequestBuilder, OffsetRequest}
+
+import kafka.api.{FetchRequestBuilder, OffsetRequest, PartitionOffsetRequestInfo}
 import kafka.consumer.SimpleConsumer
 import kafka.utils._
 import org.apache.log4j.Logger
 import kafka.common.TopicAndPartition
+import org.apache.kafka.common.utils.Time
 import org.apache.kafka.common.protocol.SecurityProtocol
+
 
 /**
  * Performance test for the simple consumer
@@ -96,7 +99,7 @@ object SimpleConsumerPerformance {
             (totalBytesRead*1.0)/(1024*1024), totalMBRead/elapsed,
             totalMessagesRead, (totalMessagesRead-lastMessagesRead)/elapsed))
         }
-        lastReportTime = SystemTime.milliseconds
+        lastReportTime = Time.SYSTEM.milliseconds
         lastBytesRead = totalBytesRead
         lastMessagesRead = totalMessagesRead
         consumedInterval = 0
@@ -139,8 +142,7 @@ object SimpleConsumerPerformance {
                            .withRequiredArg
                            .describedAs("clientId")
                            .ofType(classOf[String])
-      .defaultsTo("SimpleConsumerPerformanceClient")
-
+                           .defaultsTo("SimpleConsumerPerformanceClient")
     val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
       .withRequiredArg
       .describedAs("security-protocol")

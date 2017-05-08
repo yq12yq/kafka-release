@@ -45,7 +45,6 @@ import org.apache.kafka.common.record.Records;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.common.utils.KafkaThread;
-import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,6 +124,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * The <code>key.serializer</code> and <code>value.serializer</code> instruct how to turn the key and value objects the user provides with
  * their <code>ProducerRecord</code> into bytes. You can use the included {@link org.apache.kafka.common.serialization.ByteArraySerializer} or
  * {@link org.apache.kafka.common.serialization.StringSerializer} for simple string or byte types.
+ * <p>
+ * This client can communicate with brokers that are version 0.10.0 or newer. Older or newer brokers may not support
+ * certain client features.  You will receive an UnsupportedVersionException when invoking an API that is not available
+ * with the running broker verion.
  */
 public class KafkaProducer<K, V> implements Producer<K, V> {
 
@@ -208,7 +211,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             log.trace("Starting the Kafka producer");
             Map<String, Object> userProvidedConfigs = config.originals();
             this.producerConfig = config;
-            this.time = new SystemTime();
+            this.time = Time.SYSTEM;
 
             clientId = config.getString(ProducerConfig.CLIENT_ID_CONFIG);
             if (clientId.length() <= 0)
@@ -243,7 +246,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
 
             // load interceptors and make sure they get clientId
             userProvidedConfigs.put(ProducerConfig.CLIENT_ID_CONFIG, clientId);
-            List<ProducerInterceptor<K, V>> interceptorList = (List) (new ProducerConfig(userProvidedConfigs)).getConfiguredInstances(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG,
+            List<ProducerInterceptor<K, V>> interceptorList = (List) (new ProducerConfig(userProvidedConfigs, false)).getConfiguredInstances(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG,
                     ProducerInterceptor.class);
             this.interceptors = interceptorList.isEmpty() ? null : new ProducerInterceptors<>(interceptorList);
 
@@ -298,7 +301,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                     time);
 
             List<InetSocketAddress> addresses = ClientUtils.parseAndValidateAddresses(config.getList(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG));
-            this.metadata.update(Cluster.bootstrap(addresses), time.milliseconds());
+            this.metadata.update(Cluster.bootstrap(addresses), Collections.<String>emptySet(), time.milliseconds());
             ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config.values());
             NetworkClient client = new NetworkClient(
                     new Selector(config.getLong(ProducerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG), this.metrics, time, "producer", channelBuilder),
@@ -308,7 +311,9 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                     config.getLong(ProducerConfig.RECONNECT_BACKOFF_MS_CONFIG),
                     config.getInt(ProducerConfig.SEND_BUFFER_CONFIG),
                     config.getInt(ProducerConfig.RECEIVE_BUFFER_CONFIG),
-                    this.requestTimeoutMs, time);
+                    this.requestTimeoutMs,
+                    time,
+                    true);
             this.sender = new Sender(client,
                     this.metadata,
                     this.accumulator,
@@ -317,8 +322,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                     (short) parseAcks(config.getString(ProducerConfig.ACKS_CONFIG)),
                     config.getInt(ProducerConfig.RETRIES_CONFIG),
                     this.metrics,
-                    new SystemTime(),
-                    clientId,
+                    Time.SYSTEM,
                     this.requestTimeoutMs);
             String ioThreadName = "kafka-producer-network-thread" + (clientId.length() > 0 ? " | " + clientId : "");
             this.ioThread = new KafkaThread(ioThreadName, this.sender, true);
@@ -723,6 +727,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
         ClientUtils.closeQuietly(metrics, "producer metrics", firstException);
         ClientUtils.closeQuietly(keySerializer, "producer keySerializer", firstException);
         ClientUtils.closeQuietly(valueSerializer, "producer valueSerializer", firstException);
+        ClientUtils.closeQuietly(partitioner, "producer partitioner", firstException);
         AppInfoParser.unregisterAppInfo(JMX_PREFIX, clientId);
         log.debug("The Kafka producer has closed.");
         if (firstException.get() != null && !swallowException)

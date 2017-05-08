@@ -22,10 +22,8 @@ import org.apache.kafka.common.errors.DisconnectException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.protocol.ApiKeys;
-import org.apache.kafka.common.protocol.ProtoUtils;
 import org.apache.kafka.common.requests.AbstractRequest;
 import org.apache.kafka.common.requests.RequestHeader;
-import org.apache.kafka.common.requests.RequestSend;
 import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.kafka.common.errors.InterruptException;
 
 /**
  * Higher level consumer access to the network layer with basic support for request futures. This class
@@ -86,26 +85,17 @@ public class ConsumerNetworkClient implements Closeable {
      * Use the returned future to obtain the result of the send. Note that there is no
      * need to check for disconnects explicitly on the {@link ClientResponse} object;
      * instead, the future will be failed with a {@link DisconnectException}.
+     *
      * @param node The destination of the request
-     * @param api The Kafka API call
-     * @param request The request payload
+     * @param requestBuilder A builder for the request payload
      * @return A future which indicates the result of the send.
      */
-    public RequestFuture<ClientResponse> send(Node node,
-                                              ApiKeys api,
-                                              AbstractRequest request) {
-        return send(node, api, ProtoUtils.latestVersion(api.id), request);
-    }
-
-    private RequestFuture<ClientResponse> send(Node node,
-                                              ApiKeys api,
-                                              short version,
-                                              AbstractRequest request) {
+    public RequestFuture<ClientResponse> send(Node node, AbstractRequest.Builder<?> requestBuilder) {
         long now = time.milliseconds();
         RequestFutureCompletionHandler completionHandler = new RequestFutureCompletionHandler();
-        RequestHeader header = client.nextRequestHeader(api, version);
-        RequestSend send = new RequestSend(node.idString(), header, request.toStruct());
-        put(node, new ClientRequest(now, true, send, completionHandler));
+        ClientRequest clientRequest = client.newClientRequest(node.idString(), requestBuilder, now, true,
+                completionHandler);
+        put(node, clientRequest);
 
         // wakeup the client in case it is blocking in poll so that we can send the queued request
         client.wakeup();
@@ -166,6 +156,7 @@ public class ConsumerNetworkClient implements Closeable {
     public void wakeup() {
         // wakeup should be safe without holding the client lock since it simply delegates to
         // Selector's wakeup, which is threadsafe
+        log.trace("Received user wakeup");
         this.wakeup.set(true);
         this.client.wakeup();
     }
@@ -174,6 +165,7 @@ public class ConsumerNetworkClient implements Closeable {
      * Block indefinitely until the given request future has finished.
      * @param future The request future to await.
      * @throws WakeupException if {@link #wakeup()} is called from another thread
+     * @throws InterruptException if the calling thread is interrupted
      */
     public void poll(RequestFuture<?> future) {
         while (!future.isDone())
@@ -186,6 +178,7 @@ public class ConsumerNetworkClient implements Closeable {
      * @param timeout The maximum duration (in ms) to wait for the request
      * @return true if the future is done, false otherwise
      * @throws WakeupException if {@link #wakeup()} is called from another thread
+     * @throws InterruptException if the calling thread is interrupted
      */
     public boolean poll(RequestFuture<?> future, long timeout) {
         long begin = time.milliseconds();
@@ -204,6 +197,7 @@ public class ConsumerNetworkClient implements Closeable {
      * Poll for any network IO.
      * @param timeout The maximum time to wait for an IO event.
      * @throws WakeupException if {@link #wakeup()} is called from another thread
+     * @throws InterruptException if the calling thread is interrupted
      */
     public void poll(long timeout) {
         poll(timeout, time.milliseconds(), null);
@@ -243,6 +237,9 @@ public class ConsumerNetworkClient implements Closeable {
             // trigger wakeups after checking for disconnects so that the callbacks will be ready
             // to be fired on the next call to poll()
             maybeTriggerWakeup();
+            
+            // throw InterruptException if this thread is interrupted
+            maybeThrowInterruptException();
 
             // try again to send requests since buffer space may have been
             // cleared or a connect finished in the poll
@@ -272,10 +269,19 @@ public class ConsumerNetworkClient implements Closeable {
     /**
      * Block until all pending requests from the given node have finished.
      * @param node The node to await requests from
+     * @param timeoutMs The maximum time in milliseconds to block
+     * @return true If all requests finished, false if the timeout expired first
      */
-    public void awaitPendingRequests(Node node) {
-        while (pendingRequestCount(node) > 0)
-            poll(retryBackoffMs);
+    public boolean awaitPendingRequests(Node node, long timeoutMs) {
+        long startMs = time.milliseconds();
+        long remainingMs = timeoutMs;
+
+        while (pendingRequestCount(node) > 0 && remainingMs > 0) {
+            poll(remainingMs);
+            remainingMs = timeoutMs - (time.milliseconds() - startMs);
+        }
+
+        return pendingRequestCount(node) == 0;
     }
 
     /**
@@ -336,9 +342,9 @@ public class ConsumerNetworkClient implements Closeable {
                 // coordinator failures traversing the unsent list again.
                 iterator.remove();
                 for (ClientRequest request : requestEntry.getValue()) {
-                    RequestFutureCompletionHandler handler =
-                            (RequestFutureCompletionHandler) request.callback();
-                    handler.onComplete(new ClientResponse(request, now, true, null));
+                    RequestFutureCompletionHandler handler = (RequestFutureCompletionHandler) request.callback();
+                    handler.onComplete(new ClientResponse(request.makeHeader(), request.callback(), request.destination(),
+                            request.createdTimeMs(), now, true, null, null));
                 }
             }
         }
@@ -369,8 +375,8 @@ public class ConsumerNetworkClient implements Closeable {
         synchronized (this) {
             List<ClientRequest> unsentRequests = unsent.remove(node);
             if (unsentRequests != null) {
-                for (ClientRequest request : unsentRequests) {
-                    RequestFutureCompletionHandler handler = (RequestFutureCompletionHandler) request.callback();
+                for (ClientRequest unsentRequest : unsentRequests) {
+                    RequestFutureCompletionHandler handler = (RequestFutureCompletionHandler) unsentRequest.callback();
                     handler.onFailure(e);
                 }
             }
@@ -400,8 +406,15 @@ public class ConsumerNetworkClient implements Closeable {
 
     private void maybeTriggerWakeup() {
         if (wakeupDisabledCount == 0 && wakeup.get()) {
+            log.trace("Raising wakeup exception in response to user wakeup");
             wakeup.set(false);
             throw new WakeupException();
+        }
+    }
+    
+    private void maybeThrowInterruptException() {
+        if (Thread.interrupted()) {
+            throw new InterruptException(new InterruptedException());
         }
     }
 
@@ -434,7 +447,7 @@ public class ConsumerNetworkClient implements Closeable {
 
     /**
      * Find whether a previous connection has failed. Note that the failure state will persist until either
-     * {@link #tryConnect(Node)} or {@link #send(Node, ApiKeys, AbstractRequest)} has been called.
+     * {@link #tryConnect(Node)} or {@link #send(Node, AbstractRequest.Builder)} has been called.
      * @param node Node to connect to if possible
      */
     public boolean connectionFailed(Node node) {
@@ -445,7 +458,7 @@ public class ConsumerNetworkClient implements Closeable {
 
     /**
      * Initiate a connection if currently possible. This is only really useful for resetting the failed
-     * status of a socket. If there is an actual request to send, then {@link #send(Node, ApiKeys, AbstractRequest)}
+     * status of a socket. If there is an actual request to send, then {@link #send(Node, AbstractRequest.Builder)}
      * should be used.
      * @param node The node to connect to
      */
@@ -468,13 +481,14 @@ public class ConsumerNetworkClient implements Closeable {
             if (e != null) {
                 future.raise(e);
             } else if (response.wasDisconnected()) {
-                ClientRequest request = response.request();
-                RequestSend send = request.request();
-                ApiKeys api = ApiKeys.forId(send.header().apiKey());
-                int correlation = send.header().correlationId();
+                RequestHeader requestHeader = response.requestHeader();
+                ApiKeys api = ApiKeys.forId(requestHeader.apiKey());
+                int correlation = requestHeader.correlationId();
                 log.debug("Cancelled {} request {} with correlation id {} due to node {} being disconnected",
-                        api, request, correlation, send.destination());
+                        api, requestHeader, correlation, response.destination());
                 future.raise(DisconnectException.INSTANCE);
+            } else if (response.versionMismatch() != null) {
+                future.raise(response.versionMismatch());
             } else {
                 future.complete(response);
             }
