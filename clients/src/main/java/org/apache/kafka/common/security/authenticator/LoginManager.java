@@ -31,6 +31,7 @@ import java.util.Map;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.types.Password;
 import org.apache.kafka.common.network.LoginType;
+import org.apache.kafka.common.security.JaasUtils;
 import org.apache.kafka.common.security.auth.Login;
 import org.apache.kafka.common.security.kerberos.KerberosLogin;
 
@@ -92,6 +93,21 @@ public class LoginManager {
             }
             return loginManager.acquire();
         }
+    }
+
+    public static LoginManager acquireLoginManager(LoginType loginType, boolean hasKerberos, Map<String, ?> configs)
+                    throws IOException, LoginException {
+        LoginManager loginManager;
+        synchronized (LoginManager.class) {
+            loginManager = LOGIN_TYPE_INSTANCES.get(loginType);
+            if (loginManager == null) {
+                Configuration jaasConfig = JaasUtils.defaultJaasConfig(loginType);
+                Password jaasConfigValue = (Password) configs.get(SaslConfigs.SASL_JAAS_CONFIG);
+                loginManager = new LoginManager(loginType, hasKerberos, configs, jaasConfig, jaasConfigValue);
+                LOGIN_TYPE_INSTANCES.put(loginType, loginManager);
+            }
+        }
+        return loginManager.acquire();
     }
 
     public Subject subject() {

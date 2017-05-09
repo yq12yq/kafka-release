@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 package org.apache.kafka.common.security;
-
 import javax.security.auth.login.Configuration;
 import javax.security.auth.login.AppConfigurationEntry;
 import java.lang.reflect.InvocationTargetException;
@@ -88,7 +87,7 @@ public class JaasUtils {
         return null;
     }
 
-    private static Configuration defaultJaasConfig(LoginType loginType) {
+    public static Configuration defaultJaasConfig(LoginType loginType) {
         String jaasConfigFile = System.getProperty(JaasUtils.JAVA_LOGIN_CONFIG_PARAM);
         if (jaasConfigFile == null) {
             LOG.debug("System property '" + JaasUtils.JAVA_LOGIN_CONFIG_PARAM + "' and Kafka SASL property '" +
