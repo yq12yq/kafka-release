@@ -427,7 +427,7 @@ object AdminUtils extends Logging with AdminUtilities {
 
     if (!update) {
       if (topicExists(zkUtils, topic))
-        throw new TopicExistsException(s"Topic '$topic' already exists.")
+        throw new TopicExistsException("Topic \"%s\" already exists.".format(topic))
       else if (Topic.hasCollisionChars(topic)) {
         val allTopics = zkUtils.getAllTopics()
         // check again in case the topic was created in the meantime, otherwise the
