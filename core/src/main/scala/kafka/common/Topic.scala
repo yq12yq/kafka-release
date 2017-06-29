@@ -26,9 +26,12 @@ object Topic {
   val GroupMetadataTopicName = "__consumer_offsets"
   val InternalTopics = immutable.Set(GroupMetadataTopicName)
 
-  val legalChars = "[a-zA-Z0-9\\._\\-]"
+  //exclude Unix constraints, Zookeeper constraints and Jmx special meaning characters
+  val illegalChars = ":*/?,=\"\\\\" + '\u0000' + '\u0001' + "-" + '\u001F' + '\u007F' + "-" + '\u009F' +
+    '\uD800' + "-" + '\uF8FF' + '\uFFF0' + "-" + '\uFFFF'
+
   private val maxNameLength = 249
-  private val rgx = new Regex(legalChars + "+")
+  private val rgx = new Regex("[" + Topic.illegalChars + "]")
 
   def validate(topic: String) {
     if (topic.length <= 0)
@@ -39,11 +42,10 @@ object Topic {
       throw new org.apache.kafka.common.errors.InvalidTopicException("topic name is illegal, can't be longer than " + maxNameLength + " characters")
 
     rgx.findFirstIn(topic) match {
-      case Some(t) =>
-        if (!t.equals(topic))
-          throw new org.apache.kafka.common.errors.InvalidTopicException("topic name " + topic + " is illegal, contains a character other than ASCII alphanumerics, '.', '_' and '-'")
-      case None => throw new org.apache.kafka.common.errors.InvalidTopicException("topic name " + topic + " is illegal,  contains a character other than ASCII alphanumerics, '.', '_' and '-'")
-    }
+         case Some(t) => throw new org.apache.kafka.common.errors.InvalidTopicException("topic name " + topic + " is illegal," +
+           " it contains some illegal characters (colon (:), asterisk (*), question mark(?), comma(,), equals (=), quote, backslash, forward slash)")
+         case None =>
+       }
   }
 
   /**
