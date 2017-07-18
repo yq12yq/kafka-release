@@ -22,6 +22,20 @@ fi
 
 base_dir=$(dirname $0)
 
+if [ -d "$base_dir/../share/java" ]; then
+    java_base_dir=$( cd -P "$base_dir/../share/java" && pwd )
+    # Classpath addition for any Kafka Connect connectors
+    for library in $java_base_dir/kafka-connect-*; do
+        classpath_prefix="$CLASSPATH:"
+        if [ "x$CLASSPATH" = "x" ]; then
+            classpath_prefix=""
+        fi
+        CLASSPATH="$classpath_prefix$library/*"
+    done
+    CLASSPATH=$CLASSPATH:$java_base_dir/kafka-serde-tools/*
+    export CLASSPATH
+fi
+
 if [ "x$KAFKA_LOG4J_OPTS" = "x" ]; then
     export KAFKA_LOG4J_OPTS="-Dlog4j.configuration=file:$base_dir/../config/connect-log4j.properties"
 fi
