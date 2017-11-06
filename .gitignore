@@ -2,6 +2,8 @@ dist
 *classes
 target/
 build/
+build_eclipse/
+out/
 .gradle/
 lib_managed/
 src_managed/
@@ -21,8 +23,8 @@ TAGS
 *.iml
 .project
 .settings
-kafka.ipr
-kafka.iws
+*.ipr
+*.iws
 .vagrant
 Vagrantfile.local
 /logs
@@ -42,3 +44,5 @@ tests/.ducktape
 gradlew
 gradlew.bat
 docs/generated/
+
+.release-settings.json

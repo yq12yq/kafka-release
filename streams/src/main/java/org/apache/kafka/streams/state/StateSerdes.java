@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License. You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,8 @@ import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.Serializer;
+
+import java.util.Objects;
 
 /**
  * Factory for creating serializers / deserializers for state stores in Kafka Streams.
@@ -37,7 +39,7 @@ public final class StateSerdes<K, V> {
      * @param valueClass the class of the value type
      * @param <K>        the key type
      * @param <V>        the value type
-     * @return           a new instance of {@link StateSerdes}
+     * @return a new instance of {@link StateSerdes}
      */
     public static <K, V> StateSerdes<K, V> withBuiltinTypes(
         final String topic,
@@ -56,24 +58,17 @@ public final class StateSerdes<K, V> {
      * is provided to bind this serde factory to, so that future calls for serialize / deserialize do not
      * need to provide the topic name any more.
      *
-     * @param topic      the topic name
-     * @param keySerde   the serde for keys; cannot be null
-     * @param valueSerde the serde for values; cannot be null
+     * @param topic         the topic name
+     * @param keySerde      the serde for keys; cannot be null
+     * @param valueSerde    the serde for values; cannot be null
      * @throws IllegalArgumentException if key or value serde is null
      */
-    @SuppressWarnings("unchecked")
     public StateSerdes(final String topic,
                        final Serde<K> keySerde,
                        final Serde<V> valueSerde) {
-        if (topic == null) {
-            throw new IllegalArgumentException("topic cannot be null");
-        }
-        if (keySerde == null) {
-            throw new IllegalArgumentException("key serde cannot be null");
-        }
-        if (valueSerde == null) {
-            throw new IllegalArgumentException("value serde cannot be null");
-        }
+        Objects.requireNonNull(topic, "topic cannot be null");
+        Objects.requireNonNull(keySerde, "key serde cannot be null");
+        Objects.requireNonNull(valueSerde, "value serde cannot be null");
 
         this.topic = topic;
         this.keySerde = keySerde;

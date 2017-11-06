@@ -24,16 +24,16 @@ import java.nio.channels._
 import kafka.utils.{CoreUtils, Logging, nonthreadsafe}
 import kafka.api.RequestOrResponse
 import kafka.common.security.LoginManager
-import org.apache.kafka.common.security.auth.{DefaultPrincipalBuilder, PrincipalBuilder}
-import org.apache.kafka.common.protocol.SecurityProtocol
+import org.apache.kafka.common.security.auth.{DefaultPrincipalBuilder, PrincipalBuilder, SecurityProtocol}
 import org.apache.kafka.common.security.authenticator.SaslClientAuthenticator
 import org.apache.kafka.common.config.SaslConfigs
-import org.apache.kafka.clients.{ClientUtils, CommonClientConfigs}
-import org.apache.kafka.common.network.{Authenticator, BlockingPlaintextTransportLayer, DefaultAuthenticator, KafkaChannel, NetworkReceive, TransportLayer}
+import org.apache.kafka.common.memory.MemoryPool
+import org.apache.kafka.common.network.{Authenticator, BlockingPlaintextTransportLayer, KafkaChannel, NetworkReceive, TransportLayer}
 import org.apache.kafka.common.utils.Time
 
 
 
+@deprecated("This object has been deprecated and will be removed in a future release.", "0.11.0.0")
 object BlockingChannel{
   val UseDefaultBufferSize = -1
 }
@@ -148,13 +148,12 @@ class BlockingChannel( val host: String,
     var authenticator : Authenticator = null
     val principalBuilder = new DefaultPrincipalBuilder()
     if (CoreUtils.isSaslProtocol(protocol))
-      authenticator = new SaslClientAuthenticator(id, LoginManager.subject, LoginManager.serviceName,
-        socketChannel.socket().getInetAddress().getHostName(), SaslConfigs.DEFAULT_SASL_MECHANISM, true)
+      authenticator = new SaslClientAuthenticator(new java.util.HashMap[String, Any](), id, LoginManager.subject, LoginManager.serviceName,
+        socketChannel.socket().getInetAddress().getHostName(), SaslConfigs.DEFAULT_SASL_MECHANISM, true, transportLayer)
     else
-      authenticator = new DefaultAuthenticator()
+      authenticator = null
 
-    authenticator.configure(transportLayer, principalBuilder, new java.util.HashMap[String, Any]())
-    return new KafkaChannel(id, transportLayer, authenticator, maxReceiveSize)
+    return new KafkaChannel(id, transportLayer, authenticator, maxReceiveSize, MemoryPool.NONE)
   }
 
 }

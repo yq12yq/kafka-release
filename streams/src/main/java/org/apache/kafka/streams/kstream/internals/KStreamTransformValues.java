@@ -1,10 +1,10 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
+ * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * the License. You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.kafka.streams.kstream.internals;
 
 import org.apache.kafka.common.serialization.Serde;
@@ -22,9 +21,12 @@ import org.apache.kafka.streams.StreamsMetrics;
 import org.apache.kafka.streams.errors.StreamsException;
 import org.apache.kafka.streams.kstream.ValueTransformer;
 import org.apache.kafka.streams.kstream.ValueTransformerSupplier;
+import org.apache.kafka.streams.processor.Cancellable;
 import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.ProcessorSupplier;
+import org.apache.kafka.streams.processor.PunctuationType;
+import org.apache.kafka.streams.processor.Punctuator;
 import org.apache.kafka.streams.processor.StateRestoreCallback;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
@@ -89,8 +91,10 @@ public class KStreamTransformValues<K, V, R> implements ProcessorSupplier<K, V> 
                     }
 
                     @Override
-                    public void register(final StateStore store, final boolean loggingEnabled, final StateRestoreCallback stateRestoreCallback) {
-                        context.register(store, loggingEnabled, stateRestoreCallback);
+                    public void register(final StateStore store,
+                                         final boolean deprecatedAndIgnoredLoggingEnabled,
+                                         final StateRestoreCallback stateRestoreCallback) {
+                        context.register(store, deprecatedAndIgnoredLoggingEnabled, stateRestoreCallback);
                     }
 
                     @Override
@@ -98,6 +102,12 @@ public class KStreamTransformValues<K, V, R> implements ProcessorSupplier<K, V> 
                         return context.getStateStore(name);
                     }
 
+                    @Override
+                    public Cancellable schedule(final long interval, final PunctuationType type, final Punctuator callback) {
+                        return context.schedule(interval, type, callback);
+                    }
+
+                    @SuppressWarnings("deprecation")
                     @Override
                     public void schedule(final long interval) {
                         context.schedule(interval);
@@ -161,6 +171,7 @@ public class KStreamTransformValues<K, V, R> implements ProcessorSupplier<K, V> 
             context.forward(key, valueTransformer.transform(value));
         }
 
+        @SuppressWarnings("deprecation")
         @Override
         public void punctuate(long timestamp) {
             if (valueTransformer.punctuate(timestamp) != null) {

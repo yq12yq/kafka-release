@@ -18,18 +18,19 @@
 package kafka.tools
 
 import kafka.metrics.KafkaMetricsReporter
-import kafka.producer.{OldProducer, NewShinyProducer}
-import kafka.utils.{ToolsUtils, VerifiableProperties, Logging, CommandLineUtils}
+import kafka.producer.{NewShinyProducer, OldProducer}
+import kafka.utils.{CommandLineUtils, Exit, Logging, ToolsUtils, VerifiableProperties}
+import kafka.utils.Implicits._
 import kafka.message.CompressionCodec
 import kafka.serializer._
-import org.apache.kafka.clients.CommonClientConfigs
-
 import java.util.concurrent.{CountDownLatch, Executors}
 import java.util.concurrent.atomic.AtomicLong
 import java.util._
 import java.text.SimpleDateFormat
 import java.math.BigInteger
+import java.nio.charset.StandardCharsets
 
+import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.common.utils.Utils
 import org.apache.log4j.Logger
 
@@ -68,7 +69,7 @@ object ProducerPerformance extends Logging {
       config.dateFormat.format(startMs), config.dateFormat.format(endMs),
       config.compressionCodec.codec, config.messageSize, config.batchSize, totalMBSent,
       totalMBSent / elapsedSecs, totalMessagesSent.get, totalMessagesSent.get / elapsedSecs))
-    System.exit(0)
+    Exit.exit(0)
   }
 
   class ProducerPerfConfig(args: Array[String]) extends PerfConfig(args) {
@@ -131,6 +132,21 @@ object ProducerPerformance extends Logging {
       .ofType(classOf[String])
       .defaultsTo("PLAINTEXT")
     val useNewProducerOpt = parser.accepts("new-producer", "Use the new producer implementation.")
+    val messageSizeOpt = parser.accepts("message-size", "The size of each message.")
+      .withRequiredArg
+      .describedAs("size")
+      .ofType(classOf[java.lang.Integer])
+      .defaultsTo(100)
+    val batchSizeOpt = parser.accepts("batch-size", "Number of messages to write in a single batch.")
+      .withRequiredArg
+      .describedAs("size")
+      .ofType(classOf[java.lang.Integer])
+      .defaultsTo(200)
+    val compressionCodecOpt = parser.accepts("compression-codec", "If set, messages are sent compressed")
+      .withRequiredArg
+      .describedAs("supported codec: NoCompressionCodec as 0, GZIPCompressionCodec as 1, SnappyCompressionCodec as 2, LZ4CompressionCodec as 3")
+      .ofType(classOf[java.lang.Integer])
+      .defaultsTo(0)
 
     val options = parser.parse(args: _*)
     CommandLineUtils.checkRequiredArgs(parser, options, topicsOpt, brokerListOpt, numMessagesOpt)
@@ -197,7 +213,7 @@ object ProducerPerformance extends Logging {
     val producer =
       if (config.useNewProducer) {
         import org.apache.kafka.clients.producer.ProducerConfig
-        props.putAll(config.producerProps)
+        props ++= config.producerProps
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, config.brokerList)
         props.put(ProducerConfig.SEND_BUFFER_CONFIG, (64 * 1024).toString)
         props.put(ProducerConfig.CLIENT_ID_CONFIG, "producer-performance")
@@ -210,7 +226,7 @@ object ProducerPerformance extends Logging {
         props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, config.securityProtocol)
         new NewShinyProducer(props)
       } else {
-        props.putAll(config.producerProps)
+        props ++= config.producerProps
         props.put("metadata.broker.list", config.brokerList)
         props.put("compression.codec", config.compressionCodec.codec.toString)
         props.put("send.buffer.bytes", (64 * 1024).toString)
@@ -255,7 +271,7 @@ object ProducerPerformance extends Logging {
 
       val seqMsgString = String.format("%1$-" + msgSize + "s", msgHeader).replace(' ', 'x')
       debug(seqMsgString)
-      seqMsgString.getBytes()
+      seqMsgString.getBytes(StandardCharsets.UTF_8)
     }
 
     private def generateProducerData(topic: String, messageId: Long): Array[Byte] = {
@@ -286,7 +302,7 @@ object ProducerPerformance extends Logging {
                 Thread.sleep(config.messageSendGapMs)
             })
         } catch {
-          case e: Throwable => error("Error when sending message " + new String(message), e)
+          case e: Throwable => error("Error when sending message " + new String(message, StandardCharsets.UTF_8), e)
         }
         i += 1
       }
