@@ -225,7 +225,7 @@ class MetricsTest extends IntegrationTestHarness with SaslSetup {
     verifyYammerMetricRecorded(s"$errorMetricPrefix,request=Metadata,error=NONE")
 
     try {
-      consumers.head.partitionsFor("12{}!")
+      consumers.head.partitionsFor("12 ,")
     } catch {
       case _: InvalidTopicException => // expected
     }

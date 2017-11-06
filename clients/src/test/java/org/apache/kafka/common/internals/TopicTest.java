@@ -33,7 +33,7 @@ public class TopicTest {
     @Test
     public void shouldAcceptValidTopicNames() {
         String maxLengthString = TestUtils.randomString(249);
-        String[] validTopicNames = {"valid", "TOPIC", "nAmEs", "ar6", "VaL1d", "_0-9_.", "...", maxLengthString};
+        String[] validTopicNames = {"valid", "TOPIC", "nAmEs", "ar6", "VaL1d", "_0-9_.", "...", maxLengthString, "AêñüC", "大家好"};
 
         for (String topicName : validTopicNames) {
             Topic.validate(topicName);
@@ -58,7 +58,7 @@ public class TopicTest {
 
     @Test
     public void shouldRecognizeInvalidCharactersInTopicNames() {
-        char[] invalidChars = {'/', '\\', ',', '\u0000', ':', '"', '\'', ';', '*', '?', ' ', '\t', '\r', '\n', '='};
+        char[] invalidChars = {'/', '\\', ',', '\u0000', ':', '"', '\'', ';', '*', '?', ' ', '\t', '\r', '\n', '=', '\u0000', '\u0001', '\u0018', '\u001F', '\u008F', '\uD805', '\uFFFA'};
 
         for (char c : invalidChars) {
             String topicName = "Is " + c + "illegal";

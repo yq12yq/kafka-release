@@ -21,12 +21,15 @@ import org.apache.kafka.common.utils.Utils;
 
 import java.util.Collections;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class Topic {
 
     public static final String GROUP_METADATA_TOPIC_NAME = "__consumer_offsets";
     public static final String TRANSACTION_STATE_TOPIC_NAME = "__transaction_state";
-    public static final String LEGAL_CHARS = "[a-zA-Z0-9._-]";
+    public static final String ILLEGAL_CHARS = "\\s:*/?,=\"\\\\" + '\u0000' + '\u0001' + "-" + '\u001F' + '\u007F' + "-" + '\u009F' +
+        '\uD800' + "-" + '\uF8FF' + '\uFFF0' + "-" + '\uFFFF';
+    private static final Pattern ILLEGAL_CHARS_PATTERN = Pattern.compile("[" + ILLEGAL_CHARS + "]");
 
     private static final Set<String> INTERNAL_TOPICS = Collections.unmodifiableSet(
             Utils.mkSet(GROUP_METADATA_TOPIC_NAME, TRANSACTION_STATE_TOPIC_NAME));
@@ -42,8 +45,8 @@ public class Topic {
             throw new InvalidTopicException("Topic name is illegal, it can't be longer than " + MAX_NAME_LENGTH +
                     " characters, topic name: " + topic);
         if (!containsValidPattern(topic))
-            throw new InvalidTopicException("Topic name \"" + topic + "\" is illegal, it contains a character other than " +
-                    "ASCII alphanumerics, '.', '_' and '-'");
+            throw new InvalidTopicException("Topic name " + topic + " is illegal, it contains some illegal characters" +
+                " (colon (:), asterisk (*), question mark(?), comma(,), equals (=), quote, backslash, forward slash)");
     }
 
     public static boolean isInternal(String topic) {
@@ -75,15 +78,6 @@ public class Topic {
      * Valid characters for Kafka topics are the ASCII alphanumerics, '.', '_', and '-'
      */
     static boolean containsValidPattern(String topic) {
-        for (int i = 0; i < topic.length(); ++i) {
-            char c = topic.charAt(i);
-
-            // We don't use Character.isLetterOrDigit(c) because it's slower
-            boolean validChar = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '.' ||
-                    c == '_' || c == '-';
-            if (!validChar)
-                return false;
-        }
-        return true;
+        return !ILLEGAL_CHARS_PATTERN.matcher(topic).find();
     }
 }
