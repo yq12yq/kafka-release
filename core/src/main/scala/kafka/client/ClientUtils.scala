@@ -121,7 +121,7 @@ object ClientUtils extends Logging {
       Random.shuffle(allBrokers).find { broker =>
         trace("Connecting to broker %s:%d.".format(broker.host, broker.port))
         try {
-          channel = new BlockingChannel(broker.host, broker.port, BlockingChannel.UseDefaultBufferSize, BlockingChannel.UseDefaultBufferSize, socketTimeoutMs)
+          channel = new BlockingChannel(broker.host, broker.port, BlockingChannel.UseDefaultBufferSize, BlockingChannel.UseDefaultBufferSize, socketTimeoutMs, protocol)
           channel.connect()
           debug("Created channel to broker %s:%d.".format(channel.host, channel.port))
           true
