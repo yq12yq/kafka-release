@@ -115,7 +115,6 @@ public class AbstractCoordinatorTest {
         mockClient.prepareResponse(joinGroupFollowerResponse(1, "memberId", "leaderId", Errors.NONE));
         mockClient.prepareResponse(syncGroupResponse(Errors.NONE));
 
-
         final RuntimeException e = new RuntimeException();
 
         // raise the error when the background thread tries to send a heartbeat

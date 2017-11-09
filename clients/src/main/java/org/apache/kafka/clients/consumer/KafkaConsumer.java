@@ -504,7 +504,6 @@ import java.util.regex.Pattern;
  * We have intentionally avoided implementing a particular threading model for processing. This leaves several
  * options for implementing multi-threaded processing of records.
  *
- *
  * <h4>1. One Consumer Per Thread</h4>
  *
  * A simple option is to give each thread its own consumer instance. Here are the pros and cons of this approach:
@@ -1150,6 +1149,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
 
         // send any new fetches (won't resend pending fetches)
         fetcher.sendFetches();
+
         long now = time.milliseconds();
         long pollTimeout = Math.min(coordinator.timeToNextPoll(now), timeout);
 

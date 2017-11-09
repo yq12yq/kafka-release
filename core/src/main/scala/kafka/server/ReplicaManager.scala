@@ -1335,12 +1335,6 @@ class ReplicaManager(val config: KafkaConfig,
   def getLogEndOffset(topicPartition: TopicPartition): Option[Long] =
     nonOfflinePartition(topicPartition).flatMap(_.leaderReplicaIfLocal.map(_.logEndOffset.messageOffset))
 
-  def getHighWatermark(topicPartition: TopicPartition): Option[Long] = {
-    getPartition(topicPartition).flatMap { partition =>
-      partition.leaderReplicaIfLocal.map(_.highWatermark.messageOffset)
-    }
-  }
-
   // Flushes the highwatermark value for all partitions to the highwatermark file
   def checkpointHighWatermarks() {
     val replicas = nonOfflinePartitionsIterator.flatMap(_.getReplica(localBrokerId)).filter(_.log.isDefined).toBuffer

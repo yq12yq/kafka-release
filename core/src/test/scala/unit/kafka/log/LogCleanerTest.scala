@@ -879,7 +879,6 @@ class LogCleanerTest extends JUnitSuite {
     for (group <- groups)
       assertTrue("Relative offset greater than Int.MaxValue", group.last.index.lastOffset - group.head.index.baseOffset <= Int.MaxValue)
     checkSegmentOrder(groups)
-    
   }
 
   /**
@@ -1059,7 +1058,6 @@ class LogCleanerTest extends JUnitSuite {
     // 4) Simulate recovery after swap is complete, but async deletion
     //    is not yet complete. Clean operation is resumed during recovery.
     recoverAndCheck(config, cleanedKeys)
-    
   }
 
   @Test

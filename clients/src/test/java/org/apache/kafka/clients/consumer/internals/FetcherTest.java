@@ -1931,27 +1931,26 @@ public class FetcherTest {
     }
 
     private void testGetOffsetsForTimesWithError(Errors errorForTp0,
-                                                 Errors errorFortp,
+                                                 Errors errorForTp1,
                                                  long offsetForTp0,
-                                                 long offsetFortp,
+                                                 long offsetForTp1,
                                                  Long expectedOffsetForTp0,
-                                                 Long expectedOffsetFortp) {
+                                                 Long expectedOffsetForTp1) {
         client.reset();
-        TopicPartition tp = new TopicPartition(topicName, 1);
         // Ensure metadata has both partition.
         Cluster cluster = TestUtils.clusterWith(2, topicName, 2);
         metadata.update(cluster, Collections.<String>emptySet(), time.milliseconds());
 
         // First try should fail due to metadata error.
         client.prepareResponseFrom(listOffsetResponse(tp0, errorForTp0, offsetForTp0, offsetForTp0), cluster.leaderFor(tp0));
-        client.prepareResponseFrom(listOffsetResponse(tp, errorFortp, offsetFortp, offsetFortp), cluster.leaderFor(tp));
+        client.prepareResponseFrom(listOffsetResponse(tp1, errorForTp1, offsetForTp1, offsetForTp1), cluster.leaderFor(tp1));
         // Second try should succeed.
         client.prepareResponseFrom(listOffsetResponse(tp0, Errors.NONE, offsetForTp0, offsetForTp0), cluster.leaderFor(tp0));
-        client.prepareResponseFrom(listOffsetResponse(tp, Errors.NONE, offsetFortp, offsetFortp), cluster.leaderFor(tp));
+        client.prepareResponseFrom(listOffsetResponse(tp1, Errors.NONE, offsetForTp1, offsetForTp1), cluster.leaderFor(tp1));
 
         Map<TopicPartition, Long> timestampToSearch = new HashMap<>();
         timestampToSearch.put(tp0, 0L);
-        timestampToSearch.put(tp, 0L);
+        timestampToSearch.put(tp1, 0L);
         Map<TopicPartition, OffsetAndTimestamp> offsetAndTimestampMap = fetcher.getOffsetsByTimes(timestampToSearch, Long.MAX_VALUE);
 
         if (expectedOffsetForTp0 == null)
@@ -1961,11 +1960,11 @@ public class FetcherTest {
             assertEquals(expectedOffsetForTp0.longValue(), offsetAndTimestampMap.get(tp0).offset());
         }
 
-        if (expectedOffsetFortp == null)
-            assertNull(offsetAndTimestampMap.get(tp));
+        if (expectedOffsetForTp1 == null)
+            assertNull(offsetAndTimestampMap.get(tp1));
         else {
-            assertEquals(expectedOffsetFortp.longValue(), offsetAndTimestampMap.get(tp).timestamp());
-            assertEquals(expectedOffsetFortp.longValue(), offsetAndTimestampMap.get(tp).offset());
+            assertEquals(expectedOffsetForTp1.longValue(), offsetAndTimestampMap.get(tp1).timestamp());
+            assertEquals(expectedOffsetForTp1.longValue(), offsetAndTimestampMap.get(tp1).offset());
         }
     }
 

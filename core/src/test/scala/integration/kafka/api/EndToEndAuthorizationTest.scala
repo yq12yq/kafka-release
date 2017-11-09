@@ -36,7 +36,6 @@ import org.junit.{After, Before, Test}
 
 import scala.collection.JavaConverters._
 
-
 /**
   * The test cases here verify that a producer authorized to publish to a topic
   * is able to, and that consumers in a group authorized to consume are able to

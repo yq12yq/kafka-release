@@ -146,5 +146,4 @@ public class NodeApiVersionsTest {
             assertEquals(apiKey.latestVersion(), versions.latestUsableVersion(apiKey));
         }
     }
-
 }

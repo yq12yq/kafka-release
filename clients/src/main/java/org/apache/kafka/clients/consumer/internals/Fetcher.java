@@ -516,7 +516,6 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
      *         the defaultResetPolicy is NONE
      */
     public Map<TopicPartition, List<ConsumerRecord<K, V>>> fetchedRecords() {
-
         Map<TopicPartition, List<ConsumerRecord<K, V>>> fetched = new HashMap<>();
         int recordsRemaining = maxPollRecords;
 
@@ -552,7 +551,6 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
             if (fetched.isEmpty())
                 throw e;
         }
-
         return fetched;
     }
 
@@ -996,7 +994,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
                     batch.ensureValid();
                 } catch (InvalidRecordException e) {
                     throw new KafkaException("Record batch for partition " + partition + " at offset " +
-                                                     batch.baseOffset() + " is invalid, cause: " + e.getMessage());
+                            batch.baseOffset() + " is invalid, cause: " + e.getMessage());
                 }
             }
         }
@@ -1007,7 +1005,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
                     record.ensureValid();
                 } catch (InvalidRecordException e) {
                     throw new KafkaException("Record for partition " + partition + " at offset " + record.offset()
-                                                     + " is invalid, cause: " + e.getMessage());
+                            + " is invalid, cause: " + e.getMessage());
                 }
             }
         }
@@ -1050,7 +1048,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
                             abortedProducerIds.remove(producerId);
                         } else if (isBatchAborted(currentBatch)) {
                             log.debug("Skipping aborted record batch from partition {} with producerId {} and " +
-                                              "offsets {} to {}",
+                                          "offsets {} to {}",
                                       partition, producerId, currentBatch.baseOffset(), currentBatch.lastOffset());
                             nextFetchOffset = currentBatch.nextOffset();
                             continue;
@@ -1081,12 +1079,11 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
             // Error when fetching the next record before deserialization.
             if (corruptLastRecord)
                 throw new KafkaException("Received exception when fetching the next record from " + partition
-                                                 + ". If needed, please seek past the record to "
-                                                 + "continue consumption.", cachedRecordException);
+                                             + ". If needed, please seek past the record to "
+                                             + "continue consumption.", cachedRecordException);
 
             if (isFetched)
                 return Collections.emptyList();
-
 
             List<ConsumerRecord<K, V>> records = new ArrayList<>();
             try {
@@ -1116,8 +1113,8 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
                 cachedRecordException = e;
                 if (records.isEmpty())
                     throw new KafkaException("Received exception when fetching the next record from " + partition
-                                                     + ". If needed, please seek past the record to "
-                                                     + "continue consumption.", e);
+                                                 + ". If needed, please seek past the record to "
+                                                 + "continue consumption.", e);
             }
             return records;
         }
@@ -1160,7 +1157,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
             Iterator<Record> batchIterator = batch.iterator();
             if (!batchIterator.hasNext())
                 throw new InvalidRecordException("Invalid batch for partition " + partition + " at offset " +
-                                                         batch.baseOffset() + " with control sequence set, but no records");
+                        batch.baseOffset() + " with control sequence set, but no records");
 
             Record firstRecord = batchIterator.next();
             return ControlRecordType.ABORT == ControlRecordType.parse(firstRecord.key());

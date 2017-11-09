@@ -17,7 +17,7 @@
 
 package kafka.log
 
-import java.io.{File, IOException, RandomAccessFile}
+import java.io.{File, RandomAccessFile}
 import java.nio.{ByteBuffer, MappedByteBuffer}
 import java.nio.channels.FileChannel
 import java.util.concurrent.locks.{Lock, ReentrantLock}

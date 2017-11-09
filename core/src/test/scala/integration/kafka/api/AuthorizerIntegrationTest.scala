@@ -750,7 +750,6 @@ class AuthorizerIntegrationTest extends BaseRequestTest {
       // It is possible that the first call returns records of "topic" and the second call throws TopicAuthorizationException
       consumeRecords(consumer)
       consumeRecords(consumer)
-      consumeRecords(consumer)
       Assert.fail("Expected TopicAuthorizationException")
     } catch {
       case _: TopicAuthorizationException => //expected

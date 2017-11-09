@@ -45,13 +45,6 @@ object ByteBufferMessageSet {
     }
   }
 
-  private[kafka] def writeMessage(buffer: ByteBuffer, message: Message, offset: Long) {
-    buffer.putLong(offset)
-    buffer.putInt(message.size)
-    buffer.put(message.buffer)
-    message.buffer.rewind()
-  }
-
 }
 
 private object OffsetAssigner {

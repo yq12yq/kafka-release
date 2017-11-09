@@ -34,6 +34,7 @@ import org.apache.kafka.common.metrics.Quota._
 import org.apache.kafka.common.utils.Sanitizer
 
 import scala.collection.JavaConverters._
+
 /**
   * The ConfigHandler is used to process config change notifications received by the DynamicConfigManager
   */

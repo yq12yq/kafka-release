@@ -113,7 +113,6 @@ class LogCleanerIntegrationTest(compressionCodec: String) extends AbstractLogCle
       (log, messages)
     }
 
-
     val (log, _) = runCleanerAndCheckCompacted(100)
     // should delete old segments
     log.logSegments.foreach(_.lastModified = time.milliseconds - (2 * retentionMs))

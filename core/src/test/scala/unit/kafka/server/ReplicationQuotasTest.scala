@@ -42,7 +42,6 @@ import scala.collection.JavaConverters._
   *
   * Anything over 100MB/s tends to fail as this is the non-throttled replication rate
   */
-
 class ReplicationQuotasTest extends ZooKeeperTestHarness {
   def percentError(percent: Int, value: Long): Long = Math.round(value * percent / 100)
 
