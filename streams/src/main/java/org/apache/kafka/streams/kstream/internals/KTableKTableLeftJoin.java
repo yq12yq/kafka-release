@@ -87,7 +87,6 @@ class KTableKTableLeftJoin<K, R, V1, V2> extends KTableKTableAbstractJoin<K, R, 
 
             context().forward(key, new Change<>(newValue, oldValue));
         }
-
     }
 
     private class KTableKTableLeftJoinValueGetter implements KTableValueGetter<K, R> {

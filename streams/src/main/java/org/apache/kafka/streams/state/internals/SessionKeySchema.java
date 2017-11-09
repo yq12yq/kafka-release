@@ -28,6 +28,7 @@ import java.util.List;
 
 
 class SessionKeySchema implements SegmentedBytesStore.KeySchema {
+
     private static final int SUFFIX_SIZE = 2 * WindowStoreUtils.TIMESTAMP_SIZE;
     private static final byte[] MIN_SUFFIX = new byte[SUFFIX_SIZE];
 

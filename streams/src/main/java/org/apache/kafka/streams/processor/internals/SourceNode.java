@@ -27,8 +27,6 @@ import java.util.List;
 
 import static org.apache.kafka.common.serialization.ExtendedDeserializer.Wrapper.ensureExtended;
 
-import java.util.List;
-
 public class SourceNode<K, V> extends ProcessorNode<K, V> {
 
     private final List<String> topics;

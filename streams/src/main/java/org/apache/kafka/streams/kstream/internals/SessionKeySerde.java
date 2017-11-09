@@ -167,5 +167,4 @@ public class SessionKeySerde<K> implements Serde<Windowed<K>> {
         buf.putLong(sessionKey.window().start());
         return new Bytes(buf.array());
     }
-
 }

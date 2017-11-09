@@ -395,6 +395,7 @@ public class WorkerSinkTaskTest {
 
         workerTask.initialize(TASK_CONFIG);
         workerTask.initializeAndStart();
+        workerTask.iteration();
         try {
             workerTask.iteration();
             fail("Poll should have raised the rebalance exception");

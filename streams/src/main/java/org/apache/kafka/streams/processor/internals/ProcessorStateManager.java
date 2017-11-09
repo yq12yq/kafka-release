@@ -130,7 +130,6 @@ public class ProcessorStateManager implements StateManager {
             throw new IllegalArgumentException(String.format("%sStore %s has already been registered.", logPrefix, store.name()));
         }
 
-        
         // check that the underlying change log topic exist or not
         final String topic = storeToChangelogTopic.get(store.name());
         if (topic == null) {

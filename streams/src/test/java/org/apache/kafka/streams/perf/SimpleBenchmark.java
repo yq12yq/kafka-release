@@ -232,8 +232,6 @@ public class SimpleBenchmark {
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, MAX_POLL_RECORDS);
         props.put(StreamsConfig.POLL_MS_CONFIG, POLL_MS);
         props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, COMMIT_INTERVAL_MS);
-        //TODO remove this config or set to smaller value when KIP-91 is merged
-        props.put(StreamsConfig.producerPrefix(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG), 60000);
         return props;
     }
 
@@ -505,8 +503,6 @@ public class SimpleBenchmark {
                          int upperRange, boolean printStats) {
 
 
-        processedRecords = 0;
-        processedBytes = 0;
         if (sequential) {
             if (upperRange < numRecords) throw new IllegalArgumentException("UpperRange must be >= numRecords");
         }

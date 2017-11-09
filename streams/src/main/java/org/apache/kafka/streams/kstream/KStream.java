@@ -31,7 +31,6 @@ import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.ProcessorSupplier;
 import org.apache.kafka.streams.processor.StreamPartitioner;
-import org.apache.kafka.streams.processor.TopologyBuilder;
 
 /**
  * {@code KStream} is an abstraction of a <i>record stream</i> of {@link KeyValue} pairs, i.e., each record is an
@@ -1108,10 +1107,12 @@ public interface KStream<K, V> {
      * and using the serializers as defined by {@link Serialized}.
      * Grouping a stream on the record key is required before an aggregation operator can be applied to the data
      * (cf. {@link KGroupedStream}).
-     * The {@link KeyValueMapper} selects a new key (with potentially different type) while preserving the original values.
-     * If the new record key is {@code null} the record will not be included in the resulting {@link KGroupedStream}.
+     * If a record key is {@code null} the record will not be included in the resulting {@link KGroupedStream}.
      * <p>
-     * Because a new key is selected, an internal repartitioning topic will be created in Kafka.
+     * If a key changing operator was used before this operation (e.g., {@link #selectKey(KeyValueMapper)},
+     * {@link #map(KeyValueMapper)}, {@link #flatMap(KeyValueMapper)}, or
+     * {@link #transform(TransformerSupplier, String...)}), and no data redistribution happened afterwards (e.g., via
+     * {@link #through(String)}) an internal repartitioning topic will be created in Kafka.
      * This topic will be named "${applicationId}-XXX-repartition", where "applicationId" is user-specified in
      * {@link StreamsConfig} via parameter {@link StreamsConfig#APPLICATION_ID_CONFIG APPLICATION_ID_CONFIG}, "XXX" is
      * an internally generated name, and "-repartition" is a fixed suffix.
@@ -1145,7 +1146,6 @@ public interface KStream<K, V> {
      * records to it, and rereading all records from it, such that the resulting {@link KGroupedStream} is partitioned
      * correctly on its key.
      *
-     * @param selector a {@link KeyValueMapper} that computes a new key for grouping
      * @param keySerde key serdes for materializing this stream,
      *                 if not specified the default serdes defined in the configs will be used
      * @param valSerde value serdes for materializing this stream,

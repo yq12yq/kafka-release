@@ -59,4 +59,5 @@ class StoreChangeLogger<K, V> {
             collector.send(this.topic, key, value, this.partition, context.timestamp(), keySerializer, valueSerializer);
         }
     }
+
 }

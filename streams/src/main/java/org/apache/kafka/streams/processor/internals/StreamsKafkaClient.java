@@ -379,4 +379,5 @@ public class StreamsKafkaClient {
             && apiVersionsResponse.apiVersion(ApiKeys.WRITE_TXN_MARKERS.id) != null
             && apiVersionsResponse.apiVersion(ApiKeys.TXN_OFFSET_COMMIT.id) != null;
     }
+
 }

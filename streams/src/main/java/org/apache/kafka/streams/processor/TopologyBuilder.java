@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-
 /**
  * A component that is used to build a {@link ProcessorTopology}. A topology contains an acyclic graph of sources, processors,
  * and sinks. A {@link SourceNode source} is a node in the graph that consumes one or more Kafka topics and forwards them to

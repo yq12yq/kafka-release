@@ -324,12 +324,4 @@ public class EmbeddedKafkaCluster extends ExternalResource {
         }
         return servers;
     }
-
-    public List<KafkaServer> brokers() {
-        final List<KafkaServer> servers = new ArrayList<>();
-        for (final KafkaEmbedded broker : brokers) {
-            servers.add(broker.kafkaServer());
-        }
-        return servers;
-    }
 }

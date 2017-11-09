@@ -780,6 +780,7 @@ project(':contrib:kafka-ganglia') {
     from configurations.runtime
   }
   jar { dependsOn copyToLib }
+  checkstyleMain.exclude '**/kafka/ganglia/**'
 }
 
 project(':clients') {

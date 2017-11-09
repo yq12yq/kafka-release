@@ -87,7 +87,6 @@ public class RocksDBWindowStore<K, V> extends WrappedStateStore.AbstractStateSto
     @SuppressWarnings("unchecked")
     public void init(final ProcessorContext context, final StateStore root) {
         this.context = context;
-
         // construct the serde
         serdes = new StateSerdes<>(ProcessorStateManager.storeChangelogTopic(context.applicationId(), bytesStore.name()),
                                    keySerde == null ? (Serde<K>) context.keySerde() : keySerde,
@@ -125,5 +124,4 @@ public class RocksDBWindowStore<K, V> extends WrappedStateStore.AbstractStateSto
             seqnum = (seqnum + 1) & 0x7FFFFFFF;
         }
     }
-
 }
