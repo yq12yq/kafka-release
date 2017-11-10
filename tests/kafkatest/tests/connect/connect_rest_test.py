@@ -104,7 +104,6 @@ class ConnectRestApiTest(KafkaTest):
             node.account.ssh("echo -e -n " + repr(self.INPUTS) + " >> " + self.INPUT_FILE)
         wait_until(lambda: self.validate_output(self.INPUT_LIST), timeout_sec=120, err_msg="Data added to input file was not seen in the output file in a reasonable amount of time.")
 
-
         # Trying to create the same connector again should cause an error
         try:
             self.cc.create_connector(self._config_dict_from_props(source_connector_props))
@@ -133,7 +132,6 @@ class ConnectRestApiTest(KafkaTest):
         assert expected_sink_info == sink_info, "Incorrect info:" + json.dumps(sink_info)
         sink_config = self.cc.get_connector_config("local-file-sink")
         assert expected_sink_info['config'] == sink_config, "Incorrect config: " + json.dumps(sink_config)
-
 
         # Validate that we can get info about tasks. This info should definitely be available now without waiting since
         # we've already seen data appear in files.
@@ -180,7 +178,6 @@ class ConnectRestApiTest(KafkaTest):
             [line.strip() for line in self.file_contents(node, self.OUTPUT_FILE)] for node in self.cc.nodes
             ]))
         return input_set == output_set
-
 
     def file_contents(self, node, file):
         try:

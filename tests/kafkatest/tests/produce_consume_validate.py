@@ -48,7 +48,7 @@ class ProduceConsumeValidateTest(Test):
         raise NotImplementedError("Subclasses should implement this")
 
     def start_producer_and_consumer(self):
-        # Start background producer and consumer	
+        # Start background producer and consumer
         self.consumer.start()
         if (self.consumer_init_timeout_sec > 0):
             self.logger.debug("Waiting %ds for the consumer to initialize.",

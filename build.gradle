@@ -516,7 +516,7 @@ for ( sv in availableScalaVersions ) {
   }
 }
 
-def connectPkgs = ['connect:api', 'connect:runtime', 'connect:json', 'connect:file']
+def connectPkgs = ['connect:api', 'connect:runtime', 'connect:transforms', 'connect:json', 'connect:file']
 def pkgs = ['clients', 'examples', 'log4j-appender', 'tools', 'streams', 'streams:examples'] + connectPkgs
 
 /** Create one task per default Scala version */

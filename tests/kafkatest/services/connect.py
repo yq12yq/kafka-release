@@ -278,8 +278,6 @@ class ConnectDistributedService(ConnectServiceBase):
             raise RuntimeError("No process ids recorded")
 
 
-
-
 class ConnectRestError(RuntimeError):
     def __init__(self, status, msg, url):
         self.status = status
@@ -288,7 +286,6 @@ class ConnectRestError(RuntimeError):
 
     def __unicode__(self):
         return "Kafka Connect REST call failed: returned " + self.status + " for " + self.url + ". Response: " + self.message
-
 
 
 class VerifiableConnector(object):

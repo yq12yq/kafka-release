@@ -237,11 +237,6 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         # existing credentials from ZK and dynamic update of credentials in Kafka are tested.
         self.security_config.setup_credentials(node, self.path, self.zk_connect_setting(), broker=False)
 
-        # Credentials for inter-broker communication are created before starting Kafka.
-        # Client credentials are created after starting Kafka so that both loading of
-        # existing credentials from ZK and dynamic update of credentials in Kafka are tested.
-        self.security_config.setup_credentials(node, self.path, self.zk.connect_setting(), broker=False)
-
         self.start_jmx_tool(self.idx(node), node)
         if len(self.pids(node)) == 0:
             raise Exception("No process ids recorded on node %s" % node.account.hostname)
