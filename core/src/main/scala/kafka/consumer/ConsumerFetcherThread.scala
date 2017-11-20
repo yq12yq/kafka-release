@@ -30,6 +30,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.record.MemoryRecords
 import org.apache.kafka.common.requests.EpochEndOffset
+import org.apache.kafka.common.security.auth.SecurityProtocol
 
 @deprecated("This class has been deprecated and will be removed in a future release. " +
             "Please use org.apache.kafka.clients.consumer.internals.Fetcher instead.", "0.11.0.0")
@@ -37,6 +38,7 @@ class ConsumerFetcherThread(name: String,
                             val config: ConsumerConfig,
                             sourceBroker: BrokerEndPoint,
                             partitionMap: Map[TopicPartition, PartitionTopicInfo],
+                            protocol: SecurityProtocol,
                             val consumerFetcherManager: ConsumerFetcherManager)
         extends AbstractFetcherThread(name = name,
                                       clientId = config.clientId,
@@ -52,7 +54,7 @@ class ConsumerFetcherThread(name: String,
   private val fetchSize = config.fetchMessageMaxBytes
 
   private val simpleConsumer = new SimpleConsumer(sourceBroker.host, sourceBroker.port, config.socketTimeoutMs,
-    config.socketReceiveBufferBytes, config.clientId)
+    config.socketReceiveBufferBytes, config.clientId, protocol)
 
   private val fetchRequestBuilder = new FetchRequestBuilder().
     clientId(clientId).

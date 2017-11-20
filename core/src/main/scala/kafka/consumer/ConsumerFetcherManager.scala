@@ -33,6 +33,8 @@ import kafka.utils.ShutdownableThread
 import kafka.client.ClientUtils
 import java.util.concurrent.atomic.AtomicInteger
 
+import org.apache.kafka.common.security.auth.SecurityProtocol
+
 /**
  *  Usage:
  *  Once ConsumerFetcherManager is created, startConnections() and stopAllConnections() can be called repeatedly
@@ -50,6 +52,7 @@ class ConsumerFetcherManager(private val consumerIdString: String,
   private val cond = lock.newCondition()
   private var leaderFinderThread: ShutdownableThread = null
   private val correlationId = new AtomicInteger(0)
+  private val protocol = SecurityProtocol.valueOf(config.securityProtocol)
 
   private class LeaderFinderThread(name: String) extends ShutdownableThread(name) {
     // thread responsible for adding the fetcher to the right broker when leader is available
@@ -63,12 +66,13 @@ class ConsumerFetcherManager(private val consumerIdString: String,
         }
 
         trace("Partitions without leader %s".format(noLeaderPartitionSet))
-        val brokers = ClientUtils.getPlaintextBrokerEndPoints(zkUtils)
+        val brokers = zkUtils.getAllBrokerEndPointsForChannel(protocol)
         val topicsMetadata = ClientUtils.fetchTopicMetadata(noLeaderPartitionSet.map(m => m.topic).toSet,
                                                             brokers,
                                                             config.clientId,
                                                             config.socketTimeoutMs,
-                                                            correlationId.getAndIncrement).topicsMetadata
+                                                            correlationId.getAndIncrement,
+                                                            protocol).topicsMetadata
         if(logger.isDebugEnabled) topicsMetadata.foreach(topicMetadata => debug(topicMetadata.toString()))
         topicsMetadata.foreach { tmd =>
           val topic = tmd.topic
@@ -116,7 +120,7 @@ class ConsumerFetcherManager(private val consumerIdString: String,
   override def createFetcherThread(fetcherId: Int, sourceBroker: BrokerEndPoint): AbstractFetcherThread = {
     new ConsumerFetcherThread(
       "ConsumerFetcherThread-%s-%d-%d".format(consumerIdString, fetcherId, sourceBroker.id),
-      config, sourceBroker, partitionMap, this)
+      config, sourceBroker, partitionMap, this.protocol, this)
   }
 
   def startConnections(topicInfos: Iterable[PartitionTopicInfo], cluster: Cluster) {

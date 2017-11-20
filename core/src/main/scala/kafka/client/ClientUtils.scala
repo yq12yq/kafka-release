@@ -121,7 +121,7 @@ object ClientUtils extends Logging {
       Random.shuffle(allBrokers).find { broker =>
         trace("Connecting to broker %s:%d.".format(broker.host, broker.port))
         try {
-          channel = new BlockingChannel(broker.host, broker.port, BlockingChannel.UseDefaultBufferSize, BlockingChannel.UseDefaultBufferSize, socketTimeoutMs)
+          channel = new BlockingChannel(broker.host, broker.port, BlockingChannel.UseDefaultBufferSize, BlockingChannel.UseDefaultBufferSize, socketTimeoutMs, protocol)
           channel.connect()
           debug("Created channel to broker %s:%d.".format(channel.host, channel.port))
           true
@@ -154,8 +154,8 @@ object ClientUtils extends Logging {
    /**
     * Creates a blocking channel to the offset manager of the given group
     */
-   def channelToOffsetManager(group: String, zkUtils: ZkUtils, socketTimeoutMs: Int = 3000, retryBackOffMs: Int = 1000) = {
-     var queryChannel = channelToAnyBroker(zkUtils)
+  def channelToOffsetManager(group: String, zkUtils: ZkUtils, socketTimeoutMs: Int = 3000, retryBackOffMs: Int = 1000, protocol: SecurityProtocol = SecurityProtocol.PLAINTEXT) = {
+     var queryChannel = channelToAnyBroker(zkUtils, protocol = protocol)
 
      var offsetManagerChannelOpt: Option[BlockingChannel] = None
 
@@ -166,7 +166,7 @@ object ClientUtils extends Logging {
        while (coordinatorOpt.isEmpty) {
          try {
            if (!queryChannel.isConnected)
-             queryChannel = channelToAnyBroker(zkUtils)
+             queryChannel = channelToAnyBroker(zkUtils, protocol=protocol)
            debug("Querying %s:%d to locate offset manager for %s.".format(queryChannel.host, queryChannel.port, group))
            queryChannel.send(GroupCoordinatorRequest(group))
            val response = queryChannel.receive()
@@ -198,7 +198,8 @@ object ClientUtils extends Logging {
            offsetManagerChannel = new BlockingChannel(coordinator.host, coordinator.port,
                                                       BlockingChannel.UseDefaultBufferSize,
                                                       BlockingChannel.UseDefaultBufferSize,
-                                                      socketTimeoutMs)
+                                                      socketTimeoutMs,
+                                                      protocol)
            offsetManagerChannel.connect()
            offsetManagerChannelOpt = Some(offsetManagerChannel)
            queryChannel.disconnect()
