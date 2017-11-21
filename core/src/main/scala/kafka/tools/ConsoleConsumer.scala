@@ -380,6 +380,7 @@ object ConsoleConsumer extends Logging {
     val bootstrapServer = options.valueOf(bootstrapServerOpt)
     val keyDeserializer = options.valueOf(keyDeserializerOpt)
     val valueDeserializer = options.valueOf(valueDeserializerOpt)
+    val securityProtocol = options.valueOf(securityProtocolOpt).toString
     val isolationLevel = options.valueOf(isolationLevelOpt).toString
     val formatter: MessageFormatter = messageFormatterClass.newInstance().asInstanceOf[MessageFormatter]
 
@@ -465,7 +466,7 @@ object ConsoleConsumer extends Logging {
       val verifiableProps = new VerifiableProperties(csvReporterProps)
       KafkaMetricsReporter.startReporters(verifiableProps)
     }
-
+    consumerProps.put("security.protocol", securityProtocol)
     // if the group id is provided in more than place (through different means) all values must be the same
     val groupIdsProvided = Set(
         Option(options.valueOf(groupIdOpt)),                           // via --group
