@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package kafka.consumer
+package kafka.metrics
 
 import java.util.Properties
 
