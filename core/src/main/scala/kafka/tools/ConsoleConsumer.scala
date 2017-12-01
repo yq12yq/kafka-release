@@ -30,6 +30,7 @@ import kafka.message._
 import kafka.metrics.KafkaMetricsReporter
 import kafka.utils._
 import kafka.utils.Implicits._
+import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
 import org.apache.kafka.common.errors.{AuthenticationException, WakeupException}
 import org.apache.kafka.common.record.TimestampType
@@ -365,10 +366,13 @@ object ConsoleConsumer extends Logging {
     var whitelistArg: String = null
     var filterSpec: TopicFilter = null
     val extraConsumerProps = CommandLineUtils.parseKeyValueArgs(options.valuesOf(consumerPropertyOpt).asScala)
-    val consumerProps = if (options.has(consumerConfigOpt))
-      Utils.loadProps(options.valueOf(consumerConfigOpt))
-    else
-      new Properties()
+
+    val securityProtocol = options.valueOf(securityProtocolOpt).toString
+    val consumerProps = new Properties()
+    consumerProps.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol)
+    if (options.has(consumerConfigOpt))
+      consumerProps.putAll(Utils.loadProps(options.valueOf(consumerConfigOpt)))
+
     val zkConnectionStr = options.valueOf(zkConnectOpt)
     val fromBeginning = options.has(resetBeginningOpt)
     val partitionArg = if (options.has(partitionIdOpt)) Some(options.valueOf(partitionIdOpt).intValue) else None
@@ -380,7 +384,6 @@ object ConsoleConsumer extends Logging {
     val bootstrapServer = options.valueOf(bootstrapServerOpt)
     val keyDeserializer = options.valueOf(keyDeserializerOpt)
     val valueDeserializer = options.valueOf(valueDeserializerOpt)
-    val securityProtocol = options.valueOf(securityProtocolOpt).toString
     val isolationLevel = options.valueOf(isolationLevelOpt).toString
     val formatter: MessageFormatter = messageFormatterClass.newInstance().asInstanceOf[MessageFormatter]
 
@@ -466,7 +469,6 @@ object ConsoleConsumer extends Logging {
       val verifiableProps = new VerifiableProperties(csvReporterProps)
       KafkaMetricsReporter.startReporters(verifiableProps)
     }
-    consumerProps.put("security.protocol", securityProtocol)
     // if the group id is provided in more than place (through different means) all values must be the same
     val groupIdsProvided = Set(
         Option(options.valueOf(groupIdOpt)),                           // via --group
