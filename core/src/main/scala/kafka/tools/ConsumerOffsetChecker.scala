@@ -202,7 +202,7 @@ object ConsumerOffsetChecker extends Logging {
                 throw z
           }
         }
-        else if (offsetAndMetadata.error == Errors.NONE.code)
+        else if (offsetAndMetadata.error.code() == Errors.NONE.code)
           offsetMap.put(topicAndPartition, offsetAndMetadata.offset)
         else {
           println("Could not fetch offset for %s due to %s.".format(topicAndPartition, Errors.forCode(offsetAndMetadata.error.code()).exception))

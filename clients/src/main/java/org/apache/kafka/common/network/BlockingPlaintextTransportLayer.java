@@ -24,6 +24,7 @@ package org.apache.kafka.common.network;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
 import java.security.Principal;
@@ -58,6 +59,11 @@ public class BlockingPlaintextTransportLayer implements TransportLayer {
     @Override
     public SocketChannel socketChannel() {
         return socketChannel;
+    }
+
+    @Override
+    public SelectionKey selectionKey() {
+        return null;
     }
 
     @Override
