@@ -177,8 +177,11 @@ object RequestChannel extends Logging {
 
       if (isRequestLoggingEnabled) {
         val detailsEnabled = requestLogger.isTraceEnabled
-        val responseString = response.responseAsString.getOrElse(
-          throw new IllegalStateException("responseAsString should always be defined if request logging is enabled"))
+        val responseString =
+          if (response.responseSend.isDefined)
+            response.responseAsString.getOrElse(
+              throw new IllegalStateException("responseAsString should always be defined if request logging is enabled"))
+          else ""
 
         val builder = new StringBuilder(256)
         builder.append("Completed request:").append(requestDesc(detailsEnabled))
@@ -315,8 +318,13 @@ class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMe
     }
   }
 
-  def shutdown() {
+  def clear() {
     requestQueue.clear()
+  }
+
+  def shutdown() {
+    clear()
+    metrics.close()
   }
 
   def sendShutdownRequest(): Unit = requestQueue.put(ShutdownRequest)
