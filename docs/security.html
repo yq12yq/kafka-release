@@ -461,33 +461,8 @@ Apache Kafka allows clients to connect over SSL. By default, SSL is disabled but
         keyTab="/etc/security/keytabs/kafka_server.keytab"
         principal="kafka/kafka1.hostname.com@EXAMPLE.COM";
 
-        org.apache.kafka.common.security.plain.PlainLoginModule required
-        username="admin"
-        password="admin-secret"
-        user_admin="admin-secret"
-        user_alice="alice-secret";
-    };</pre></li>
-      <li>Enable the SASL mechanisms in server.properties: <pre>    sasl.enabled.mechanisms=GSSAPI,PLAIN</pre></li>
-      <li>Specify the SASL security protocol and mechanism for inter-broker communication in server.properties if required:
-        <pre>    security.inter.broker.protocol=SASL_PLAINTEXT (or SASL_SSL)
-    sasl.mechanism.inter.broker.protocol=GSSAPI (or PLAIN)</pre></li>
-      <li>Follow the mechanism-specific steps in <a href="#security_sasl_kerberos_brokerconfig">GSSAPI (Kerberos)</a>
-          and <a href="#security_sasl_plain_brokerconfig">PLAIN</a> to configure SASL for the enabled mechanisms.</li>
-    </ol>
-  </li>
-  <li><h4><a id="saslmechanism_rolling_upgrade" href="#saslmechanism_rolling_upgrade">Modifying SASL mechanism in a Running Cluster</a></h4>
-    <p>SASL mechanism can be modified in a running cluster using the following sequence:</p>
-    <ol>
-      <li>Enable new SASL mechanism by adding the mechanism to <tt>sasl.enabled.mechanisms</tt> in server.properties for each broker. Update JAAS config file to include both
-        mechanisms as described <a href="#security_sasl_multimechanism">here</a>. Incrementally bounce the cluster nodes.</li>
-      <li>Restart clients using the new mechanism.</li>
-      <li>To change the mechanism of inter-broker communication (if this is required), set <tt>sasl.mechanism.inter.broker.protocol</tt> in server.properties to the new mechanism and
-        incrementally bounce the cluster again.</li>
-      <li>To remove old mechanism (if this is required), remove the old mechanism from <tt>sasl.enabled.mechanisms</tt> in server.properties and remove the entries for the
-        old mechanism from JAAS config file. Incrementally bounce the cluster again.</li>
-    </ol>
-  </li>
-</ol>
+
+    An example of adding a rule to properly translate user@MYDOMAIN.COM to user while also keeping the default rule in place is:
 
 <h3><a id="security_authz" href="#security_authz">7.4 Authorization and ACLs</a></h3>
 Kafka ships with a pluggable Authorizer and an out-of-box authorizer implementation that uses zookeeper to store all the acls. Kafka acls are defined in the general format of "Principal P is [Allowed/Denied] Operation O From Host H On Resource R". You can read more about the acl structure on KIP-11. In order to add, remove or list acls you can use the Kafka authorizer CLI. By default, if a Resource R has no associated acls, no one other than super users is allowed to access R. If you want to change that behavior, you can include the following in broker.properties.
