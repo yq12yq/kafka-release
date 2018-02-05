@@ -24,7 +24,7 @@ import kafka.consumer.SimpleConsumer
 import kafka.api.{OffsetFetchRequest, OffsetFetchResponse, OffsetRequest}
 import kafka.common.{OffsetMetadataAndError, TopicAndPartition}
 import org.apache.kafka.common.errors.BrokerNotAvailableException
-import org.apache.kafka.common.protocol.{Errors, SecurityProtocol}
+import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.security.JaasUtils
 
 import scala.collection._
@@ -34,7 +34,7 @@ import kafka.api.PartitionOffsetRequestInfo
 import org.I0Itec.zkclient.exception.ZkNoNodeException
 import kafka.common.security.LoginManager
 import org.apache.kafka.common.config.SaslConfigs
-import org.apache.kafka.common.protocol.SecurityProtocol
+import org.apache.kafka.common.security.auth.SecurityProtocol
 
 
 object ConsumerOffsetChecker extends Logging {
@@ -202,10 +202,10 @@ object ConsumerOffsetChecker extends Logging {
                 throw z
           }
         }
-        else if (offsetAndMetadata.error == Errors.NONE.code)
+        else if (offsetAndMetadata.error.code() == Errors.NONE.code)
           offsetMap.put(topicAndPartition, offsetAndMetadata.offset)
         else {
-          println("Could not fetch offset for %s due to %s.".format(topicAndPartition, Errors.forCode(offsetAndMetadata.error).exception))
+          println("Could not fetch offset for %s due to %s.".format(topicAndPartition, Errors.forCode(offsetAndMetadata.error.code()).exception))
         }
       }
       channel.disconnect()

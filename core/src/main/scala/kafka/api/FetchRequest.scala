@@ -21,18 +21,17 @@ import kafka.utils.nonthreadsafe
 import kafka.api.ApiUtils._
 import kafka.common.TopicAndPartition
 import kafka.consumer.ConsumerConfig
-import kafka.network.RequestChannel
-import kafka.message.MessageSet
 import java.util.concurrent.atomic.AtomicInteger
 import java.nio.ByteBuffer
 
-import org.apache.kafka.common.protocol.{ApiKeys, Errors}
+import org.apache.kafka.common.protocol.ApiKeys
 
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
 case class PartitionFetchInfo(offset: Long, fetchSize: Int)
 
+@deprecated("This object has been deprecated and will be removed in a future release.", "0.11.0.0")
 object FetchRequest {
 
   private val random = new Random
@@ -69,7 +68,7 @@ object FetchRequest {
     val groupedByTopic = requestInfo.groupBy { case (tp, _) => tp.topic }.map { case (topic, values) =>
       topic -> random.shuffle(values)
     }
-    random.shuffle(groupedByTopic.toSeq).flatMap { case (topic, partitions) =>
+    random.shuffle(groupedByTopic.toSeq).flatMap { case (_, partitions) =>
       partitions.map { case (tp, fetchInfo) => tp -> fetchInfo }
     }
   }
@@ -86,6 +85,7 @@ object FetchRequest {
 
 }
 
+@deprecated("This class has been deprecated and will be removed in a future release.", "0.11.0.0")
 case class FetchRequest(versionId: Short = FetchRequest.CurrentVersion,
                         correlationId: Int = FetchRequest.DefaultCorrelationId,
                         clientId: String = ConsumerConfig.DefaultClientId,
@@ -195,17 +195,6 @@ case class FetchRequest(versionId: Short = FetchRequest.CurrentVersion,
     describe(true)
   }
 
-  override  def handleError(e: Throwable, requestChannel: RequestChannel, request: RequestChannel.Request): Unit = {
-    val fetchResponsePartitionData = requestInfo.map {
-      case (topicAndPartition, data) =>
-        (topicAndPartition, FetchResponsePartitionData(Errors.forException(e).code, -1, MessageSet.Empty))
-    }
-    val fetchRequest = request.requestObj.asInstanceOf[FetchRequest]
-    val errorResponse = FetchResponse(correlationId, fetchResponsePartitionData, fetchRequest.versionId)
-    // Magic value does not matter here because the message set is empty
-    requestChannel.sendResponse(new RequestChannel.Response(request, new FetchResponseSend(request.connectionId, errorResponse)))
-  }
-
   override def describe(details: Boolean): String = {
     val fetchRequest = new StringBuilder
     fetchRequest.append("Name: " + this.getClass.getSimpleName)
@@ -222,6 +211,7 @@ case class FetchRequest(versionId: Short = FetchRequest.CurrentVersion,
   }
 }
 
+@deprecated("This class has been deprecated and will be removed in a future release.", "0.11.0.0")
 @nonthreadsafe
 class FetchRequestBuilder() {
   private val correlationId = new AtomicInteger(0)

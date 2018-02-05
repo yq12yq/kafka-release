@@ -1,13 +1,13 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
+ * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * the License. You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -30,20 +30,22 @@ import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.integration.utils.EmbeddedKafkaCluster;
 import org.apache.kafka.streams.integration.utils.IntegrationTestUtils;
 import org.apache.kafka.streams.kstream.KStream;
-import org.apache.kafka.streams.kstream.KStreamBuilder;
 import org.apache.kafka.streams.kstream.TimeWindows;
 import org.apache.kafka.streams.kstream.ValueMapper;
 import org.apache.kafka.streams.processor.internals.ProcessorStateManager;
+import org.apache.kafka.test.IntegrationTest;
 import org.apache.kafka.test.MockKeyValueMapper;
 import org.apache.kafka.test.TestUtils;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import scala.Tuple2;
 import scala.collection.Iterator;
 import scala.collection.Map;
@@ -60,6 +62,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * Tests related to internal topics in streams
  */
+@Category({IntegrationTest.class})
 public class InternalTopicIntegrationTest {
     private static final int NUM_BROKERS = 1;
     @ClassRule
@@ -73,9 +76,8 @@ public class InternalTopicIntegrationTest {
     private String applicationId = "compact-topics-integration-test";
 
     @BeforeClass
-    public static void startKafkaCluster() throws Exception {
-        CLUSTER.createTopic(DEFAULT_INPUT_TOPIC);
-        CLUSTER.createTopic(DEFAULT_OUTPUT_TOPIC);
+    public static void startKafkaCluster() throws InterruptedException {
+        CLUSTER.createTopics(DEFAULT_INPUT_TOPIC, DEFAULT_OUTPUT_TOPIC);
     }
 
     @Before
@@ -83,24 +85,25 @@ public class InternalTopicIntegrationTest {
         streamsConfiguration = new Properties();
         streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId);
         streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CLUSTER.bootstrapServers());
-        streamsConfiguration.put(StreamsConfig.ZOOKEEPER_CONNECT_CONFIG, CLUSTER.zKConnectString());
-        streamsConfiguration.put(StreamsConfig.KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-        streamsConfiguration.put(StreamsConfig.VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+        streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+        streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         streamsConfiguration.put(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory().getPath());
         streamsConfiguration.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        streamsConfiguration.put(IntegrationTestUtils.INTERNAL_LEAVE_GROUP_ON_CLOSE, true);
+        streamsConfiguration.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 100);
+        streamsConfiguration.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
     }
-
 
     private Properties getTopicConfigProperties(final String changelog) {
         // Note: You must initialize the ZkClient with ZKStringSerializer.  If you don't, then
-        // createTopic() will only seem to work (it will return without error).  The topic will exist in
+        // createTopics() will only seem to work (it will return without error).  The topic will exist in
         // only ZooKeeper and will be returned when listing topics, but Kafka itself does not create the
         // topic.
         final ZkClient zkClient = new ZkClient(
-            CLUSTER.zKConnectString(),
-            DEFAULT_ZK_SESSION_TIMEOUT_MS,
-            DEFAULT_ZK_CONNECTION_TIMEOUT_MS,
-            ZKStringSerializer$.MODULE$);
+                CLUSTER.zKConnectString(),
+                DEFAULT_ZK_SESSION_TIMEOUT_MS,
+                DEFAULT_ZK_CONNECTION_TIMEOUT_MS,
+                ZKStringSerializer$.MODULE$);
         try {
             final boolean isSecure = false;
             final ZkUtils zkUtils = new ZkUtils(zkClient, new ZkConnection(CLUSTER.zKConnectString()), isSecure);
@@ -132,30 +135,29 @@ public class InternalTopicIntegrationTest {
         final Properties streamsConfiguration = new Properties();
         streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, "compact-topics-integration-test");
         streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CLUSTER.bootstrapServers());
-        streamsConfiguration.put(StreamsConfig.ZOOKEEPER_CONNECT_CONFIG, CLUSTER.zKConnectString());
-        streamsConfiguration.put(StreamsConfig.KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-        streamsConfiguration.put(StreamsConfig.VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+        streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+        streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         streamsConfiguration.put(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory().getPath());
         streamsConfiguration.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        final KStreamBuilder builder = new KStreamBuilder();
+        final StreamsBuilder builder = new StreamsBuilder();
 
         final KStream<String, String> textLines = builder.stream(DEFAULT_INPUT_TOPIC);
 
         final KStream<String, Long> wordCounts = textLines
-            .flatMapValues(new ValueMapper<String, Iterable<String>>() {
-                @Override
-                public Iterable<String> apply(final String value) {
-                    return Arrays.asList(value.toLowerCase(Locale.getDefault()).split("\\W+"));
-                }
-            }).groupBy(MockKeyValueMapper.<String, String>SelectValueMapper())
-            .count("Counts").toStream();
+                .flatMapValues(new ValueMapper<String, Iterable<String>>() {
+                    @Override
+                    public Iterable<String> apply(final String value) {
+                        return Arrays.asList(value.toLowerCase(Locale.getDefault()).split("\\W+"));
+                    }
+                }).groupBy(MockKeyValueMapper.<String, String>SelectValueMapper())
+                .count("Counts").toStream();
 
         wordCounts.to(stringSerde, longSerde, DEFAULT_OUTPUT_TOPIC);
 
         // Remove any state from previous test runs
         IntegrationTestUtils.purgeLocalStreamsState(streamsConfiguration);
 
-        final KafkaStreams streams = new KafkaStreams(builder, streamsConfiguration);
+        final KafkaStreams streams = new KafkaStreams(builder.build(), streamsConfiguration);
         streams.start();
 
         //
@@ -171,7 +173,7 @@ public class InternalTopicIntegrationTest {
         assertEquals(LogConfig.Compact(), properties.getProperty(LogConfig.CleanupPolicyProp()));
     }
 
-    private void produceData(final List<String> inputValues) throws java.util.concurrent.ExecutionException, InterruptedException {
+    private void produceData(final List<String> inputValues) throws Exception {
         final Properties producerConfig = new Properties();
         producerConfig.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, CLUSTER.bootstrapServers());
         producerConfig.put(ProducerConfig.ACKS_CONFIG, "all");
@@ -183,7 +185,7 @@ public class InternalTopicIntegrationTest {
 
     @Test
     public void shouldUseCompactAndDeleteForWindowStoreChangelogs() throws Exception {
-        KStreamBuilder builder = new KStreamBuilder();
+        StreamsBuilder builder = new StreamsBuilder();
 
         KStream<String, String> textLines = builder.stream(DEFAULT_INPUT_TOPIC);
 
@@ -201,7 +203,7 @@ public class InternalTopicIntegrationTest {
         // Remove any state from previous test runs
         IntegrationTestUtils.purgeLocalStreamsState(streamsConfiguration);
 
-        KafkaStreams streams = new KafkaStreams(builder, streamsConfiguration);
+        KafkaStreams streams = new KafkaStreams(builder.build(), streamsConfiguration);
         streams.start();
 
         //
@@ -219,7 +221,7 @@ public class InternalTopicIntegrationTest {
         assertTrue(policies.contains(LogConfig.Compact()));
         assertTrue(policies.contains(LogConfig.Delete()));
         // retention should be 1 day + the window duration
-        final Long retention = TimeUnit.MILLISECONDS.convert(1, TimeUnit.DAYS) + durationMs;
-        assertEquals(retention, Long.valueOf(properties.getProperty(LogConfig.RetentionMsProp())));
+        final long retention = TimeUnit.MILLISECONDS.convert(1, TimeUnit.DAYS) + durationMs;
+        assertEquals(retention, Long.parseLong(properties.getProperty(LogConfig.RetentionMsProp())));
     }
 }

@@ -18,20 +18,22 @@
 package kafka.network
 
 import java.net.InetSocketAddress
-import java.net.SocketTimeoutException;
+import java.net.SocketTimeoutException
 import java.nio.channels._
-import kafka.utils.{nonthreadsafe, Logging, SystemTime, CoreUtils}
+
+import kafka.utils.{CoreUtils, Logging, nonthreadsafe}
 import kafka.api.RequestOrResponse
 import kafka.common.security.LoginManager
-import org.apache.kafka.common.security.auth.{PrincipalBuilder, DefaultPrincipalBuilder}
-import org.apache.kafka.common.protocol.SecurityProtocol
+import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.security.authenticator.SaslClientAuthenticator
 import org.apache.kafka.common.config.SaslConfigs
-import org.apache.kafka.clients.{CommonClientConfigs, ClientUtils}
-import org.apache.kafka.common.network.{TransportLayer, KafkaChannel, BlockingPlaintextTransportLayer,
-  NetworkReceive, DefaultAuthenticator, Authenticator}
+import org.apache.kafka.common.memory.MemoryPool
+import org.apache.kafka.common.network._
+import org.apache.kafka.common.utils.Time
 
 
+
+@deprecated("This object has been deprecated and will be removed in a future release.", "0.11.0.0")
 object BlockingChannel{
   val UseDefaultBufferSize = -1
 }
@@ -73,10 +75,10 @@ class BlockingChannel( val host: String,
         socketChannel.socket.connect(new InetSocketAddress(host, port), connectTimeoutMs)
         channel = buildKafkaChannel(socketChannel, readBufferSize, id)
 
-        val handshakeInterval = SystemTime.milliseconds
+        val handshakeInterval = Time.SYSTEM.milliseconds
         while(!channel.ready) {
           channel.prepare();
-          if (!channel.ready && ((SystemTime.milliseconds - handshakeInterval) > handshakeTimeoutMs)) {
+          if (!channel.ready && ((Time.SYSTEM.milliseconds - handshakeInterval) > handshakeTimeoutMs)) {
             throw new SocketTimeoutException("Socket timeout during handshake")
           }
         }
@@ -95,7 +97,7 @@ class BlockingChannel( val host: String,
                          connectTimeoutMs))
 
       } catch {
-        case e: Throwable => disconnect()
+        case _: Throwable => disconnect()
       }
     }
   }
@@ -144,15 +146,13 @@ class BlockingChannel( val host: String,
   private def buildKafkaChannel(socketChannel: SocketChannel, maxReceiveSize: Int, id: String): KafkaChannel = {
     val transportLayer = new BlockingPlaintextTransportLayer(socketChannel)
     var authenticator : Authenticator = null
-    val principalBuilder = new DefaultPrincipalBuilder()
+
     if (CoreUtils.isSaslProtocol(protocol))
-      authenticator = new SaslClientAuthenticator(id, LoginManager.subject, LoginManager.serviceName,
-        socketChannel.socket().getInetAddress().getHostName(), SaslConfigs.DEFAULT_SASL_MECHANISM, true)
+      authenticator = new SaslClientAuthenticator(new java.util.HashMap[String, Any](), id, LoginManager.subject, LoginManager.serviceName,
+        socketChannel.socket().getInetAddress().getHostName(), SaslConfigs.DEFAULT_SASL_MECHANISM, true, transportLayer)
     else
-      authenticator = new DefaultAuthenticator()
+      authenticator = new BlockingPlaintextAuthenticator(new java.util.HashMap[String, Any](), transportLayer);
 
-    authenticator.configure(transportLayer, principalBuilder, new java.util.HashMap[String, Any]())
-    return new KafkaChannel(id, transportLayer, authenticator, maxReceiveSize)
+    return new KafkaChannel(id, transportLayer, authenticator, maxReceiveSize, MemoryPool.NONE)
   }
-
 }

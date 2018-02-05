@@ -18,9 +18,10 @@
 package kafka.producer
 
 import java.util.Properties
+
 import kafka.utils.VerifiableProperties
-import org.apache.kafka.common.protocol.SecurityProtocol
 import org.apache.kafka.common.config.SaslConfigs
+import org.apache.kafka.common.security.auth.SecurityProtocol
 
 @deprecated("This class has been deprecated and will be removed in a future release. " +
             "Please use org.apache.kafka.clients.producer.ProducerConfig instead.", "0.10.0.0")

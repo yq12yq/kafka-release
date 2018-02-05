@@ -26,13 +26,13 @@ import org.easymock.EasyMock
 import org.junit.Test
 import kafka.integration.KafkaServerTestHarness
 import kafka.utils._
-import kafka.common._
 import kafka.admin.{AdminOperationException, AdminUtils}
+import org.apache.kafka.common.TopicPartition
 
 import scala.collection.Map
 
 class DynamicConfigChangeTest extends KafkaServerTestHarness {
-  def generateConfigs() = List(KafkaConfig.fromProps(TestUtils.createBrokerConfig(0, zkConnect)))
+  def generateConfigs = List(KafkaConfig.fromProps(TestUtils.createBrokerConfig(0, zkConnect)))
 
   @Test
   def testConfigChange() {
@@ -40,7 +40,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       this.servers.head.dynamicConfigHandlers.contains(ConfigType.Topic))
     val oldVal: java.lang.Long = 100000L
     val newVal: java.lang.Long = 200000L
-    val tp = TopicAndPartition("test", 0)
+    val tp = new TopicPartition("test", 0)
     val logProps = new Properties()
     logProps.put(FlushMessagesProp, oldVal.toString)
     AdminUtils.createTopic(zkUtils, tp.topic, 1, 1, logProps)
@@ -147,7 +147,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     AdminUtils.changeUserOrUserClientIdConfig(zkUtils, "ANONYMOUS/clients/overriddenUserClientId", userClientIdProps)
 
     // Remove config change znodes to force quota initialization only through loading of user/client quotas
-    zkUtils.getChildren(ZkUtils.EntityConfigChangesPath).foreach { p => zkUtils.deletePath(ZkUtils.EntityConfigChangesPath + "/" + p) }
+    zkUtils.getChildren(ZkUtils.ConfigChangesPath).foreach { p => zkUtils.deletePath(ZkUtils.ConfigChangesPath + "/" + p) }
     server.startup()
     val quotaManagers = server.apis.quotas
 
@@ -168,12 +168,12 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       AdminUtils.changeTopicConfig(zkUtils, topic, logProps)
       fail("Should fail with AdminOperationException for topic doesn't exist")
     } catch {
-      case e: AdminOperationException => // expected
+      case _: AdminOperationException => // expected
     }
   }
 
   @Test
-  def testProcessNotification {
+  def testProcessNotification(): Unit = {
     val props = new Properties()
     props.put("a.b", "10")
 
@@ -198,7 +198,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       fail("Should have thrown an Exception while parsing incorrect notification " + jsonMap)
     }
     catch {
-      case t: Throwable =>
+      case _: Throwable =>
     }
     // Version is provided. EntityType is incorrect
     try {
@@ -207,7 +207,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       fail("Should have thrown an Exception while parsing incorrect notification " + jsonMap)
     }
     catch {
-      case t: Throwable =>
+      case _: Throwable =>
     }
 
     // EntityName isn't provided
@@ -217,7 +217,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       fail("Should have thrown an Exception while parsing incorrect notification " + jsonMap)
     }
     catch {
-      case t: Throwable =>
+      case _: Throwable =>
     }
 
     // Everything is provided
@@ -229,7 +229,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @Test
-  def shouldParseReplicationQuotaProperties {
+  def shouldParseReplicationQuotaProperties(): Unit = {
     val configHandler: TopicConfigHandler = new TopicConfigHandler(null, null, null)
     val props: Properties = new Properties()
 
@@ -242,7 +242,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @Test
-  def shouldParseWildcardReplicationQuotaProperties {
+  def shouldParseWildcardReplicationQuotaProperties(): Unit = {
     val configHandler: TopicConfigHandler = new TopicConfigHandler(null, null, null)
     val props: Properties = new Properties()
 
@@ -257,7 +257,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @Test
-  def shouldParseReplicationQuotaReset {
+  def shouldParseReplicationQuotaReset(): Unit = {
     val configHandler: TopicConfigHandler = new TopicConfigHandler(null, null, null)
     val props: Properties = new Properties()
 

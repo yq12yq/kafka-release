@@ -25,4 +25,4 @@ if [ -f $KAFKA_JAAS_CONF ]; then
 fi
 
 
-exec $(dirname $0)/kafka-run-class.sh kafka.tools.ProducerPerformance $@
+exec $(dirname $0)/kafka-run-class.sh org.apache.kafka.tools.ProducerPerformance $@
