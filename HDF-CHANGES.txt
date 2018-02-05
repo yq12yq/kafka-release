@@ -1,0 +1,18 @@
+Changes only in Hortonworks github and not in Apache Kafka release 1.0 and hence not covered in release notes https://archive.apache.org/dist/kafka/1.0.0/RELEASE_NOTES.html.
+
+* KAFKA-6118: Transient failure in kafka.api.SaslScramSslEndToEndAuthorizationTest.testTwoConsumersWithDifferentSaslCredentials
+* KAFKA-6260: AbstractCoordinator not clearly handles NULL Exception
+* KAFKA-6274: Improve KTable Source state store auto-generated names
+* KAFKA-6261: Request logging throws exception if acks=0
+* KAFKA-6238: Issues with protocol version when applying a rolling upgrade to 1.0.0
+* KAFKA-4827: Kafka connect: error with special characters in connector name
+* KAFKA-6214: Using standby replicas with an in memory state store causes Streams to crash
+* MAJOR     : NullPointerException when using kafka-consumer-groups.sh and kafka-consumer-offset-checker.sh in Kerberised env
+* KAFKA-6167: Timestamp on streams directory contains a colon, which is an illegal character
+* KAFKA-6210: IllegalArgumentException if 1.0.0 is used for inter.broker.protocol.version or log.message.format.version
+* KAFKA-6215: KafkaStreamsTest fails in trunk
+* KAFKA-6190: GlobalKTable never finishes restoring when consuming transactional messages
+* KAFKA-6164: ClientQuotaManager threads prevent shutdown when encountering an error loading logs
+* KAFKA-6185: Selector memory leak with high likelihood of OOM in case of down conversion
+* KAFKA-6156: JmxReporter can't handle windows style directory paths
+* KAFKA-6179: RecordQueue.clear() does not clear MinTimestampTracker's maintained list

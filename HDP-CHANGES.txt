@@ -1,5 +1,0 @@
-Changes only in Hortonworks github and not in Apache Kafka release 0.10.1.1 and hence not covered in releaes notes https://archive.apache.org/dist/kafka/0.10.1.1/RELEASE_NOTES.html.
-
- 
-
-
