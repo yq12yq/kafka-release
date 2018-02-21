@@ -778,6 +778,7 @@ project(':contrib:kafka-ganglia') {
   }
   task copyToLib( type: Copy ) {
     into "$buildDir/libs/lib"
+    exclude('**/lz4-java-1.4*/**')
     from configurations.runtime
   }
   jar { dependsOn copyToLib }
