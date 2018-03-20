@@ -1084,13 +1084,15 @@ object TestUtils extends Logging {
                       topic: String,
                       numMessages: Int,
                       acks: Int = -1,
-                      valueBytes: Int = -1): Seq[Array[Byte]] = {
+                      valueBytes: Int = -1,
+                      props: Option[Properties] = None): Seq[Array[Byte]] = {
 
     val producer = createNewProducer(
       TestUtils.getBrokerListStrFromServers(servers),
       retries = 5,
       requestTimeoutMs = 2000,
-      acks = acks
+      acks = acks,
+      props = props
     )
 
     val values = (0 until numMessages).map(x => valueBytes match {

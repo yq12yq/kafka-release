@@ -17,26 +17,27 @@
 
 package kafka.metrics
 
-import java.util.Properties
+import java.util.{Properties, UUID}
 import javax.management.ObjectName
 
 import com.yammer.metrics.Metrics
 import com.yammer.metrics.core.{Meter, MetricPredicate}
-import org.junit.Test
-import org.junit.Assert._
-import kafka.integration.KafkaServerTestHarness
-import kafka.server._
-import kafka.serializer._
-import kafka.utils._
 import kafka.admin.AdminUtils
-import kafka.utils.TestUtils._
-
-import scala.collection._
-import scala.collection.JavaConverters._
-import scala.util.matching.Regex
 import kafka.consumer.{ConsumerConfig, ZookeeperConsumerConnector}
+import kafka.integration.KafkaServerTestHarness
 import kafka.log.LogConfig
+import kafka.serializer._
+import kafka.server._
+import kafka.utils.TestUtils._
+import kafka.utils._
+import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.TopicPartition
+import org.junit.Assert._
+import org.junit.Test
+
+import scala.collection.JavaConverters._
+import scala.collection._
+import scala.util.matching.Regex
 
 class MetricsTest extends KafkaServerTestHarness with Logging {
   val numNodes = 2
@@ -44,6 +45,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
 
   val overridingProps = new Properties
   overridingProps.put(KafkaConfig.NumPartitionsProp, numParts.toString)
+  overridingProps.put(KafkaConfig.ProducerMetricsEnableProp, "true")
 
   def generateConfigs =
     TestUtils.createBrokerConfigs(numNodes, zkConnect, enableDeleteTopic=true).map(KafkaConfig.fromProps(_, overridingProps))
@@ -82,12 +84,17 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   @Test
   def testBrokerTopicMetricsUnregisteredAfterDeletingTopic() {
     val topic = "test-broker-topic-metric"
-    AdminUtils.createTopic(zkUtils, topic, 2, 1)
+    val partitions = 2
+    AdminUtils.createTopic(zkUtils, topic, partitions, 1)
     // Produce a few messages to create the metrics
     // Don't consume messages as it may cause metrics to be re-created causing the test to fail, see KAFKA-5238
     TestUtils.produceMessages(servers, topic, nMessages)
     assertTrue("Topic metrics don't exist", topicMetricGroups(topic).nonEmpty)
-    servers.foreach(s => assertNotNull(s.brokerTopicStats.topicStats(topic)))
+    servers.foreach(s => {
+      assertNotNull(s.brokerTopicStats.topicStats(topic))
+      Range.apply(0, 2).foreach( x => assertNotNull(s.brokerTopicStats.topicStats(topic, x)))
+    })
+
     AdminUtils.deleteTopic(zkUtils, topic)
     TestUtils.verifyTopicDeletion(zkUtils, topic, 1, servers)
     assertEquals("Topic metrics exists after deleteTopic", Set.empty, topicMetricGroups(topic))
@@ -175,6 +182,56 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     assertEquals(metrics.keySet.asScala.count(_.getMBeanName == "kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount"), 1)
     assertEquals(metrics.keySet.asScala.count(_.getMBeanName == "kafka.controller:type=KafkaController,name=GlobalTopicCount"), 1)
     assertEquals(metrics.keySet.asScala.count(_.getMBeanName == "kafka.controller:type=KafkaController,name=GlobalPartitionCount"), 1)
+  }
+
+  @Test
+  def testProducerMetricsOnBroker() : Unit = {
+    val topic = "test-messages-in-broker-client"
+    val clientId = "client-" + UUID.randomUUID()
+    val messagesIn = s"${BrokerTopicStats.MessagesInPerSec},clientId=$clientId,topic=$topic,partition=0"
+
+    doTestBrokerTopicPartitionMetrics(topic, clientId, messagesIn)
+  }
+
+  @Test
+  def testBrokerTopicPartitionMetrics() : Unit = {
+    val topic = "test-messages-in-broker-topic-partition"
+    val clientId = "client-" + UUID.randomUUID()
+    val messagesIn = s"${BrokerTopicStats.MessagesInPerSec},topic=$topic,partition=0"
+
+    doTestBrokerTopicPartitionMetrics(topic, clientId, messagesIn)
+  }
+
+  private def doTestBrokerTopicPartitionMetrics(topic: String, clientId: String, messagesInMetricName: String) = {
+    val topicConfig = new Properties
+    topicConfig.setProperty(LogConfig.MinInSyncReplicasProp, "2")
+    createTopic(zkUtils, topic, 1, numNodes, servers, topicConfig)
+
+    // Produce a few messages to create the metrics
+    var properties = new Properties()
+    properties.setProperty(ProducerConfig.CLIENT_ID_CONFIG, clientId)
+    val props: Option[Properties] = Some(properties)
+    TestUtils.produceMessages(servers, topic, nMessages, props = props)
+
+    // Check the log size for each broker so that we can distinguish between failures caused by replication issues
+    // versus failures caused by the metrics
+    val topicPartition = new TopicPartition(topic, 0)
+    servers.foreach { server =>
+      val log = server.logManager.logsByTopicPartition.get(new TopicPartition(topic, 0))
+      val brokerId = server.config.brokerId
+      val logSize = log.map(_.size)
+      assertTrue(s"Expected broker $brokerId to have a Log for $topicPartition with positive size, actual: $logSize",
+        logSize.map(_ > 0).getOrElse(false))
+    }
+
+    val initialMessagesIn = meterCount(messagesInMetricName)
+
+    // Produce a few messages to make the metrics tick
+    TestUtils.produceMessages(servers, topic, nMessages, props = props)
+
+    val recvdMsgsIn = meterCount(messagesInMetricName)
+
+    assertTrue(recvdMsgsIn > initialMessagesIn)
   }
 
   private def meterCount(metricName: String): Long = {
