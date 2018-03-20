@@ -137,10 +137,6 @@ public class KTableImpl<K, S, V> extends AbstractStream<K> implements KTable<K, 
         return this.queryableStoreName;
     }
 
-    String internalStoreName() {
-        return this.queryableStoreName;
-    }
-
     @SuppressWarnings("deprecation")
     private KTable<K, V> doFilter(final Predicate<? super K, ? super V> predicate,
                                   final org.apache.kafka.streams.processor.StateStoreSupplier<KeyValueStore> storeSupplier,
@@ -155,8 +151,10 @@ public class KTableImpl<K, S, V> extends AbstractStream<K> implements KTable<K, 
         builder.internalTopologyBuilder.addProcessor(name, processorSupplier, this.name);
         if (storeSupplier != null) {
             builder.internalTopologyBuilder.addStateStore(storeSupplier, name);
+            return new KTableImpl<>(builder, name, processorSupplier, this.keySerde, this.valSerde, sourceNodes, internalStoreName, true);
+        } else {
+            return new KTableImpl<>(builder, name, processorSupplier, sourceNodes, this.queryableStoreName, false);
         }
-        return new KTableImpl<>(builder, name, processorSupplier, this.keySerde, this.valSerde, sourceNodes, internalStoreName, internalStoreName != null);
     }
 
     private KTable<K, V> doFilter(final Predicate<? super K, ? super V> predicate,
@@ -758,9 +756,9 @@ public class KTableImpl<K, S, V> extends AbstractStream<K> implements KTable<K, 
         }
 
         final KTableKTableJoinMerger<K, R> joinMerge = new KTableKTableJoinMerger<>(
-                new KTableImpl<K, V, R>(builder, joinThisName, joinThis, sourceNodes, this.internalStoreName(), false),
+                new KTableImpl<K, V, R>(builder, joinThisName, joinThis, sourceNodes, this.queryableStoreName, false),
                 new KTableImpl<K, V1, R>(builder, joinOtherName, joinOther, ((KTableImpl<K, ?, ?>) other).sourceNodes,
-                        ((KTableImpl<K, ?, ?>) other).internalStoreName(), false),
+                        ((KTableImpl<K, ?, ?>) other).queryableStoreName, false),
                 internalQueryableName
         );
 

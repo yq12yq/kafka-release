@@ -57,7 +57,7 @@ object ConsumerGroupCommand extends Logging {
     // should have exactly one action
     val actions = Seq(opts.listOpt, opts.describeOpt, opts.deleteOpt, opts.resetOffsetsOpt).count(opts.options.has _)
     if (actions != 1)
-      CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --list, --describe, --delete, --reset-offset")
+      CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --list, --describe, --delete, --reset-offsets")
 
     opts.checkArgs()
     if (CoreUtils.isSaslProtocol(SecurityProtocol.valueOf(opts.securityProtocol))) {
@@ -154,6 +154,19 @@ object ConsumerGroupCommand extends Logging {
         print("%-30s %s".format(consumerAssignment.host.getOrElse(MISSING_COLUMN_VALUE), consumerAssignment.clientId.getOrElse(MISSING_COLUMN_VALUE)))
       println()
     }
+  }
+
+  def convertTimestamp(timeString: String): java.lang.Long = {
+    val datetime: String = timeString match {
+      case ts if ts.split("T")(1).contains("+") || ts.split("T")(1).contains("-") || ts.split("T")(1).contains("Z") => ts.toString
+      case ts => s"${ts}Z"
+    }
+    val date = try {
+      new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").parse(datetime)
+    } catch {
+      case _: ParseException => new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX").parse(datetime)
+    }
+    date.getTime
   }
 
   def printOffsetsToReset(groupAssignmentsToReset: Map[TopicPartition, OffsetAndMetadata]): Unit = {
@@ -623,8 +636,8 @@ object ConsumerGroupCommand extends Logging {
           (topicPartition, new OffsetAndMetadata(newOffset))
         }.toMap
       } else if (opts.options.has(opts.resetToDatetimeOpt)) {
+        val timestamp = convertTimestamp(opts.options.valueOf(opts.resetToDatetimeOpt))
         partitionsToReset.map { topicPartition =>
-          val timestamp = getDateTime
           val logTimestampOffset = getLogTimestampOffset(topicPartition, timestamp)
           logTimestampOffset match {
             case LogOffsetResult.LogOffset(offset) => (topicPartition, new OffsetAndMetadata(offset))
@@ -683,21 +696,6 @@ object ConsumerGroupCommand extends Logging {
           case _ => offset
         }
       }
-    }
-
-    private[admin] def getDateTime: java.lang.Long = {
-      val datetime: String = opts.options.valueOf(opts.resetToDatetimeOpt) match {
-        case ts if ts.split("T")(1).contains("+") || ts.split("T")(1).contains("-") || ts.split("T")(1).contains("Z") => ts.toString
-        case ts => s"${ts}Z"
-      }
-      val date = {
-        try {
-          new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").parse(datetime)
-        } catch {
-          case e: ParseException => new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX").parse(datetime)
-        }
-      }
-      date.getTime
     }
 
     override def exportOffsetsToReset(assignmentsToReset: Map[TopicPartition, OffsetAndMetadata]): String = {
