@@ -187,7 +187,8 @@ class KafkaApisTest {
       EasyMock.anyObject(),
       EasyMock.capture(responseCallback),
       EasyMock.anyObject(),
-      EasyMock.anyObject())).andAnswer(new IAnswer[Unit] {
+      EasyMock.anyObject(),
+      EasyMock.anyString())).andAnswer(new IAnswer[Unit] {
       override def answer(): Unit = {
         responseCallback.getValue.apply(Map(tp2 -> new PartitionResponse(Errors.NONE)))
       }
@@ -226,7 +227,8 @@ class KafkaApisTest {
       EasyMock.anyObject(),
       EasyMock.capture(responseCallback),
       EasyMock.anyObject(),
-      EasyMock.anyObject())).andAnswer(new IAnswer[Unit] {
+      EasyMock.anyObject(),
+      EasyMock.anyString())).andAnswer(new IAnswer[Unit] {
       override def answer(): Unit = {
         responseCallback.getValue.apply(Map(tp2 -> new PartitionResponse(Errors.NONE)))
       }
@@ -257,7 +259,8 @@ class KafkaApisTest {
       EasyMock.anyObject(),
       EasyMock.anyObject(),
       EasyMock.anyObject(),
-      EasyMock.anyObject()))
+      EasyMock.anyObject(),
+      EasyMock.anyString()))
 
     EasyMock.replay(replicaManager)
 

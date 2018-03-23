@@ -35,8 +35,7 @@ import org.apache.kafka.common.errors.{ControllerMovedException, CorruptRecordEx
 import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.metrics.Metrics
 import org.apache.kafka.common.protocol.Errors
-import org.apache.kafka.common.protocol.Errors.UNKNOWN_TOPIC_OR_PARTITION
-import org.apache.kafka.common.protocol.Errors.KAFKA_STORAGE_ERROR
+import org.apache.kafka.common.protocol.Errors.{KAFKA_STORAGE_ERROR, UNKNOWN_TOPIC_OR_PARTITION}
 import org.apache.kafka.common.record._
 import org.apache.kafka.common.requests.DescribeLogDirsResponse.{LogDirInfo, ReplicaInfo}
 import org.apache.kafka.common.requests.EpochEndOffset._
@@ -198,6 +197,9 @@ class ReplicaManager(val config: KafkaConfig,
   private val lastIsrPropagationMs = new AtomicLong(System.currentTimeMillis())
 
   private var logDirFailureHandler: LogDirFailureHandler = null
+  val producerStats: Option[ProducerStats] =
+    if (config.producerMetricsEnable) Some(new ProducerStats(config.producerMetricsCacheSize, config.producerMetricsCacheExpiryMs))
+    else None
 
   private class LogDirFailureHandler(name: String, haltBrokerOnDirFailure: Boolean) extends ShutdownableThread(name) {
     override def doWork() {
@@ -334,6 +336,7 @@ class ReplicaManager(val config: KafkaConfig,
             throw new KafkaStorageException(s"Partition $topicPartition is on an offline disk")
           val removedPartition = allPartitions.remove(topicPartition)
           if (removedPartition != null) {
+            brokerTopicStats.removeMetrics(topicPartition)
             val topicHasPartitions = allPartitions.values.exists(_.topic == topicPartition.topic)
             if (!topicHasPartitions)
               brokerTopicStats.removeMetrics(topicPartition.topic)
@@ -452,10 +455,11 @@ class ReplicaManager(val config: KafkaConfig,
                     entriesPerPartition: Map[TopicPartition, MemoryRecords],
                     responseCallback: Map[TopicPartition, PartitionResponse] => Unit,
                     delayedProduceLock: Option[Lock] = None,
-                    processingStatsCallback: Map[TopicPartition, RecordsProcessingStats] => Unit = _ => ()) {
+                    processingStatsCallback: Map[TopicPartition, RecordsProcessingStats] => Unit = _ => (),
+                    clientId: String = null) {
     if (isValidRequiredAcks(requiredAcks)) {
       val sTime = time.milliseconds
-      val localProduceResults = appendToLocalLog(internalTopicsAllowed = internalTopicsAllowed,
+      val localProduceResults = appendToLocalLog(clientId, internalTopicsAllowed = internalTopicsAllowed,
         isFromClient = isFromClient, entriesPerPartition, requiredAcks)
       debug("Produce to local log in %d ms".format(time.milliseconds - sTime))
 
@@ -700,13 +704,15 @@ class ReplicaManager(val config: KafkaConfig,
   /**
    * Append the messages to the local replica logs
    */
-  private def appendToLocalLog(internalTopicsAllowed: Boolean,
+  private def appendToLocalLog(clientId: String,
+                               internalTopicsAllowed: Boolean,
                                isFromClient: Boolean,
                                entriesPerPartition: Map[TopicPartition, MemoryRecords],
                                requiredAcks: Short): Map[TopicPartition, LogAppendResult] = {
     trace(s"Append [$entriesPerPartition] to local log")
     entriesPerPartition.map { case (topicPartition, records) =>
       brokerTopicStats.topicStats(topicPartition.topic).totalProduceRequestRate.mark()
+      brokerTopicStats.topicStats(topicPartition.topic, topicPartition.partition()).totalProduceRequestRate.mark()
       brokerTopicStats.allTopicsStats.totalProduceRequestRate.mark()
 
       // reject appending to internal topics if it is not allowed
@@ -735,9 +741,14 @@ class ReplicaManager(val config: KafkaConfig,
 
           // update stats for successfully appended bytes and messages as bytesInRate and messageInRate
           brokerTopicStats.topicStats(topicPartition.topic).bytesInRate.mark(records.sizeInBytes)
+          brokerTopicStats.topicStats(topicPartition.topic, topicPartition.partition()).bytesInRate.mark(records.sizeInBytes)
           brokerTopicStats.allTopicsStats.bytesInRate.mark(records.sizeInBytes)
           brokerTopicStats.topicStats(topicPartition.topic).messagesInRate.mark(numAppendedMessages)
+          brokerTopicStats.topicStats(topicPartition.topic, topicPartition.partition).messagesInRate.mark(numAppendedMessages)
           brokerTopicStats.allTopicsStats.messagesInRate.mark(numAppendedMessages)
+
+          if(clientId != null && !clientId.isEmpty)
+            producerStats.foreach(_.clientMetrics(clientId, topicPartition).messagesInRate.mark(numAppendedMessages))
 
           trace("%d bytes written to log %s-%d beginning at offset %d and ending at offset %d"
             .format(records.sizeInBytes, topicPartition.topic, topicPartition.partition, info.firstOffset, info.lastOffset))
@@ -761,6 +772,7 @@ class ReplicaManager(val config: KafkaConfig,
                 -1
             }
             brokerTopicStats.topicStats(topicPartition.topic).failedProduceRequestRate.mark()
+            brokerTopicStats.topicStats(topicPartition.topic, topicPartition.partition).failedProduceRequestRate.mark()
             brokerTopicStats.allTopicsStats.failedProduceRequestRate.mark()
             error("Error processing append operation on partition %s".format(topicPartition), t)
             (topicPartition, LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithLogStartOffset(logStartOffset), Some(t)))
@@ -858,6 +870,7 @@ class ReplicaManager(val config: KafkaConfig,
       val followerLogStartOffset = fetchInfo.logStartOffset
 
       brokerTopicStats.topicStats(tp.topic).totalFetchRequestRate.mark()
+      brokerTopicStats.topicStats(tp.topic, tp.partition).totalFetchRequestRate.mark()
       brokerTopicStats.allTopicsStats.totalFetchRequestRate.mark()
 
       try {
@@ -941,6 +954,7 @@ class ReplicaManager(val config: KafkaConfig,
                         exception = Some(e))
         case e: Throwable =>
           brokerTopicStats.topicStats(tp.topic).failedFetchRequestRate.mark()
+          brokerTopicStats.topicStats(tp.topic, tp.partition).failedFetchRequestRate.mark()
           brokerTopicStats.allTopicsStats.failedFetchRequestRate.mark()
           error(s"Error processing fetch operation on partition $tp, offset $offset", e)
           LogReadResult(info = FetchDataInfo(LogOffsetMetadata.UnknownOffsetMetadata, MemoryRecords.EMPTY),
@@ -1373,6 +1387,7 @@ class ReplicaManager(val config: KafkaConfig,
       newOfflinePartitions.foreach { topicPartition =>
         val partition = allPartitions.put(topicPartition, ReplicaManager.OfflinePartition)
         partition.removePartitionMetrics()
+        brokerTopicStats.removeMetrics(topicPartition)
       }
 
       newOfflinePartitions.map(_.topic).foreach { topic: String =>
@@ -1402,6 +1417,7 @@ class ReplicaManager(val config: KafkaConfig,
   // High watermark do not need to be checkpointed only when under unit tests
   def shutdown(checkpointHW: Boolean = true) {
     info("Shutting down")
+    producerStats.foreach(x => CoreUtils.swallow(x.close()))
     removeMetrics()
     if (logDirFailureHandler != null)
       logDirFailureHandler.shutdown()
