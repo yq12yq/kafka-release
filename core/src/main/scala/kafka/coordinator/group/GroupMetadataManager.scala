@@ -31,6 +31,7 @@ import kafka.metrics.KafkaMetricsGroup
 import kafka.server.ReplicaManager
 import kafka.utils.CoreUtils.inLock
 import kafka.utils._
+import kafka.zk.KafkaZkClient
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.internals.Topic
@@ -50,7 +51,7 @@ class GroupMetadataManager(brokerId: Int,
                            interBrokerProtocolVersion: ApiVersion,
                            config: OffsetConfig,
                            replicaManager: ReplicaManager,
-                           zkUtils: ZkUtils,
+                           zkClient: KafkaZkClient,
                            time: Time) extends Logging with KafkaMetricsGroup {
 
   private val compressionType: CompressionType = CompressionType.forId(config.offsetsTopicCompressionCodec.codec)
@@ -82,19 +83,57 @@ class GroupMetadataManager(brokerId: Int,
 
   this.logIdent = s"[GroupMetadataManager brokerId=$brokerId] "
 
-  newGauge("NumOffsets",
+  private def recreateGauge[T](name: String, gauge: Gauge[T]): Gauge[T] = {
+    removeMetric(name)
+    newGauge(name, gauge)
+  }
+
+  recreateGauge("NumOffsets",
     new Gauge[Int] {
       def value = groupMetadataCache.values.map(group => {
         group.inLock { group.numOffsets }
       }).sum
-    }
-  )
+    })
 
-  newGauge("NumGroups",
+  recreateGauge("NumGroups",
     new Gauge[Int] {
       def value = groupMetadataCache.size
-    }
-  )
+    })
+
+  recreateGauge("NumGroupsPreparingRebalance",
+    new Gauge[Int] {
+      def value(): Int = groupMetadataCache.values.count(group => {
+        group synchronized { group.is(PreparingRebalance) }
+      })
+    })
+
+  recreateGauge("NumGroupsCompletingRebalance",
+    new Gauge[Int] {
+      def value(): Int = groupMetadataCache.values.count(group => {
+        group synchronized { group.is(CompletingRebalance) }
+      })
+    })
+
+  recreateGauge("NumGroupsStable",
+    new Gauge[Int] {
+      def value(): Int = groupMetadataCache.values.count(group => {
+        group synchronized { group.is(Stable) }
+      })
+    })
+
+  recreateGauge("NumGroupsDead",
+    new Gauge[Int] {
+      def value(): Int = groupMetadataCache.values.count(group => {
+        group synchronized { group.is(Dead) }
+      })
+    })
+
+  recreateGauge("NumGroupsEmpty",
+    new Gauge[Int] {
+      def value(): Int = groupMetadataCache.values.count(group => {
+        group synchronized { group.is(Empty) }
+      })
+    })
 
   def enableMetadataExpiration() {
     scheduler.startup()
@@ -118,6 +157,13 @@ class GroupMetadataManager(brokerId: Int,
   def isGroupLoading(groupId: String): Boolean = isPartitionLoading(partitionFor(groupId))
 
   def isLoading(): Boolean = inLock(partitionLock) { loadingPartitions.nonEmpty }
+
+  // return true iff group is owned and the group doesn't exist
+  def groupNotExists(groupId: String) = inLock(partitionLock) {
+    isGroupLocal(groupId) && getGroup(groupId).forall { group =>
+      group.inLock(group.is(Dead))
+    }
+  }
 
   // visible for testing
   private[group] def isGroupOpenForProducer(producerId: Long, groupId: String) = openGroupsForProducer.get(producerId) match {
@@ -509,8 +555,11 @@ class GroupMetadataManager(brokerId: Int,
               }
               pendingOffsets.remove(batch.producerId)
             } else {
+              var batchBaseOffset: Option[Long] = None
               for (record <- batch.asScala) {
                 require(record.hasKey, "Group metadata/offset entry key should not be null")
+                if (batchBaseOffset.isEmpty)
+                  batchBaseOffset = Some(record.offset)
                 GroupMetadataManager.readMessageKey(record.key) match {
 
                   case offsetKey: OffsetKey =>
@@ -527,9 +576,9 @@ class GroupMetadataManager(brokerId: Int,
                     } else {
                       val offsetAndMetadata = GroupMetadataManager.readOffsetMessageValue(record.value)
                       if (isTxnOffsetCommit)
-                        pendingOffsets(batch.producerId).put(groupTopicPartition, CommitRecordMetadataAndOffset(Some(batch.baseOffset), offsetAndMetadata))
+                        pendingOffsets(batch.producerId).put(groupTopicPartition, CommitRecordMetadataAndOffset(batchBaseOffset, offsetAndMetadata))
                       else
-                        loadedOffsets.put(groupTopicPartition, CommitRecordMetadataAndOffset(Some(batch.baseOffset), offsetAndMetadata))
+                        loadedOffsets.put(groupTopicPartition, CommitRecordMetadataAndOffset(batchBaseOffset, offsetAndMetadata))
                     }
 
                   case groupMetadataKey: GroupMetadataKey =>
@@ -667,14 +716,16 @@ class GroupMetadataManager(brokerId: Int,
 
   // visible for testing
   private[group] def cleanupGroupMetadata(): Unit = {
-    cleanupGroupMetadata(None)
+    cleanupGroupMetadata(None, groupMetadataCache.values, time.milliseconds())
   }
 
-  def cleanupGroupMetadata(deletedTopicPartitions: Option[Seq[TopicPartition]]) {
-    val startMs = time.milliseconds()
+  def cleanupGroupMetadata(deletedTopicPartitions: Option[Seq[TopicPartition]],
+                           groups: Iterable[GroupMetadata],
+                           startMs: Long) {
     var offsetsRemoved = 0
 
-    groupMetadataCache.foreach { case (groupId, group) =>
+    groups.foreach { group =>
+      val groupId = group.groupId
       val (removedOffsets, groupIsDead, generation) = group.inLock {
         val removedOffsets = deletedTopicPartitions match {
           case Some(topicPartitions) => group.removeOffsets(topicPartitions)
@@ -803,7 +854,7 @@ class GroupMetadataManager(brokerId: Int,
    * If the topic does not exist, the configured partition count is returned.
    */
   private def getGroupMetadataTopicPartitionCount: Int = {
-    zkUtils.getTopicPartitionCount(Topic.GROUP_METADATA_TOPIC_NAME).getOrElse(config.offsetsTopicNumPartitions)
+    zkClient.getTopicPartitionCount(Topic.GROUP_METADATA_TOPIC_NAME).getOrElse(config.offsetsTopicNumPartitions)
   }
 
   /**
@@ -1178,7 +1229,7 @@ object GroupMetadataManager {
   }
 
   // Formatter for use with tools such as console consumer: Consumer should also set exclude.internal.topics to false.
-  // (specify --formatter "kafka.coordinator.GroupMetadataManager\$OffsetsMessageFormatter" when consuming __consumer_offsets)
+  // (specify --formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter" when consuming __consumer_offsets)
   class OffsetsMessageFormatter extends MessageFormatter {
     def writeTo(consumerRecord: ConsumerRecord[Array[Byte], Array[Byte]], output: PrintStream) {
       Option(consumerRecord.key).map(key => GroupMetadataManager.readMessageKey(ByteBuffer.wrap(key))).foreach {

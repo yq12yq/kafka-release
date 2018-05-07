@@ -163,7 +163,18 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         self.open_port(self.interbroker_security_protocol)
 
         self.start_minikdc(add_principals)
+        self._ensure_zk_chroot()
+
         Service.start(self)
+
+        self.logger.info("Waiting for brokers to register at ZK")
+
+        retries = 30
+        expected_broker_ids = set(self.nodes)
+        wait_until(lambda: {node for node in self.nodes if self.is_registered(node)} == expected_broker_ids, 30, 1)
+
+        if retries == 0:
+            raise RuntimeError("Kafka servers didn't register at ZK within 30 seconds")
 
         # Create topics if necessary
         if self.topics is not None:
@@ -173,6 +184,16 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
 
                 topic_cfg["topic"] = topic
                 self.create_topic(topic_cfg)
+
+    def _ensure_zk_chroot(self):
+        self.logger.info("Ensuring zk_chroot %s exists", self.zk_chroot)
+        if self.zk_chroot:
+            if not self.zk_chroot.startswith('/'):
+                raise Exception("Zookeeper chroot must start with '/' but found " + self.zk_chroot)
+
+            parts = self.zk_chroot.split('/')[1:]
+            for i in range(len(parts)):
+                self.zk.create('/' + '/'.join(parts[:i+1]))
 
     def set_protocol_and_port(self, node):
         listeners = []

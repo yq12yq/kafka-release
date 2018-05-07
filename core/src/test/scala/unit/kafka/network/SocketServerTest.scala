@@ -38,6 +38,7 @@ import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.record.MemoryRecords
 import org.apache.kafka.common.requests.{AbstractRequest, ProduceRequest, RequestHeader}
 import org.apache.kafka.common.security.auth.{KafkaPrincipal, SecurityProtocol}
+import org.apache.kafka.common.security.scram.ScramMechanism
 import org.apache.kafka.common.utils.{LogContext, MockTime, Time}
 import org.apache.log4j.Level
 import org.junit.Assert._
@@ -62,7 +63,7 @@ class SocketServerTest extends JUnitSuite {
   props.put("connections.max.idle.ms", "60000")
   val config = KafkaConfig.fromProps(props)
   val metrics = new Metrics
-  val credentialProvider = new CredentialProvider(config.saslEnabledMechanisms)
+  val credentialProvider = new CredentialProvider(ScramMechanism.mechanismNames, null)
   val localAddress = InetAddress.getLoopbackAddress
 
   // Clean-up any metrics left around by previous tests
@@ -87,6 +88,24 @@ class SocketServerTest extends JUnitSuite {
     sockets.foreach(_.close())
     sockets.clear()
     org.apache.log4j.LogManager.getLogger("kafka").setLevel(logLevelToRestore)
+  }
+
+  private val kafkaLogger = org.apache.log4j.LogManager.getLogger("kafka")
+  private var logLevelToRestore: Level = _
+
+  @Before
+  def setUp(): Unit = {
+    // Run the tests with TRACE logging to exercise request logging path
+    logLevelToRestore = kafkaLogger.getLevel
+    kafkaLogger.setLevel(Level.TRACE)
+  }
+
+  @After
+  def tearDown() {
+    shutdownServerAndMetrics(server)
+    sockets.foreach(_.close())
+    sockets.clear()
+    kafkaLogger.setLevel(logLevelToRestore)
   }
 
   def sendRequest(socket: Socket, request: Array[Byte], id: Option[Short] = None, flush: Boolean = true) {
@@ -351,7 +370,7 @@ class SocketServerTest extends JUnitSuite {
       TestUtils.waitUntilTrue(() => openChannel.isEmpty, "Idle channel not closed")
       TestUtils.waitUntilTrue(() => openOrClosingChannel.isDefined, "Channel removed without processing staged receives")
 
-      // Create new connection with same id when when `channel1` is in Selector.closingChannels
+      // Create new connection with same id when `channel1` is in Selector.closingChannels
       // Check that new connection is closed and openOrClosingChannel still contains `channel1`
       connectAndWaitForConnectionRegister()
       TestUtils.waitUntilTrue(() => connectionCount == 1, "Failed to close channel")
@@ -404,7 +423,7 @@ class SocketServerTest extends JUnitSuite {
     // the following sleep is necessary to reliably detect the connection close when we send data below
     Thread.sleep(200L)
     // make sure the sockets are open
-    server.acceptors.values.foreach(acceptor => assertFalse(acceptor.serverChannel.socket.isClosed))
+    server.acceptors.asScala.values.foreach(acceptor => assertFalse(acceptor.serverChannel.socket.isClosed))
     // then shutdown the server
     shutdownServerAndMetrics(server)
 

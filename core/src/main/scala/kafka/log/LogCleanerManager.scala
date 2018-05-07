@@ -53,7 +53,7 @@ private[log] class LogCleanerManager(val logDirs: Seq[File],
 
   import LogCleanerManager._
 
-  override val loggerName = classOf[LogCleaner].getName
+  protected override def loggerName = classOf[LogCleaner].getName
 
   // package-private for testing
   private[log] val offsetCheckpointFile = "cleaner-offset-checkpoint"
@@ -194,6 +194,7 @@ private[log] class LogCleanerManager(val logDirs: Seq[File],
           state match {
             case LogCleaningInProgress =>
               inProgress.put(topicPartition, LogCleaningAborted)
+            case LogCleaningPaused =>
             case s =>
               throw new IllegalStateException(s"Compaction for partition $topicPartition cannot be aborted and paused since it is in $s state.")
           }
@@ -259,6 +260,24 @@ private[log] class LogCleanerManager(val logDirs: Seq[File],
           case e: KafkaStorageException =>
             error(s"Failed to access checkpoint file ${checkpoint.file.getName} in dir ${checkpoint.file.getParentFile.getAbsolutePath}", e)
         }
+      }
+    }
+  }
+
+  def alterCheckpointDir(topicPartition: TopicPartition, sourceLogDir: File, destLogDir: File): Unit = {
+    inLock(lock) {
+      try {
+        checkpoints.get(sourceLogDir).flatMap(_.read().get(topicPartition)) match {
+          case Some(offset) =>
+            // Remove this partition from the checkpoint file in the source log directory
+            updateCheckpoints(sourceLogDir, None)
+            // Add offset for this partition to the checkpoint file in the source log directory
+            updateCheckpoints(destLogDir, Option(topicPartition, offset))
+          case None =>
+        }
+      } catch {
+        case e: KafkaStorageException =>
+          error(s"Failed to access checkpoint file in dir ${sourceLogDir.getAbsolutePath}", e)
       }
     }
   }
@@ -351,8 +370,6 @@ private[log] object LogCleanerManager extends Logging {
       }
     }
 
-    // dirty log segments
-    val dirtyNonActiveSegments = log.logSegments(firstDirtyOffset, log.activeSegment.baseOffset)
     val compactionLagMs = math.max(log.config.compactionLagMs, 0L)
 
     // find first segment that cannot be cleaned
@@ -368,6 +385,8 @@ private[log] object LogCleanerManager extends Logging {
 
       // the first segment whose largest message timestamp is within a minimum time lag from now
       if (compactionLagMs > 0) {
+        // dirty log segments
+        val dirtyNonActiveSegments = log.logSegments(firstDirtyOffset, log.activeSegment.baseOffset)
         dirtyNonActiveSegments.find { s =>
           val isUncleanable = s.largestTimestamp > now - compactionLagMs
           debug(s"Checking if log segment may be cleaned: log='${log.name}' segment.baseOffset=${s.baseOffset} segment.largestTimestamp=${s.largestTimestamp}; now - compactionLag=${now - compactionLagMs}; is uncleanable=$isUncleanable")

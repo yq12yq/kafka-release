@@ -50,12 +50,12 @@ public class MockProcessorContext extends AbstractProcessorContext implements Re
 
     private final File stateDir;
     private final Metrics metrics;
-    private final Serde<?> keySerde;
-    private final Serde<?> valSerde;
     private final RecordCollector.Supplier recordCollectorSupplier;
     private final Map<String, StateStore> storeMap = new LinkedHashMap<>();
     private final Map<String, StateRestoreCallback> restoreFuncs = new HashMap<>();
 
+    private Serde<?> keySerde;
+    private Serde<?> valSerde;
     private long timestamp = -1L;
 
     public MockProcessorContext(final File stateDir,
@@ -100,11 +100,10 @@ public class MockProcessorContext extends AbstractProcessorContext implements Re
                                 final RecordCollector.Supplier collectorSupplier,
                                 final ThreadCache cache) {
         super(new TaskId(0, 0),
-                config.getString(StreamsConfig.APPLICATION_ID_CONFIG),
-                config,
-                new MockStreamsMetrics(metrics),
-                null,
-                cache);
+              config,
+              new MockStreamsMetrics(metrics),
+              null,
+              cache);
         this.stateDir = stateDir;
         this.keySerde = keySerde;
         this.valSerde = valSerde;
@@ -120,6 +119,14 @@ public class MockProcessorContext extends AbstractProcessorContext implements Re
             throw new UnsupportedOperationException("No RecordCollector specified");
         }
         return recordCollector;
+    }
+
+    public void setKeySerde(final Serde<?> keySerde) {
+        this.keySerde = keySerde;
+    }
+
+    public void setValueSerde(final Serde<?> valSerde) {
+        this.valSerde = valSerde;
     }
 
     // serdes will override whatever specified in the configs
@@ -164,14 +171,10 @@ public class MockProcessorContext extends AbstractProcessorContext implements Re
     }
 
     @Override
-    public void schedule(final long interval) {
-        throw new UnsupportedOperationException("schedule() not supported.");
-    }
+    public void schedule(final long interval) { }
 
     @Override
-    public void commit() {
-        throw new UnsupportedOperationException("commit() not supported.");
-    }
+    public void commit() { }
 
     @Override
     @SuppressWarnings("unchecked")

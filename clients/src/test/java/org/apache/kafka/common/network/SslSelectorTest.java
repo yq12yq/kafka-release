@@ -16,6 +16,8 @@
  */
 package org.apache.kafka.common.network;
 
+import java.nio.channels.SelectionKey;
+import javax.net.ssl.SSLEngine;
 import org.apache.kafka.common.memory.MemoryPool;
 import org.apache.kafka.common.memory.SimpleMemoryPool;
 import org.apache.kafka.common.metrics.Metrics;
@@ -34,7 +36,6 @@ import javax.net.ssl.SSLEngine;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
@@ -64,7 +65,7 @@ public class SslSelectorTest extends SelectorTest {
         this.server.start();
         this.time = new MockTime();
         sslClientConfigs = TestSslUtils.createSslConfig(false, false, Mode.CLIENT, trustStoreFile, "client");
-        this.channelBuilder = new SslChannelBuilder(Mode.CLIENT);
+        this.channelBuilder = new SslChannelBuilder(Mode.CLIENT, null, false);
         this.channelBuilder.configure(sslClientConfigs);
         this.metrics = new Metrics();
         this.selector = new Selector(5000, metrics, time, "MetricGroup", channelBuilder, new LogContext());
@@ -113,72 +114,10 @@ public class SslSelectorTest extends SelectorTest {
     }
 
     /**
-     * Tests that SSL renegotiation initiated by the server are handled correctly by the client
-     * @throws Exception
+     * Renegotiation is not supported since it is potentially unsafe and it has been removed in TLS 1.3
      */
     @Test
-    public void testRenegotiation() throws Exception {
-        ChannelBuilder channelBuilder = new SslChannelBuilder(Mode.CLIENT) {
-            @Override
-            protected SslTransportLayer buildTransportLayer(SslFactory sslFactory, String id, SelectionKey key, String host) throws IOException {
-                SocketChannel socketChannel = (SocketChannel) key.channel();
-                SslTransportLayer transportLayer = new SslTransportLayer(id, key,
-                    sslFactory.createSslEngine(host, socketChannel.socket().getPort()),
-                    true);
-                transportLayer.startHandshake();
-                return transportLayer;
-            }
-        };
-        channelBuilder.configure(sslClientConfigs);
-        Selector selector = new Selector(5000, metrics, time, "MetricGroup2", channelBuilder, new LogContext());
-        try {
-            int reqs = 500;
-            String node = "0";
-            // create connections
-            InetSocketAddress addr = new InetSocketAddress("localhost", server.port);
-            selector.connect(node, addr, BUFFER_SIZE, BUFFER_SIZE);
-
-            // send echo requests and receive responses
-            int requests = 0;
-            int responses = 0;
-            int renegotiates = 0;
-            while (!selector.isChannelReady(node)) {
-                selector.poll(1000L);
-            }
-            selector.send(createSend(node, node + "-" + 0));
-            requests++;
-
-            // loop until we complete all requests
-            while (responses < reqs) {
-                selector.poll(0L);
-                if (responses >= 100 && renegotiates == 0) {
-                    renegotiates++;
-                    server.renegotiate();
-                }
-                assertEquals("No disconnects should have occurred.", 0, selector.disconnected().size());
-
-                // handle any responses we may have gotten
-                for (NetworkReceive receive : selector.completedReceives()) {
-                    String[] pieces = asString(receive).split("-");
-                    assertEquals("Should be in the form 'conn-counter'", 2, pieces.length);
-                    assertEquals("Check the source", receive.source(), pieces[0]);
-                    assertEquals("Check that the receive has kindly been rewound", 0, receive.payload().position());
-                    assertEquals("Check the request counter", responses, Integer.parseInt(pieces[1]));
-                    responses++;
-                }
-
-                // prepare new sends for the next round
-                for (int i = 0; i < selector.completedSends().size() && requests < reqs && selector.isChannelReady(node); i++, requests++) {
-                    selector.send(createSend(node, node + "-" + requests));
-                }
-            }
-        } finally {
-            selector.close();
-        }
-    }
-
-    @Test
-    public void testDisabledRenegotiation() throws Exception {
+    public void testRenegotiationFails() throws Exception {
         String node = "0";
         // create connections
         InetSocketAddress addr = new InetSocketAddress("localhost", server.port);
@@ -211,7 +150,7 @@ public class SslSelectorTest extends SelectorTest {
         //the initial channel builder is for clients, we need a server one
         File trustStoreFile = File.createTempFile("truststore", ".jks");
         Map<String, Object> sslServerConfigs = TestSslUtils.createSslConfig(false, true, Mode.SERVER, trustStoreFile, "server");
-        channelBuilder = new SslChannelBuilder(Mode.SERVER);
+        channelBuilder = new SslChannelBuilder(Mode.SERVER, null, false);
         channelBuilder.configure(sslServerConfigs);
         selector = new Selector(NetworkReceive.UNLIMITED, 5000, metrics, time, "MetricGroup",
                 new HashMap<String, String>(), true, false, channelBuilder, pool, new LogContext());
@@ -298,7 +237,7 @@ public class SslSelectorTest extends SelectorTest {
     private static class TestSslChannelBuilder extends SslChannelBuilder {
 
         public TestSslChannelBuilder(Mode mode) {
-            super(mode);
+            super(mode, null, false);
         }
 
         @Override
@@ -318,7 +257,7 @@ public class SslSelectorTest extends SelectorTest {
             boolean muteSocket = false;
 
             public TestSslTransportLayer(String channelId, SelectionKey key, SSLEngine sslEngine) throws IOException {
-                super(channelId, key, sslEngine, false);
+                super(channelId, key, sslEngine);
             }
 
             @Override

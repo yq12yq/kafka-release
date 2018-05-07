@@ -60,8 +60,8 @@ class TransactionsTest extends KafkaServerTestHarness {
     val numPartitions = 4
     val topicConfig = new Properties()
     topicConfig.put(KafkaConfig.MinInSyncReplicasProp, 2.toString)
-    TestUtils.createTopic(zkUtils, topic1, numPartitions, numServers, servers, topicConfig)
-    TestUtils.createTopic(zkUtils, topic2, numPartitions, numServers, servers, topicConfig)
+    createTopic(topic1, numPartitions, numServers, topicConfig)
+    createTopic(topic2, numPartitions, numServers, topicConfig)
 
     for (_ <- 0 until transactionalProducerCount)
       createTransactionalProducer("transactional-producer")
@@ -482,14 +482,14 @@ class TransactionsTest extends KafkaServerTestHarness {
     // Verify that the first message was aborted and the second one was never written at all.
     val nonTransactionalConsumer = nonTransactionalConsumers(0)
     nonTransactionalConsumer.subscribe(List(topic1).asJava)
-    val records = TestUtils.consumeRemainingRecords(nonTransactionalConsumer, 1000)
+    val records = TestUtils.consumeRecordsFor(nonTransactionalConsumer, 1000)
     assertEquals(1, records.size)
     assertEquals("1", TestUtils.recordValueAsString(records.head))
 
     val transactionalConsumer = transactionalConsumers.head
     transactionalConsumer.subscribe(List(topic1).asJava)
 
-    val transactionalRecords = TestUtils.consumeRemainingRecords(transactionalConsumer, 1000)
+    val transactionalRecords = TestUtils.consumeRecordsFor(transactionalConsumer, 1000)
     assertTrue(transactionalRecords.isEmpty)
   }
 
@@ -503,8 +503,8 @@ class TransactionsTest extends KafkaServerTestHarness {
     val topicConfig = new Properties()
     topicConfig.put(KafkaConfig.MinInSyncReplicasProp, 2.toString)
 
-    TestUtils.createTopic(zkUtils, topicWith10Partitions, 10, numServers, servers, topicConfig)
-    TestUtils.createTopic(zkUtils, topicWith10PartitionsAndOneReplica, 10, 1, servers, new Properties())
+    createTopic(topicWith10Partitions, 10, numServers, topicConfig)
+    createTopic(topicWith10PartitionsAndOneReplica, 10, 1, new Properties())
 
     firstProducer.initTransactions()
 

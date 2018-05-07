@@ -206,7 +206,7 @@ final class ClusterConnectionStates {
      *
      * @param nodeState The node state object to update
      */
-    public void resetReconnectBackoff(NodeConnectionState nodeState) {
+    private void resetReconnectBackoff(NodeConnectionState nodeState) {
         nodeState.failedAttempts = 0;
         nodeState.reconnectBackoffMs = this.reconnectBackoffInitMs;
     }
@@ -218,7 +218,7 @@ final class ClusterConnectionStates {
      *
      * @param nodeState The node state object to update
      */
-    public void updateReconnectBackoff(NodeConnectionState nodeState) {
+    private void updateReconnectBackoff(NodeConnectionState nodeState) {
         if (this.reconnectBackoffMaxMs > this.reconnectBackoffInitMs) {
             nodeState.failedAttempts += 1;
             double backoffExp = Math.min(nodeState.failedAttempts - 1, this.reconnectBackoffMaxExp);

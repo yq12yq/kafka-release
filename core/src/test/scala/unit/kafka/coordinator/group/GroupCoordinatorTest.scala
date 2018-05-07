@@ -30,6 +30,8 @@ import org.easymock.{Capture, EasyMock, IAnswer}
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 
+import kafka.cluster.Partition
+import kafka.zk.KafkaZkClient
 import org.apache.kafka.common.internals.Topic
 import org.junit.Assert._
 import org.junit.{After, Assert, Before, Test}
@@ -61,7 +63,7 @@ class GroupCoordinatorTest extends JUnitSuite {
   var groupCoordinator: GroupCoordinator = null
   var replicaManager: ReplicaManager = null
   var scheduler: KafkaScheduler = null
-  var zkUtils: ZkUtils = null
+  var zkClient: KafkaZkClient = null
 
   private val groupId = "groupId"
   private val protocolType = "consumer"
@@ -85,10 +87,10 @@ class GroupCoordinatorTest extends JUnitSuite {
 
     replicaManager = EasyMock.createNiceMock(classOf[ReplicaManager])
 
-    zkUtils = EasyMock.createNiceMock(classOf[ZkUtils])
+    zkClient = EasyMock.createNiceMock(classOf[KafkaZkClient])
     // make two partitions of the group topic to make sure some partitions are not owned by the coordinator
-    EasyMock.expect(zkUtils.getTopicPartitionCount(Topic.GROUP_METADATA_TOPIC_NAME)).andReturn(Some(2))
-    EasyMock.replay(zkUtils)
+    EasyMock.expect(zkClient.getTopicPartitionCount(Topic.GROUP_METADATA_TOPIC_NAME)).andReturn(Some(2))
+    EasyMock.replay(zkClient)
 
     timer = new MockTimer
 
@@ -97,7 +99,7 @@ class GroupCoordinatorTest extends JUnitSuite {
     val heartbeatPurgatory = new DelayedOperationPurgatory[DelayedHeartbeat]("Heartbeat", timer, config.brokerId, reaperEnabled = false)
     val joinPurgatory = new DelayedOperationPurgatory[DelayedJoin]("Rebalance", timer, config.brokerId, reaperEnabled = false)
 
-    groupCoordinator = GroupCoordinator(config, zkUtils, replicaManager, heartbeatPurgatory, joinPurgatory, timer.time)
+    groupCoordinator = GroupCoordinator(config, zkClient, replicaManager, heartbeatPurgatory, joinPurgatory, timer.time)
     groupCoordinator.startup(false)
 
     // add the partition into the owned partition list
@@ -1080,7 +1082,7 @@ class GroupCoordinatorTest extends JUnitSuite {
   }
 
   @Test
-  def testCommitOffsetInAwaitingSync() {
+  def testCommitOffsetInCompletingRebalance() {
     val memberId = JoinGroupRequest.UNKNOWN_MEMBER_ID
     val tp = new TopicPartition("topic", 0)
     val offset = OffsetAndMetadata(0)
@@ -1263,10 +1265,97 @@ class GroupCoordinatorTest extends JUnitSuite {
     assertEquals(Errors.NONE, error)
     assertEquals(protocolType, summary.protocolType)
     assertEquals(GroupCoordinator.NoProtocol, summary.protocol)
-    assertEquals(AwaitingSync.toString, summary.state)
+    assertEquals(CompletingRebalance.toString, summary.state)
     assertTrue(summary.members.map(_.memberId).contains(joinGroupResult.memberId))
     assertTrue(summary.members.forall(_.metadata.isEmpty))
     assertTrue(summary.members.forall(_.assignment.isEmpty))
+  }
+
+  @Test
+  def testDeleteNonEmptyGroup() {
+    val memberId = JoinGroupRequest.UNKNOWN_MEMBER_ID
+    val joinGroupResult = joinGroup(groupId, memberId, protocolType, protocols)
+
+    val result = groupCoordinator.handleDeleteGroups(Set(groupId).toSet)
+    assert(result.size == 1 && result.contains(groupId) && result.get(groupId).contains(Errors.NON_EMPTY_GROUP))
+  }
+
+  @Test
+  def testDeleteGroupWithInvalidGroupId() {
+    val invalidGroupId = ""
+    val result = groupCoordinator.handleDeleteGroups(Set(invalidGroupId).toSet)
+    assert(result.size == 1 && result.contains(invalidGroupId) && result.get(invalidGroupId).contains(Errors.INVALID_GROUP_ID))
+  }
+
+  @Test
+  def testDeleteGroupWithWrongCoordinator() {
+    val result = groupCoordinator.handleDeleteGroups(Set(otherGroupId).toSet)
+    assert(result.size == 1 && result.contains(otherGroupId) && result.get(otherGroupId).contains(Errors.NOT_COORDINATOR))
+  }
+
+  @Test
+  def testDeleteEmptyGroup() {
+    val memberId = JoinGroupRequest.UNKNOWN_MEMBER_ID
+    val joinGroupResult = joinGroup(groupId, memberId, protocolType, protocols)
+
+    EasyMock.reset(replicaManager)
+    val leaveGroupResult = leaveGroup(groupId, joinGroupResult.memberId)
+    assertEquals(Errors.NONE, leaveGroupResult)
+
+    val groupTopicPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupPartitionId)
+    val partition = EasyMock.niceMock(classOf[Partition])
+
+    EasyMock.reset(replicaManager)
+    EasyMock.expect(replicaManager.getMagic(EasyMock.anyObject())).andStubReturn(Some(RecordBatch.CURRENT_MAGIC_VALUE))
+    EasyMock.expect(replicaManager.getPartition(groupTopicPartition)).andStubReturn(Some(partition))
+    EasyMock.expect(replicaManager.nonOfflinePartition(groupTopicPartition)).andStubReturn(Some(partition))
+    EasyMock.replay(replicaManager, partition)
+
+    val result = groupCoordinator.handleDeleteGroups(Set(groupId).toSet)
+    assert(result.size == 1 && result.contains(groupId) && result.get(groupId).contains(Errors.NONE))
+  }
+
+  @Test
+  def testDeleteEmptyGroupWithStoredOffsets() {
+    val memberId = JoinGroupRequest.UNKNOWN_MEMBER_ID
+
+    val joinGroupResult = joinGroup(groupId, memberId, protocolType, protocols)
+    val assignedMemberId = joinGroupResult.memberId
+    val joinGroupError = joinGroupResult.error
+    assertEquals(Errors.NONE, joinGroupError)
+
+    EasyMock.reset(replicaManager)
+    val syncGroupResult = syncGroupLeader(groupId, joinGroupResult.generationId, assignedMemberId, Map(assignedMemberId -> Array[Byte]()))
+    val syncGroupError = syncGroupResult._2
+    assertEquals(Errors.NONE, syncGroupError)
+
+    EasyMock.reset(replicaManager)
+    val tp = new TopicPartition("topic", 0)
+    val offset = OffsetAndMetadata(0)
+    val commitOffsetResult = commitOffsets(groupId, assignedMemberId, joinGroupResult.generationId, immutable.Map(tp -> offset))
+    assertEquals(Errors.NONE, commitOffsetResult(tp))
+
+    val describeGroupResult = groupCoordinator.handleDescribeGroup(groupId)
+    assertEquals(Stable.toString, describeGroupResult._2.state)
+    assertEquals(assignedMemberId, describeGroupResult._2.members.head.memberId)
+
+    EasyMock.reset(replicaManager)
+    val leaveGroupResult = leaveGroup(groupId, assignedMemberId)
+    assertEquals(Errors.NONE, leaveGroupResult)
+
+    val groupTopicPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupPartitionId)
+    val partition = EasyMock.niceMock(classOf[Partition])
+
+    EasyMock.reset(replicaManager)
+    EasyMock.expect(replicaManager.getMagic(EasyMock.anyObject())).andStubReturn(Some(RecordBatch.CURRENT_MAGIC_VALUE))
+    EasyMock.expect(replicaManager.getPartition(groupTopicPartition)).andStubReturn(Some(partition))
+    EasyMock.expect(replicaManager.nonOfflinePartition(groupTopicPartition)).andStubReturn(Some(partition))
+    EasyMock.replay(replicaManager, partition)
+
+    val result = groupCoordinator.handleDeleteGroups(Set(groupId).toSet)
+    assert(result.size == 1 && result.contains(groupId) && result.get(groupId).contains(Errors.NONE))
+
+    assertEquals(Dead.toString, groupCoordinator.handleDescribeGroup(groupId)._2.state)
   }
 
   @Test
@@ -1399,8 +1488,7 @@ class GroupCoordinatorTest extends JUnitSuite {
       EasyMock.anyObject().asInstanceOf[Map[TopicPartition, MemoryRecords]],
       EasyMock.capture(capturedArgument),
       EasyMock.anyObject().asInstanceOf[Option[ReentrantLock]],
-      EasyMock.anyObject(),
-      EasyMock.anyString())).andAnswer(new IAnswer[Unit] {
+      EasyMock.anyObject())).andAnswer(new IAnswer[Unit] {
       override def answer = capturedArgument.getValue.apply(
         Map(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupPartitionId) ->
           new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L)
@@ -1484,8 +1572,7 @@ class GroupCoordinatorTest extends JUnitSuite {
       EasyMock.anyObject().asInstanceOf[Map[TopicPartition, MemoryRecords]],
       EasyMock.capture(capturedArgument),
       EasyMock.anyObject().asInstanceOf[Option[ReentrantLock]],
-      EasyMock.anyObject(),
-      EasyMock.anyString())
+      EasyMock.anyObject())
     ).andAnswer(new IAnswer[Unit] {
       override def answer = capturedArgument.getValue.apply(
           Map(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupPartitionId) ->
@@ -1515,8 +1602,7 @@ class GroupCoordinatorTest extends JUnitSuite {
       EasyMock.anyObject().asInstanceOf[Map[TopicPartition, MemoryRecords]],
       EasyMock.capture(capturedArgument),
       EasyMock.anyObject().asInstanceOf[Option[ReentrantLock]],
-      EasyMock.anyObject(),
-      EasyMock.anyString())
+      EasyMock.anyObject())
     ).andAnswer(new IAnswer[Unit] {
       override def answer = capturedArgument.getValue.apply(
         Map(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupCoordinator.partitionFor(groupId)) ->

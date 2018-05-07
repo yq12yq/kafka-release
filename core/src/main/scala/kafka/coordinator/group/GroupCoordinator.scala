@@ -23,7 +23,8 @@ import kafka.common.OffsetAndMetadata
 import kafka.log.LogConfig
 import kafka.message.ProducerCompressionCodec
 import kafka.server._
-import kafka.utils._
+import kafka.utils.Logging
+import kafka.zk.KafkaZkClient
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.protocol.Errors
@@ -174,7 +175,7 @@ class GroupCoordinator(val brokerId: Int,
               updateMemberAndRebalance(group, member, protocols, responseCallback)
             }
 
-          case AwaitingSync =>
+          case CompletingRebalance =>
             if (memberId == JoinGroupRequest.UNKNOWN_MEMBER_ID) {
               addMemberAndRebalance(rebalanceTimeoutMs, sessionTimeoutMs, clientId, clientHost, protocolType, protocols, group, responseCallback)
             } else {
@@ -266,7 +267,7 @@ class GroupCoordinator(val brokerId: Int,
           case PreparingRebalance =>
             responseCallback(Array.empty, Errors.REBALANCE_IN_PROGRESS)
 
-          case AwaitingSync =>
+          case CompletingRebalance =>
             group.get(memberId).awaitingSyncCallback = responseCallback
 
             // if this is the leader, then we can attempt to persist state and transition to stable
@@ -280,9 +281,9 @@ class GroupCoordinator(val brokerId: Int,
               groupManager.storeGroup(group, assignment, (error: Errors) => {
                 group.inLock {
                   // another member may have joined the group while we were awaiting this callback,
-                  // so we must ensure we are still in the AwaitingSync state and the same generation
+                  // so we must ensure we are still in the CompletingRebalance state and the same generation
                   // when it gets invoked. if we have transitioned to another state, then do nothing
-                  if (group.is(AwaitingSync) && generationId == group.generationId) {
+                  if (group.is(CompletingRebalance) && generationId == group.generationId) {
                     if (error != Errors.NONE) {
                       resetAndPropagateAssignmentError(group, error)
                       maybePrepareRebalance(group)
@@ -337,6 +338,52 @@ class GroupCoordinator(val brokerId: Int,
     }
   }
 
+  def handleDeleteGroups(groupIds: Set[String]): Map[String, Errors] = {
+    if (!isActive.get) {
+      groupIds.map(_ -> Errors.COORDINATOR_NOT_AVAILABLE).toMap
+    } else {
+      var groupErrors: Map[String, Errors] = Map()
+      var eligibleGroups: Seq[GroupMetadata] = Seq()
+
+      groupIds.foreach { groupId =>
+        if (!validGroupId(groupId))
+          groupErrors += groupId -> Errors.INVALID_GROUP_ID
+        else if (!isCoordinatorForGroup(groupId))
+          groupErrors += groupId -> Errors.NOT_COORDINATOR
+        else if (isCoordinatorLoadInProgress(groupId))
+          groupErrors += groupId -> Errors.COORDINATOR_LOAD_IN_PROGRESS
+        else {
+          groupManager.getGroup(groupId) match {
+            case None =>
+              groupErrors += groupId ->
+                (if (groupManager.groupNotExists(groupId)) Errors.GROUP_ID_NOT_FOUND else Errors.NOT_COORDINATOR)
+            case Some(group) =>
+              group.inLock {
+                group.currentState match {
+                  case Dead =>
+                    groupErrors += groupId ->
+                      (if (groupManager.groupNotExists(groupId)) Errors.GROUP_ID_NOT_FOUND else Errors.NOT_COORDINATOR)
+                  case Empty =>
+                    group.transitionTo(Dead)
+                    eligibleGroups :+= group
+                  case _ =>
+                    groupErrors += groupId -> Errors.NON_EMPTY_GROUP
+                }
+              }
+          }
+        }
+      }
+
+      if (eligibleGroups.nonEmpty) {
+        groupManager.cleanupGroupMetadata(None, eligibleGroups, Long.MaxValue)
+        groupErrors ++= eligibleGroups.map(_.groupId -> Errors.NONE).toMap
+        info(s"The following groups were deleted: ${eligibleGroups.map(_.groupId).mkString(", ")}")
+      }
+
+      groupErrors
+    }
+  }
+
   def handleHeartbeat(groupId: String,
                       memberId: String,
                       generationId: Int,
@@ -366,7 +413,7 @@ class GroupCoordinator(val brokerId: Int,
               case Empty =>
                 responseCallback(Errors.UNKNOWN_MEMBER_ID)
 
-              case AwaitingSync =>
+              case CompletingRebalance =>
                 if (!group.has(memberId))
                   responseCallback(Errors.UNKNOWN_MEMBER_ID)
                 else
@@ -463,7 +510,7 @@ class GroupCoordinator(val brokerId: Int,
         // The group is only using Kafka to store offsets.
         // Also, for transactional offset commits we don't need to validate group membership and the generation.
         groupManager.storeOffsets(group, memberId, offsetMetadata, responseCallback, producerId, producerEpoch)
-      } else if (group.is(AwaitingSync)) {
+      } else if (group.is(CompletingRebalance)) {
         responseCallback(offsetMetadata.mapValues(_ => Errors.REBALANCE_IN_PROGRESS))
       } else if (!group.has(memberId)) {
         responseCallback(offsetMetadata.mapValues(_ => Errors.UNKNOWN_MEMBER_ID))
@@ -521,7 +568,7 @@ class GroupCoordinator(val brokerId: Int,
   }
 
   def handleDeletedPartitions(topicPartitions: Seq[TopicPartition]) {
-    groupManager.cleanupGroupMetadata(Some(topicPartitions))
+    groupManager.cleanupGroupMetadata(Some(topicPartitions), groupManager.currentGroups, time.milliseconds())
   }
 
   private def validateGroup(groupId: String): Option[Errors] = {
@@ -552,7 +599,7 @@ class GroupCoordinator(val brokerId: Int,
           }
           joinPurgatory.checkAndComplete(GroupKey(group.groupId))
 
-        case Stable | AwaitingSync =>
+        case Stable | CompletingRebalance =>
           for (member <- group.allMemberMetadata) {
             if (member.awaitingSyncCallback != null) {
               member.awaitingSyncCallback(Array.empty[Byte], Errors.NOT_COORDINATOR)
@@ -581,13 +628,13 @@ class GroupCoordinator(val brokerId: Int,
   }
 
   private def setAndPropagateAssignment(group: GroupMetadata, assignment: Map[String, Array[Byte]]) {
-    assert(group.is(AwaitingSync))
+    assert(group.is(CompletingRebalance))
     group.allMemberMetadata.foreach(member => member.assignment = assignment(member.memberId))
     propagateAssignment(group, Errors.NONE)
   }
 
   private def resetAndPropagateAssignmentError(group: GroupMetadata, error: Errors) {
-    assert(group.is(AwaitingSync))
+    assert(group.is(CompletingRebalance))
     group.allMemberMetadata.foreach(_.assignment = Array.empty[Byte])
     propagateAssignment(group, error)
   }
@@ -681,7 +728,7 @@ class GroupCoordinator(val brokerId: Int,
 
   private def prepareRebalance(group: GroupMetadata) {
     // if any members are awaiting sync, cancel their request and have them rejoin
-    if (group.is(AwaitingSync))
+    if (group.is(CompletingRebalance))
       resetAndPropagateAssignmentError(group, Errors.REBALANCE_IN_PROGRESS)
 
     val delayedRebalance = if (group.is(Empty))
@@ -707,7 +754,7 @@ class GroupCoordinator(val brokerId: Int,
     group.remove(member.memberId)
     group.currentState match {
       case Dead | Empty =>
-      case Stable | AwaitingSync => maybePrepareRebalance(group)
+      case Stable | CompletingRebalance => maybePrepareRebalance(group)
       case PreparingRebalance => joinPurgatory.checkAndComplete(GroupKey(group.groupId))
     }
   }
@@ -820,12 +867,12 @@ object GroupCoordinator {
   val DeadGroup = GroupSummary(Dead.toString, NoProtocolType, NoProtocol, NoMembers)
 
   def apply(config: KafkaConfig,
-            zkUtils: ZkUtils,
+            zkClient: KafkaZkClient,
             replicaManager: ReplicaManager,
             time: Time): GroupCoordinator = {
     val heartbeatPurgatory = DelayedOperationPurgatory[DelayedHeartbeat]("Heartbeat", config.brokerId)
     val joinPurgatory = DelayedOperationPurgatory[DelayedJoin]("Rebalance", config.brokerId)
-    apply(config, zkUtils, replicaManager, heartbeatPurgatory, joinPurgatory, time)
+    apply(config, zkClient, replicaManager, heartbeatPurgatory, joinPurgatory, time)
   }
 
   private[group] def offsetConfig(config: KafkaConfig) = OffsetConfig(
@@ -842,7 +889,7 @@ object GroupCoordinator {
   )
 
   def apply(config: KafkaConfig,
-            zkUtils: ZkUtils,
+            zkClient: KafkaZkClient,
             replicaManager: ReplicaManager,
             heartbeatPurgatory: DelayedOperationPurgatory[DelayedHeartbeat],
             joinPurgatory: DelayedOperationPurgatory[DelayedJoin],
@@ -853,7 +900,7 @@ object GroupCoordinator {
       groupInitialRebalanceDelayMs = config.groupInitialRebalanceDelay)
 
     val groupMetadataManager = new GroupMetadataManager(config.brokerId, config.interBrokerProtocolVersion,
-      offsetConfig, replicaManager, zkUtils, time)
+      offsetConfig, replicaManager, zkClient, time)
     new GroupCoordinator(config.brokerId, groupConfig, offsetConfig, groupMetadataManager, heartbeatPurgatory, joinPurgatory, time)
   }
 

@@ -36,7 +36,7 @@ private[group] sealed trait GroupState
  *         park join group requests from new or existing members until all expected members have joined
  *         allow offset commits from previous generation
  *         allow offset fetch requests
- * transition: some members have joined by the timeout => AwaitingSync
+ * transition: some members have joined by the timeout => CompletingRebalance
  *             all members have left the group => Empty
  *             group is removed by partition emigration => Dead
  */
@@ -55,7 +55,7 @@ private[group] case object PreparingRebalance extends GroupState
  *             member failure detected => PreparingRebalance
  *             group is removed by partition emigration => Dead
  */
-private[group] case object AwaitingSync extends GroupState
+private[group] case object CompletingRebalance extends GroupState
 
 /**
  * Group is stable
@@ -106,10 +106,10 @@ private[group] case object Empty extends GroupState
 
 private object GroupMetadata {
   private val validPreviousStates: Map[GroupState, Set[GroupState]] =
-    Map(Dead -> Set(Stable, PreparingRebalance, AwaitingSync, Empty, Dead),
-      AwaitingSync -> Set(PreparingRebalance),
-      Stable -> Set(AwaitingSync),
-      PreparingRebalance -> Set(Stable, AwaitingSync, Empty),
+    Map(Dead -> Set(Stable, PreparingRebalance, CompletingRebalance, Empty, Dead),
+      CompletingRebalance -> Set(PreparingRebalance),
+      Stable -> Set(CompletingRebalance),
+      PreparingRebalance -> Set(Stable, CompletingRebalance, Empty),
       Empty -> Set(PreparingRebalance))
 
   def loadGroup(groupId: String,
@@ -275,7 +275,7 @@ private[group] class GroupMetadata(val groupId: String, initialState: GroupState
     if (members.nonEmpty) {
       generationId += 1
       protocol = Some(selectProtocol)
-      transitionTo(AwaitingSync)
+      transitionTo(CompletingRebalance)
     } else {
       generationId += 1
       protocol = None
@@ -398,7 +398,7 @@ private[group] class GroupMetadata(val groupId: String, initialState: GroupState
         pendingOffsets.foreach { case (topicPartition, commitRecordMetadataAndOffset) =>
           if (commitRecordMetadataAndOffset.appendedBatchOffset.isEmpty)
             throw new IllegalStateException(s"Trying to complete a transactional offset commit for producerId $producerId " +
-              s"and groupId $groupId even though the the offset commit record itself hasn't been appended to the log.")
+              s"and groupId $groupId even though the offset commit record itself hasn't been appended to the log.")
 
           val currentOffsetOpt = offsets.get(topicPartition)
           if (currentOffsetOpt.forall(_.olderThan(commitRecordMetadataAndOffset))) {
@@ -423,6 +423,7 @@ private[group] class GroupMetadata(val groupId: String, initialState: GroupState
 
   def removeOffsets(topicPartitions: Seq[TopicPartition]): immutable.Map[TopicPartition, OffsetAndMetadata] = {
     topicPartitions.flatMap { topicPartition =>
+
       pendingOffsetCommits.remove(topicPartition)
       pendingTransactionalOffsetCommits.foreach { case (_, pendingOffsets) =>
         pendingOffsets.remove(topicPartition)

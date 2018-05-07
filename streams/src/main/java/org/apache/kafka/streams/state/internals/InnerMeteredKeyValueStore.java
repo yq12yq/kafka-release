@@ -75,9 +75,9 @@ class InnerMeteredKeyValueStore<K, IK, V, IV> extends WrappedStateStore.Abstract
 
     // always wrap the store with the metered store
     InnerMeteredKeyValueStore(final KeyValueStore<IK, IV> inner,
-                                     final String metricScope,
-                                     final TypeConverter<K, IK, V, IV> typeConverter,
-                                     final Time time) {
+                              final String metricScope,
+                              final TypeConverter<K, IK, V, IV> typeConverter,
+                              final Time time) {
         super(inner);
         this.inner = inner;
         this.metricScope = metricScope;
@@ -159,7 +159,6 @@ class InnerMeteredKeyValueStore<K, IK, V, IV> extends WrappedStateStore.Abstract
         } else {
             inner.init(InnerMeteredKeyValueStore.this.context, InnerMeteredKeyValueStore.this.root);
         }
-
     }
 
     @Override

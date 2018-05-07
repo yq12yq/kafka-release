@@ -120,12 +120,12 @@ public interface ProcessorContext {
      *   <li>with {@link PunctuationType#WALL_CLOCK_TIME}, on GC pause, too short interval, ...</li>
      * </ul>
      *
-     * @param interval the time interval between punctuations
+     * @param intervalMs the time interval between punctuations in milliseconds
      * @param type one of: {@link PunctuationType#STREAM_TIME}, {@link PunctuationType#WALL_CLOCK_TIME}
      * @param callback a function consuming timestamps representing the current stream or system time
      * @return a handle allowing cancellation of the punctuation schedule established by this method
      */
-    Cancellable schedule(long interval, PunctuationType type, Punctuator callback);
+    Cancellable schedule(long intervalMs, PunctuationType type, Punctuator callback);
 
     /**
      * Schedules a periodic operation for processors. A processor may call this method during

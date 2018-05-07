@@ -23,6 +23,7 @@ import kafka.utils.TestUtils._
 import kafka.api.FetchRequestBuilder
 import kafka.message.ByteBufferMessageSet
 import java.io.File
+import java.net.UnknownHostException
 
 import kafka.log.LogManager
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
@@ -31,6 +32,8 @@ import org.apache.kafka.common.serialization.{IntegerSerializer, StringSerialize
 import org.I0Itec.zkclient.exception.ZkException
 import org.junit.{Before, Test}
 import org.junit.Assert._
+import scala.reflect.ClassTag
+
 import scala.reflect.ClassTag
 
 class ServerShutdownTest extends ZooKeeperTestHarness {
@@ -63,7 +66,7 @@ class ServerShutdownTest extends ZooKeeperTestHarness {
     var producer = createProducer(server)
 
     // create topic
-    createTopic(zkUtils, topic, numPartitions = 1, replicationFactor = 1, servers = Seq(server))
+    createTopic(zkClient, topic, numPartitions = 1, replicationFactor = 1, servers = Seq(server))
 
     // send some messages
     sent1.map(value => producer.send(new ProducerRecord(topic, 0, value))).foreach(_.get)
@@ -128,16 +131,16 @@ class ServerShutdownTest extends ZooKeeperTestHarness {
   @Test
   def testCleanShutdownAfterFailedStartup() {
     val newProps = TestUtils.createBrokerConfig(0, zkConnect)
-    newProps.setProperty("zookeeper.connect", "fakehostthatwontresolve:65535")
+    newProps.setProperty("zookeeper.connect", "some.invalid.hostname.foo.bar.local:65535")
     val newConfig = KafkaConfig.fromProps(newProps)
-    verifyCleanShutdownAfterFailedStartup[ZkException](newConfig)
+    verifyCleanShutdownAfterFailedStartup[UnknownHostException](newConfig)
   }
 
   @Test
   def testCleanShutdownAfterFailedStartupDueToCorruptLogs() {
-    var server = new KafkaServer(config)
+    val server = new KafkaServer(config)
     server.startup()
-    createTopic(zkUtils, topic, numPartitions = 1, replicationFactor = 1, servers = Seq(server))
+    createTopic(zkClient, topic, numPartitions = 1, replicationFactor = 1, servers = Seq(server))
     server.shutdown()
     server.awaitShutdown()
     config.logDirs.foreach { dirName =>

@@ -55,7 +55,7 @@ class ConsumerGroupCommandTest extends KafkaServerTestHarness {
   @Before
   override def setUp() {
     super.setUp()
-    AdminUtils.createTopic(zkUtils, topic, 1, 1)
+    adminZkClient.createTopic(topic, 1, 1)
   }
 
   @After
@@ -72,6 +72,25 @@ class ConsumerGroupCommandTest extends KafkaServerTestHarness {
     consumerProps.setProperty("group.id", group)
     consumerProps.setProperty("zookeeper.connect", zkConnect)
     oldConsumers += new OldConsumer(Whitelist(topic), consumerProps)
+  }
+
+  def committedOffsets(topic: String = topic, group: String = group): Map[TopicPartition, Long] = {
+    val props = new Properties
+    props.put("bootstrap.servers", brokerList)
+    props.put("group.id", group)
+    val consumer = new KafkaConsumer(props, new StringDeserializer, new StringDeserializer)
+    try {
+      consumer.partitionsFor(topic).asScala.flatMap { partitionInfo =>
+        val tp = new TopicPartition(partitionInfo.topic, partitionInfo.partition)
+        val committed = consumer.committed(tp)
+        if (committed == null)
+          None
+        else
+          Some(tp -> committed.offset)
+      }.toMap
+    } finally {
+      consumer.close()
+    }
   }
 
   def stopRandomOldConsumer(): Unit = {
