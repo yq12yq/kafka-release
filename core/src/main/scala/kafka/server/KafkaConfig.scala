@@ -1196,9 +1196,40 @@ class KafkaConfig(val props: java.util.Map[_, _], doLog: Boolean, dynamicConfigO
       Set.empty[String]
   }
 
+  /** ********* Producer metrics configuration **************/
+  val producerMetricsEnable = getBoolean(KafkaConfig.ProducerMetricsEnableProp)
+  val producerMetricsCacheSize = getInt(KafkaConfig.ProducerMetricsCacheMaxSizeProp)
+  val producerMetricsCacheExpiryMs = getLong(KafkaConfig.ProducerMetricsCacheEntryExpiryMsProp)
+
+  /** ********* SSL Configuration **************/
+  val principalBuilderClass = getClass(KafkaConfig.PrincipalBuilderClassProp)
+  val sslProtocol = getString(KafkaConfig.SslProtocolProp)
+  val sslProvider = getString(KafkaConfig.SslProviderProp)
+  val sslEnabledProtocols = getList(KafkaConfig.SslEnabledProtocolsProp)
+  val sslKeystoreType = getString(KafkaConfig.SslKeystoreTypeProp)
+  val sslKeystoreLocation = getString(KafkaConfig.SslKeystoreLocationProp)
+  val sslKeystorePassword = getPassword(KafkaConfig.SslKeystorePasswordProp)
+  val sslKeyPassword = getPassword(KafkaConfig.SslKeyPasswordProp)
+  val sslTruststoreType = getString(KafkaConfig.SslTruststoreTypeProp)
+  val sslTruststoreLocation = getString(KafkaConfig.SslTruststoreLocationProp)
+  val sslTruststorePassword = getPassword(KafkaConfig.SslTruststorePasswordProp)
+  val sslKeyManagerAlgorithm = getString(KafkaConfig.SslKeyManagerAlgorithmProp)
+  val sslTrustManagerAlgorithm = getString(KafkaConfig.SslTrustManagerAlgorithmProp)
+  val sslClientAuth = getString(KafkaConfig.SslClientAuthProp)
+  val sslCipher = getList(KafkaConfig.SslCipherSuitesProp)
+
+  /** ********* Sasl Configuration **************/
+  val saslMechanismInterBrokerProtocol = getString(KafkaConfig.SaslMechanismInterBrokerProtocolProp)
+  val saslEnabledMechanisms = getList(KafkaConfig.SaslEnabledMechanismsProp)
+  val saslKerberosServiceName = getString(KafkaConfig.SaslKerberosServiceNameProp)
+  val saslKerberosKinitCmd = getString(KafkaConfig.SaslKerberosKinitCmdProp)
+  val saslKerberosTicketRenewWindowFactor = getDouble(KafkaConfig.SaslKerberosTicketRenewWindowFactorProp)
+  val saslKerberosTicketRenewJitter = getDouble(KafkaConfig.SaslKerberosTicketRenewJitterProp)
+  val saslKerberosMinTimeBeforeRelogin = getLong(KafkaConfig.SaslKerberosMinTimeBeforeReloginProp)
+  val saslKerberosPrincipalToLocalRules = getList(KafkaConfig.SaslKerberosPrincipalToLocalRulesProp)
+
   def interBrokerListenerName = getInterBrokerListenerNameAndSecurityProtocol._1
   def interBrokerSecurityProtocol = getInterBrokerListenerNameAndSecurityProtocol._2
-  def saslMechanismInterBrokerProtocol = getString(KafkaConfig.SaslMechanismInterBrokerProtocolProp)
   val saslInterBrokerHandshakeRequestEnable = interBrokerProtocolVersion >= KAFKA_0_10_0_IV1
 
   /** ********* DelegationToken Configuration **************/
@@ -1233,7 +1264,7 @@ class KafkaConfig(val props: java.util.Map[_, _], doLog: Boolean, dynamicConfigO
   val maxIncrementalFetchSessionCacheSlots = getInt(KafkaConfig.MaxIncrementalFetchSessionCacheSlots)
 
   val deleteTopicEnable = getBoolean(KafkaConfig.DeleteTopicEnableProp)
-  def compressionType = getString(KafkaConfig.CompressionTypeProp)
+  val compressionType = getString(KafkaConfig.CompressionTypeProp)
 
   def addReconfigurable(reconfigurable: Reconfigurable): Unit = {
     dynamicConfig.addReconfigurable(reconfigurable)

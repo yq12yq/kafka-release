@@ -44,7 +44,6 @@ import org.apache.log4j.Level
 import org.junit.Assert._
 import org.junit._
 import org.scalatest.junit.JUnitSuite
-import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -73,22 +72,6 @@ class SocketServerTest extends JUnitSuite {
   val server = new SocketServer(config, metrics, Time.SYSTEM, credentialProvider)
   server.startup()
   val sockets = new ArrayBuffer[Socket]
-  private var logLevelToRestore: Level = _
-
-  @Before
-  def setUp(): Unit = {
-    // Run the tests with TRACE logging to exercise request logging path
-    logLevelToRestore = org.apache.log4j.LogManager.getRootLogger.getLevel
-    org.apache.log4j.LogManager.getLogger("kafka").setLevel(Level.TRACE)
-  }
-
-  @After
-  def tearDown() {
-    shutdownServerAndMetrics(server)
-    sockets.foreach(_.close())
-    sockets.clear()
-    org.apache.log4j.LogManager.getLogger("kafka").setLevel(logLevelToRestore)
-  }
 
   private val kafkaLogger = org.apache.log4j.LogManager.getLogger("kafka")
   private var logLevelToRestore: Level = _

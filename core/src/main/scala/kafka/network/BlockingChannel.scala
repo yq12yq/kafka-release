@@ -23,8 +23,14 @@ import java.nio.channels._
 
 import kafka.utils.{CoreUtils, Logging, nonthreadsafe}
 import kafka.api.RequestOrResponse
+import kafka.common.security.LoginManager
 import kafka.utils.{CoreUtils, Logging, nonthreadsafe}
-import org.apache.kafka.common.network.NetworkReceive
+import org.apache.kafka.common.config.SaslConfigs
+import org.apache.kafka.common.memory.MemoryPool
+import org.apache.kafka.common.network._
+import org.apache.kafka.common.security.auth.SecurityProtocol
+import org.apache.kafka.common.security.authenticator.SaslClientAuthenticator
+import org.apache.kafka.common.utils.Time
 
 
 @deprecated("This object has been deprecated and will be removed in a future release.", "0.11.0.0")
@@ -99,7 +105,6 @@ class BlockingChannel( val host: String,
   def disconnect() = lock synchronized {
     if(channel != null) {
       CoreUtils.swallow(channel.close(), this)
-      CoreUtils.swallow(channel.socket.close(), this)
       channel = null
       writeChannel = null
     }

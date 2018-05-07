@@ -177,7 +177,8 @@ object AbstractCoordinatorConcurrencyTest {
                                entriesPerPartition: Map[TopicPartition, MemoryRecords],
                                responseCallback: Map[TopicPartition, PartitionResponse] => Unit,
                                delayedProduceLock: Option[Lock] = None,
-                               processingStatsCallback: Map[TopicPartition, RecordsProcessingStats] => Unit = _ => ()) {
+                               processingStatsCallback: Map[TopicPartition, RecordsProcessingStats] => Unit = _ => (),
+                               clientId: String = null) {
 
       if (entriesPerPartition.isEmpty)
         return

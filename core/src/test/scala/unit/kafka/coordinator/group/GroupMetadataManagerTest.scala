@@ -1422,7 +1422,8 @@ class GroupMetadataManagerTest {
       EasyMock.anyObject().asInstanceOf[Map[TopicPartition, MemoryRecords]],
       EasyMock.capture(capturedArgument),
       EasyMock.anyObject().asInstanceOf[Option[ReentrantLock]],
-      EasyMock.anyObject())
+      EasyMock.anyObject(),
+      EasyMock.anyString())
     )
     EasyMock.expect(replicaManager.getMagic(EasyMock.anyObject())).andStubReturn(Some(RecordBatch.CURRENT_MAGIC_VALUE))
     capturedArgument
@@ -1438,7 +1439,8 @@ class GroupMetadataManagerTest {
       EasyMock.capture(capturedRecords),
       EasyMock.capture(capturedCallback),
       EasyMock.anyObject().asInstanceOf[Option[ReentrantLock]],
-      EasyMock.anyObject())
+      EasyMock.anyObject(),
+      EasyMock.anyString())
     ).andAnswer(new IAnswer[Unit] {
       override def answer = capturedCallback.getValue.apply(
         Map(groupTopicPartition ->

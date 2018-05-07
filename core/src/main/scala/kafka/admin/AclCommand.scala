@@ -74,10 +74,6 @@ object AclCommand extends Logging {
         defaultProps
       }
 
-    if(opts.options.has(opts.upgradeAclsOpt)) {
-      upgradeAclsToNewFormat(authorizerProperties)
-    }
-
     val authorizerClass = opts.options.valueOf(opts.authorizerOpt)
     val authZ = CoreUtils.createObject[Authorizer](authorizerClass)
     try {
@@ -132,77 +128,6 @@ object AclCommand extends Logging {
       for ((resource, acls) <- resourceToAcls)
         println(s"Current ACLs for resource `$resource`: $Newline ${acls.map("\t" + _).mkString(Newline)} $Newline")
     }
-  }
-
-  private def upgradeAclsToNewFormat(configs: Map[String, Any]) {
-    val zkUtils: ZkUtils = getZkUtil(configs)
-
-    val newResourceTypeNames = ResourceType.values.map(_.name)
-    val oldResourceTypes = zkUtils.getChildrenParentMayNotExist(SimpleAclAuthorizer.AclZkPath).filter(resourceType => !newResourceTypeNames.contains(resourceType))
-    for (oldResourceType <- oldResourceTypes) {
-      val resourceNames = zkUtils.getChildrenParentMayNotExist(s"${SimpleAclAuthorizer.AclZkPath}/$oldResourceType")
-      val resourceType = getUpgradeResourceType(oldResourceType)
-      for(resourceName <- resourceNames) {
-        var acls = Set.empty[Acl]
-        println(s"migration of acls for $oldResourceType-$resourceName is in progress")
-        val aclJson = zkUtils.readData(s"${SimpleAclAuthorizer.AclZkPath}/$oldResourceType/$resourceName")._1
-        val aclList = Json.parseFull(aclJson).get.asInstanceOf[Map[String, Any]](Acl.AclsKey).asInstanceOf[List[Map[String, Any]]]
-        for (aclMap <- aclList) {
-          val hosts = aclMap("hosts").asInstanceOf[List[String]]
-          val operations = aclMap("operations").asInstanceOf[List[String]]
-          val principals = aclMap("principals").asInstanceOf[List[String]]
-          val permissionType = aclMap("permissionType").toString
-          for (operation <- operations) {
-            for (host <- hosts) {
-              for (principal <- principals)
-                acls = acls + new Acl(getUpgradePrincipal(principal), getUpgradePermissionType(permissionType), host, getUpgradeOpertion(operation))
-            }
-          }
-        }
-
-        zkUtils.createPersistentPath(s"${SimpleAclAuthorizer.AclZkPath}/$resourceType/$resourceName", Json.encode(Acl.toJsonCompatibleMap(acls)))
-        println(s"migrated acls from $oldResourceType-$resourceName to $resourceType-$resourceName")
-      }
-    }
-    println("Done Migrating all old acls to new acls, will now attempt to delete the old acls.")
-
-    for (invalidResourceType <- oldResourceTypes) {
-      zkUtils.deletePathRecursive(s"${SimpleAclAuthorizer.AclZkPath}/$invalidResourceType")
-    }
-
-    println("All old acls are now deleted and migrated to new version of acl.")
-    System.exit(0)
-  }
-
-  private def downgradeAclsToOldFormat(configs: Map[String, Any], authorizer: Authorizer) {
-    val zkUtils: ZkUtils = getZkUtil(configs)
-
-    val resourceToAcls = authorizer.getAcls()
-    for((resource, acls) <- resourceToAcls) {
-      val resourceName = resource.name
-      val resourceType = getDowngradeResourceType(resource.resourceType)
-      var downgradeAcls = Set.empty[Map[String, Any]]
-      println(s"migration of acls for ${resource.resourceType}-$resourceName is in progress")
-      for(acl <- acls) {
-        val host = acl.host
-        val principal = acl.principal.toString
-        val permissionType = getDowngradePermissionType(acl.permissionType)
-        val operation = getDowngradeOpertion(acl.operation)
-        downgradeAcls += Map("hosts" -> List(host), "principals" -> List(principal), "operations" -> List(operation), "permissionType" -> permissionType)
-      }
-
-      val json = Json.encode(Map(Acl.VersionKey -> Acl.CurrentVersion, Acl.AclsKey -> downgradeAcls))
-      zkUtils.createPersistentPath(s"${SimpleAclAuthorizer.AclZkPath}/$resourceType/$resourceName", json)
-      println(s"migrated acls from ${resource.resourceType}-$resourceName to $resourceType-$resourceName")
-    }
-
-    println("Done Migrating all new acls to old acls, will now attempt to delete the new acls.")
-    val validResourceTypeNames = ResourceType.values.map(_.name)
-    for(resourceType <- validResourceTypeNames) {
-      zkUtils.deletePathRecursive(s"${SimpleAclAuthorizer.AclZkPath}/$resourceType")
-    }
-    println("All new acls are now deleted and migrated to old version of acl.")
-    System.exit(0)
   }
 
   def getZkUtil(configs: Map[String, Any]): ZkUtils = {

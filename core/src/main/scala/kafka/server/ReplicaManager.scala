@@ -465,7 +465,8 @@ class ReplicaManager(val config: KafkaConfig,
                     entriesPerPartition: Map[TopicPartition, MemoryRecords],
                     responseCallback: Map[TopicPartition, PartitionResponse] => Unit,
                     delayedProduceLock: Option[Lock] = None,
-                    processingStatsCallback: Map[TopicPartition, RecordsProcessingStats] => Unit = _ => ()) {
+                    processingStatsCallback: Map[TopicPartition, RecordsProcessingStats] => Unit = _ => (),
+                    clientId: String = null) {
     if (isValidRequiredAcks(requiredAcks)) {
       val sTime = time.milliseconds
       val localProduceResults = appendToLocalLog(clientId, internalTopicsAllowed = internalTopicsAllowed,
@@ -1462,7 +1463,7 @@ class ReplicaManager(val config: KafkaConfig,
   // High watermark do not need to be checkpointed only when under unit tests
   def shutdown(checkpointHW: Boolean = true) {
     info("Shutting down")
-    producerStats.foreach(x => CoreUtils.swallow(x.close()))
+    producerStats.foreach(x => CoreUtils.swallow(x.close(), x))
     removeMetrics()
     if (logDirFailureHandler != null)
       logDirFailureHandler.shutdown()

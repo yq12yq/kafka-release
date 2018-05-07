@@ -18,19 +18,17 @@
 package kafka.metrics
 
 import java.util.Properties
-import javax.management.ObjectName
 
+import javax.management.ObjectName
 import com.yammer.metrics.Metrics
 import com.yammer.metrics.core.{Meter, MetricPredicate}
-import kafka.admin.AdminUtils
 import kafka.consumer.{ConsumerConfig, ZookeeperConsumerConnector}
 import kafka.integration.KafkaServerTestHarness
 import kafka.log.LogConfig
 import kafka.serializer._
-import kafka.utils._
+import kafka.server.{BrokerTopicStats, DelayedFetchMetrics, KafkaConfig}
 import kafka.utils.TestUtils._
 import kafka.utils._
-import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.TopicPartition
 import org.junit.Assert._
 import org.junit.Test

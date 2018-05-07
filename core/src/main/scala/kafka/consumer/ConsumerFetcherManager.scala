@@ -71,7 +71,8 @@ class ConsumerFetcherManager(private val consumerIdString: String,
                                                             brokers,
                                                             config.clientId,
                                                             config.socketTimeoutMs,
-                                                            correlationId.getAndIncrement).topicsMetadata
+                                                            correlationId.getAndIncrement,
+                                                            protocol).topicsMetadata
         if(isDebugEnabled) topicsMetadata.foreach(topicMetadata => debug(topicMetadata.toString()))
         topicsMetadata.foreach { tmd =>
           val topic = tmd.topic
@@ -117,7 +118,7 @@ class ConsumerFetcherManager(private val consumerIdString: String,
   }
 
   override def createFetcherThread(fetcherId: Int, sourceBroker: BrokerEndPoint): AbstractFetcherThread = {
-    new ConsumerFetcherThread(consumerIdString, fetcherId, config, sourceBroker, partitionMap, this)
+    new ConsumerFetcherThread(consumerIdString, fetcherId, config, sourceBroker, partitionMap, this.protocol, this)
   }
 
   def startConnections(topicInfos: Iterable[PartitionTopicInfo], cluster: Cluster) {

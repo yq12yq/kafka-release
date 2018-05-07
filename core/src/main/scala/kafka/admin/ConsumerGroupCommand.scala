@@ -25,6 +25,7 @@ import joptsimple.{OptionParser, OptionSpec}
 import kafka.api.{OffsetFetchRequest, OffsetFetchResponse, OffsetRequest, PartitionOffsetRequestInfo}
 import kafka.client.ClientUtils
 import kafka.common.{OffsetMetadataAndError, TopicAndPartition}
+import kafka.common.security.LoginManager
 import kafka.consumer.SimpleConsumer
 import kafka.utils.Implicits._
 import kafka.utils._
@@ -108,19 +109,6 @@ object ConsumerGroupCommand extends Logging {
   def printError(msg: String, e: Option[Throwable] = None): Unit = {
     println(s"Error: $msg")
     e.foreach(debug("Exception in consumer group command", _))
-  }
-
-  def convertTimestamp(timeString: String): java.lang.Long = {
-    val datetime: String = timeString match {
-      case ts if ts.split("T")(1).contains("+") || ts.split("T")(1).contains("-") || ts.split("T")(1).contains("Z") => ts.toString
-      case ts => s"${ts}Z"
-    }
-    val date = try {
-      new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").parse(datetime)
-    } catch {
-      case _: ParseException => new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX").parse(datetime)
-    }
-    date.getTime
   }
 
   def convertTimestamp(timeString: String): java.lang.Long = {
@@ -449,7 +437,7 @@ object ConsumerGroupCommand extends Logging {
         zkUtils.getLeaderForPartition(topicPartition.topic, topicPartition.partition) match {
           case Some(-1) => LogOffsetResult.Unknown
           case Some(brokerId) =>
-            getZkConsumer(brokerId).map { consumer =>
+            getZkConsumer(brokerId, SecurityProtocol.valueOf(opts.securityProtocol)).map { consumer =>
               val topicAndPartition = new TopicAndPartition(topicPartition)
               val request = OffsetRequest(Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)))
               val logEndOffset = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets.head
@@ -466,9 +454,10 @@ object ConsumerGroupCommand extends Logging {
     private def getPartitionOffsets(group: String,
                                     topicPartitions: Seq[TopicPartition],
                                     channelSocketTimeoutMs: Int,
-                                    channelRetryBackoffMs: Int): Map[TopicPartition, Long] = {
+                                    channelRetryBackoffMs: Int,
+                                    securityProtocol: SecurityProtocol): Map[TopicPartition, Long] = {
       val offsetMap = mutable.Map[TopicAndPartition, Long]()
-      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs)
+      val channel = ClientUtils.channelToOffsetManager(group, zkUtils, channelSocketTimeoutMs, channelRetryBackoffMs, protocol = securityProtocol)
       channel.send(OffsetFetchRequest(group, topicPartitions.map(new TopicAndPartition(_))))
       val offsetFetchResponse = OffsetFetchResponse.readFrom(channel.receive().payload())
 

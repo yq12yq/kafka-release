@@ -42,25 +42,6 @@ class DescribeConsumerGroupTest extends ConsumerGroupCommandTest {
   }
 
   @Test
-  def testDescribeSimpleConsumerGroup() {
-    // Ensure that the offsets of consumers which don't use group management are still displayed
-
-    TestUtils.createOffsetsTopic(zkUtils, servers)
-    val topic2 = "foo2"
-    AdminUtils.createTopic(zkUtils, topic2, 2, 1)
-    addSimpleGroupExecutor(Seq(new TopicPartition(topic2, 0), new TopicPartition(topic2, 1)))
-
-    val cgcArgs = Array("--bootstrap-server", brokerList, "--describe", "--group", group)
-    val service = getConsumerGroupService(cgcArgs)
-
-    TestUtils.waitUntilTrue(() => {
-      val (state, assignments) = service.describeGroup()
-      println(assignments.get.map(x => (x.topic, x.partition)))
-      state.contains("Empty") && assignments.isDefined && assignments.get.count(_.group == group) == 2
-    }, "Expected two partition assignment results in describe group state result.")
-  }
-
-  @Test
   @deprecated("This test has been deprecated and will be removed in a future release.", "0.11.0.0")
   def testDescribeExistingGroupWithOldConsumer() {
     TestUtils.createOffsetsTopic(zkClient, servers)

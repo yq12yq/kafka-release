@@ -39,6 +39,7 @@ import org.apache.zookeeper.{CreateMode, KeeperException, ZooDefs, ZooKeeper}
 import scala.collection._
 import scala.collection.JavaConverters._
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.security.auth.SecurityProtocol
 
 object ZkUtils {
 
@@ -278,6 +279,10 @@ class ZkUtils(val zkClient: ZkClient,
   def getAllBrokersInCluster(): Seq[Broker] = {
     val brokerIds = getChildrenParentMayNotExist(BrokerIdsPath).sorted
     brokerIds.map(_.toInt).map(getBrokerInfo(_)).filter(_.isDefined).map(_.get)
+  }
+
+  def getAllBrokerEndPointsForChannel(protocolType: SecurityProtocol): Seq[BrokerEndPoint] = {
+    getAllBrokersInCluster().map(_.getBrokerEndPoint(protocolType))
   }
 
   def getLeaderAndIsrForPartition(topic: String, partition: Int): Option[LeaderAndIsr] = {

@@ -241,16 +241,6 @@ private[log] class ProducerAppendInfo(val producerId: Long,
         throw new OutOfOrderSequenceException(s"Out of order sequence number for producerId $producerId: $appendFirstSeq " +
           s"(incoming seq. number), $currentLastSeq (current end sequence number)")
       }
-    } else if (currentEntry.lastSeq == RecordBatch.NO_SEQUENCE && firstSeq != 0) {
-      // the epoch was bumped by a control record, so we expect the sequence number to be reset
-      throw new OutOfOrderSequenceException(s"Out of order sequence number for producerId $producerId: found $firstSeq " +
-        s"(incoming seq. number), but expected 0")
-    } else if (isDuplicate(firstSeq, lastSeq)) {
-      throw new DuplicateSequenceException(s"Duplicate sequence number for producerId $producerId: (incomingBatch.firstSeq, " +
-        s"incomingBatch.lastSeq): ($firstSeq, $lastSeq).")
-    } else if (!inSequence(firstSeq, lastSeq)) {
-      throw new OutOfOrderSequenceException(s"Out of order sequence number for producerId $producerId: $firstSeq " +
-        s"(incoming seq. number), ${currentEntry.lastSeq} (current end sequence number)")
     }
   }
 

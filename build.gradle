@@ -595,7 +595,6 @@ project(':core') {
     testCompile libs.junit
     testCompile libs.scalatest
     testCompile libs.slf4jlog4j
-    testCompile libs.jfreechart
 
     scoverage libs.scoveragePlugin
     scoverage libs.scoverageRuntime
@@ -796,6 +795,7 @@ project(':contrib:kafka-ganglia') {
 
   dependencies {
     compile project(':core')
+    compile libs.slf4jlog4j
     compile "net.sf.jopt-simple:jopt-simple:3.2"
     compile "com.yammer.metrics:metrics-core:2.2.0"
     compile "com.yammer.metrics:metrics-ganglia:2.2.0"
