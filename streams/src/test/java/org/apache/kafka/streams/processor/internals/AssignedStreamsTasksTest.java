@@ -82,19 +82,17 @@ public class AssignedStreamsTasksTest {
         final Set<TopicPartition> t2partitions = Collections.singleton(tp2);
         EasyMock.expect(t2.partitions()).andReturn(t2partitions);
         EasyMock.expect(t2.changelogPartitions()).andReturn(Collections.<TopicPartition>emptyList());
-        EasyMock.expect(t2.hasStateStores()).andReturn(true);
 
         EasyMock.replay(t1, t2);
 
         assignedTasks.addNewTask(t1);
         assignedTasks.addNewTask(t2);
 
-        final Set<TopicPartition> readyPartitions = assignedTasks.initializeNewTasks();
+        assignedTasks.initializeNewTasks();
 
         Collection<StreamTask> restoring = assignedTasks.restoringTasks();
         assertThat(restoring.size(), equalTo(1));
         assertSame(restoring.iterator().next(), t1);
-        assertThat(readyPartitions, equalTo(t2partitions));
     }
 
     @Test
@@ -104,15 +102,13 @@ public class AssignedStreamsTasksTest {
         EasyMock.expectLastCall().once();
         EasyMock.expect(t2.partitions()).andReturn(Collections.singleton(tp2));
         EasyMock.expect(t2.changelogPartitions()).andReturn(Collections.<TopicPartition>emptyList());
-        EasyMock.expect(t2.hasStateStores()).andReturn(false);
 
         EasyMock.replay(t2);
 
         assignedTasks.addNewTask(t2);
-        final Set<TopicPartition> toResume = assignedTasks.initializeNewTasks();
+        assignedTasks.initializeNewTasks();
 
         assertThat(assignedTasks.runningTaskIds(), equalTo(Collections.singleton(taskId2)));
-        assertThat(toResume, equalTo(Collections.<TopicPartition>emptySet()));
     }
 
     @Test
@@ -252,7 +248,6 @@ public class AssignedStreamsTasksTest {
         EasyMock.expectLastCall().once();
         EasyMock.expect(t1.partitions()).andReturn(Collections.singleton(tp1));
         EasyMock.expect(t1.changelogPartitions()).andReturn(Collections.<TopicPartition>emptyList());
-        EasyMock.expect(t1.hasStateStores()).andReturn(false);
     }
 
     @Test

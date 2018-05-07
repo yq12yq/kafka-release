@@ -577,8 +577,6 @@ public abstract class AbstractResetIntegrationTest {
         cleanUpConfig.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 100);
         cleanUpConfig.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "" + CLEANUP_CONSUMER_TIMEOUT);
 
-        log.info("Calling StreamsResetter with parameters {} and configs {}", parameters, cleanUpConfig);
-
         final int exitCode = new StreamsResetter().run(parameters, cleanUpConfig);
         Assert.assertEquals(0, exitCode);
     }

@@ -433,7 +433,6 @@ public class TaskManagerTest {
 
     @Test
     public void shouldRestoreStateFromChangeLogReader() {
-        EasyMock.expect(active.initializeNewTasks()).andReturn(new HashSet<TopicPartition>());
         EasyMock.expect(changeLogReader.restore(active)).andReturn(taskId0Partitions);
         active.updateRestored(taskId0Partitions);
         EasyMock.expectLastCall();
@@ -445,7 +444,6 @@ public class TaskManagerTest {
 
     @Test
     public void shouldResumeRestoredPartitions() {
-        EasyMock.expect(active.initializeNewTasks()).andReturn(new HashSet<TopicPartition>());
         EasyMock.expect(changeLogReader.restore(active)).andReturn(taskId0Partitions);
         EasyMock.expect(active.allTasksRunning()).andReturn(true);
         EasyMock.expect(consumer.assignment()).andReturn(taskId0Partitions);
@@ -470,7 +468,6 @@ public class TaskManagerTest {
 
     @Test
     public void shouldReturnFalseWhenThereAreStillNonRunningTasks() {
-        EasyMock.expect(active.initializeNewTasks()).andReturn(new HashSet<TopicPartition>());
         EasyMock.expect(active.allTasksRunning()).andReturn(false);
         replay();
 

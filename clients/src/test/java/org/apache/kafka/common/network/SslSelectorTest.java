@@ -32,7 +32,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.net.ssl.SSLEngine;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
