@@ -342,6 +342,7 @@ class ReplicaManager(val config: KafkaConfig,
         throw new KafkaStorageException(s"Partition $topicPartition is on an offline disk")
 
       if (removedPartition != null) {
+        brokerTopicStats.removeMetrics(topicPartition)
         val topicHasPartitions = allPartitions.values.exists(partition => topicPartition.topic == partition.topic)
         if (!topicHasPartitions)
           brokerTopicStats.removeMetrics(topicPartition.topic)
