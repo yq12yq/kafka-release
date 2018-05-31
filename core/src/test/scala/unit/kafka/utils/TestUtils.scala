@@ -1103,11 +1103,14 @@ object TestUtils extends Logging {
       case _ => new Array[Byte](valueBytes)
     })
 
-    val futures = values.map { value =>
-      producer.send(new ProducerRecord(topic, value))
+    try {
+      val futures = values.map { value =>
+        producer.send(new ProducerRecord(topic, value))
+      }
+      futures.foreach(_.get)
+    } finally {
+      producer.close()
     }
-    futures.foreach(_.get)
-    producer.close()
 
     debug(s"Sent ${values.size} messages for topic [$topic]")
 
