@@ -54,6 +54,15 @@ public class LoginManager {
     }
 
     /**
+     * This is introduced for other modules which were using earlier API. But those module should avoid using this API
+     * and start using {@link #acquireLoginManager(JaasContext, String, boolean, Map)}.
+     */
+    public static LoginManager acquireLoginManager(JaasContext jaasContext, boolean hasKerberos,
+                                                   Map<String, ?> configs) throws IOException, LoginException {
+        return acquireLoginManager(jaasContext, SaslConfigs.GSSAPI_MECHANISM, hasKerberos, configs);
+    }
+
+    /**
      * Returns an instance of `LoginManager` and increases its reference count.
      *
      * `release()` should be invoked when the `LoginManager` is no longer needed. This method will try to reuse an
