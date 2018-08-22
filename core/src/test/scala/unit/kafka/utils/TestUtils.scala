@@ -22,28 +22,26 @@ import java.nio._
 import java.nio.channels._
 import java.nio.charset.{Charset, StandardCharsets}
 import java.security.cert.X509Certificate
+import java.time.Duration
 import java.util.{Collections, Properties}
-import java.util.concurrent.{Callable, Executors, TimeUnit}
+import java.util.concurrent.{Callable, ExecutionException, Executors, TimeUnit}
 import javax.net.ssl.X509TrustManager
 
 import kafka.api._
 import kafka.cluster.{Broker, EndPoint}
-import kafka.common.TopicAndPartition
-import kafka.consumer.{ConsumerConfig, ConsumerTimeoutException, KafkaStream}
 import kafka.log._
-import kafka.message._
-import kafka.producer._
 import kafka.security.auth.{Acl, Authorizer, Resource}
-import kafka.serializer.{DefaultEncoder, Encoder, StringEncoder}
 import kafka.server._
 import kafka.server.checkpoints.OffsetCheckpointFile
 import Implicits._
 import kafka.controller.LeaderIsrAndControllerEpoch
 import kafka.zk.{AdminZkClient, BrokerIdsZNode, BrokerInfo, KafkaZkClient}
 import org.apache.kafka.clients.CommonClientConfigs
+import org.apache.kafka.clients.admin.{AdminClient, AlterConfigsResult, Config, ConfigEntry}
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer, OffsetAndMetadata, RangeAssignor}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.{KafkaFuture, TopicPartition}
+import org.apache.kafka.common.config.ConfigResource
 import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.network.{ListenerName, Mode}
@@ -505,28 +503,6 @@ object TestUtils extends Logging {
     builder.toString
   }
 
-  /**
-   * Create a producer with a few pre-configured properties.
-   * If certain properties need to be overridden, they can be provided in producerProps.
-   */
-  @deprecated("This method has been deprecated and it will be removed in a future release.", "0.10.0.0")
-  def createProducer[K, V](brokerList: String,
-                           encoder: String = classOf[DefaultEncoder].getName,
-                           keyEncoder: String = classOf[DefaultEncoder].getName,
-                           partitioner: String = classOf[DefaultPartitioner].getName,
-                           producerProps: Properties = null): Producer[K, V] = {
-    val props: Properties = getProducerConfig(brokerList)
-
-    //override any explicitly specified properties
-    if (producerProps != null)
-      props ++= producerProps
-
-    props.put("serializer.class", encoder)
-    props.put("key.serializer.class", keyEncoder)
-    props.put("partitioner.class", partitioner)
-    new Producer[K, V](new kafka.producer.ProducerConfig(props))
-  }
-
   def securityConfigs(mode: Mode,
                               securityProtocol: SecurityProtocol,
                               trustStoreFile: Option[File],
@@ -549,19 +525,19 @@ object TestUtils extends Logging {
   /**
    * Create a (new) producer with a few pre-configured properties.
    */
-  def createNewProducer[K, V](brokerList: String,
-                        acks: Int = -1,
-                        maxBlockMs: Long = 60 * 1000L,
-                        bufferSize: Long = 1024L * 1024L,
-                        retries: Int = 0,
-                        lingerMs: Long = 0,
-                        requestTimeoutMs: Long = 30 * 1000L,
-                        securityProtocol: SecurityProtocol = SecurityProtocol.PLAINTEXT,
-                        trustStoreFile: Option[File] = None,
-                        saslProperties: Option[Properties] = None,
-                        keySerializer: Serializer[K] = new ByteArraySerializer,
-                        valueSerializer: Serializer[V] = new ByteArraySerializer,
-                        props: Option[Properties] = None): KafkaProducer[K, V] = {
+  def createProducer[K, V](brokerList: String,
+                           acks: Int = -1,
+                           maxBlockMs: Long = 60 * 1000L,
+                           bufferSize: Long = 1024L * 1024L,
+                           retries: Int = 0,
+                           lingerMs: Long = 0,
+                           requestTimeoutMs: Long = 30 * 1000L,
+                           securityProtocol: SecurityProtocol = SecurityProtocol.PLAINTEXT,
+                           trustStoreFile: Option[File] = None,
+                           saslProperties: Option[Properties] = None,
+                           keySerializer: Serializer[K] = new ByteArraySerializer,
+                           valueSerializer: Serializer[V] = new ByteArraySerializer,
+                           props: Option[Properties] = None): KafkaProducer[K, V] = {
 
     val producerProps = props.getOrElse(new Properties)
     producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerList)
@@ -611,20 +587,20 @@ object TestUtils extends Logging {
     securityConfigs(Mode.CLIENT, securityProtocol, trustStoreFile, "admin-client", SslCertificateCn, saslProperties)
 
   /**
-   * Create a new consumer with a few pre-configured properties.
+   * Create a consumer with a few pre-configured properties.
    */
-  def createNewConsumer[K, V](brokerList: String,
-                              groupId: String = "group",
-                              autoOffsetReset: String = "earliest",
-                              partitionFetchSize: Long = 4096L,
-                              partitionAssignmentStrategy: String = classOf[RangeAssignor].getName,
-                              sessionTimeout: Int = 30000,
-                              securityProtocol: SecurityProtocol,
-                              trustStoreFile: Option[File] = None,
-                              saslProperties: Option[Properties] = None,
-                              keyDeserializer: Deserializer[K] = new ByteArrayDeserializer,
-                              valueDeserializer: Deserializer[V] =new ByteArrayDeserializer,
-                              props: Option[Properties] = None) : KafkaConsumer[K, V] = {
+  def createConsumer[K, V](brokerList: String,
+                           groupId: String = "group",
+                           autoOffsetReset: String = "earliest",
+                           partitionFetchSize: Long = 4096L,
+                           partitionAssignmentStrategy: String = classOf[RangeAssignor].getName,
+                           sessionTimeout: Int = 30000,
+                           securityProtocol: SecurityProtocol,
+                           trustStoreFile: Option[File] = None,
+                           saslProperties: Option[Properties] = None,
+                           keyDeserializer: Deserializer[K] = new ByteArrayDeserializer,
+                           valueDeserializer: Deserializer[V] = new ByteArrayDeserializer,
+                           props: Option[Properties] = None): KafkaConsumer[K, V] = {
     import org.apache.kafka.clients.consumer.ConsumerConfig
 
     val consumerProps = props.getOrElse(new Properties())
@@ -670,37 +646,6 @@ object TestUtils extends Logging {
     props
   }
 
-  @deprecated("This method has been deprecated and will be removed in a future release", "0.11.0.0")
-  def getSyncProducerConfig(port: Int): Properties = {
-    val props = new Properties()
-    props.put("host", "localhost")
-    props.put("port", port.toString)
-    props.put("request.timeout.ms", "10000")
-    props.put("request.required.acks", "1")
-    props.put("serializer.class", classOf[StringEncoder].getName)
-    props
-  }
-
-
-  @deprecated("This method has been deprecated and will be removed in a future release.", "0.11.0.0")
-  def updateConsumerOffset(config : ConsumerConfig, path : String, offset : Long) = {
-    val zkUtils = ZkUtils(config.zkConnect, config.zkSessionTimeoutMs, config.zkConnectionTimeoutMs, false)
-    zkUtils.updatePersistentPath(path, offset.toString)
-    zkUtils.close()
-
-  }
-
-  def getMessageIterator(iter: Iterator[MessageAndOffset]): Iterator[Message] = {
-    new IteratorTemplate[Message] {
-      override def makeNext(): Message = {
-        if (iter.hasNext)
-          iter.next.message
-        else
-          allDone()
-      }
-    }
-  }
-
   def createBrokersInZk(zkClient: KafkaZkClient, ids: Seq[Int]): Seq[Broker] =
     createBrokersInZk(ids.map(kafka.admin.BrokerMetadata(_, None)), zkClient)
 
@@ -727,34 +672,6 @@ object TestUtils extends Logging {
     for (i <- 0 until  n)
       buffer += ("msg" + i)
     buffer
-  }
-
-  /**
-   * Create a wired format request based on simple basic information
-   */
-  @deprecated("This method has been deprecated and it will be removed in a future release", "0.10.0.0")
-  def produceRequest(topic: String,
-                     partition: Int,
-                     message: ByteBufferMessageSet,
-                     acks: Int,
-                     timeout: Int,
-                     correlationId: Int = 0,
-                     clientId: String): ProducerRequest = {
-    produceRequestWithAcks(Seq(topic), Seq(partition), message, acks, timeout, correlationId, clientId)
-  }
-
-  @deprecated("This method has been deprecated and it will be removed in a future release", "0.10.0.0")
-  def produceRequestWithAcks(topics: Seq[String],
-                             partitions: Seq[Int],
-                             message: ByteBufferMessageSet,
-                             acks: Int,
-                             timeout: Int,
-                             correlationId: Int = 0,
-                             clientId: String): ProducerRequest = {
-    val data = topics.flatMap(topic =>
-      partitions.map(partition => (TopicAndPartition(topic,  partition), message))
-    )
-    new ProducerRequest(correlationId, clientId, acks.toShort, timeout, collection.mutable.Map(data:_*))
   }
 
   def makeLeaderForPartition(zkClient: KafkaZkClient,
@@ -895,14 +812,6 @@ object TestUtils extends Logging {
     server.replicaManager.getPartition(new TopicPartition(topic, partitionId)).exists(_.leaderReplicaIfLocal.isDefined)
   }
 
-  def createRequestByteBuffer(request: RequestOrResponse): ByteBuffer = {
-    val byteBuffer = ByteBuffer.allocate(request.sizeInBytes + 2)
-    byteBuffer.putShort(request.requestId.get)
-    request.writeTo(byteBuffer)
-    byteBuffer.rewind()
-    byteBuffer
-  }
-
   /**
     * Wait until all brokers know about each other.
     *
@@ -977,24 +886,25 @@ object TestUtils extends Logging {
     file.close()
   }
 
-  def checkForPhantomInSyncReplicas(zkUtils: ZkUtils, topic: String, partitionToBeReassigned: Int, assignedReplicas: Seq[Int]) {
-    val inSyncReplicas = zkUtils.getInSyncReplicasForPartition(topic, partitionToBeReassigned)
+  def checkForPhantomInSyncReplicas(zkClient: KafkaZkClient, topic: String, partitionToBeReassigned: Int, assignedReplicas: Seq[Int]) {
+    val inSyncReplicas = zkClient.getInSyncReplicasForPartition(new TopicPartition(topic, partitionToBeReassigned))
     // in sync replicas should not have any replica that is not in the new assigned replicas
-    val phantomInSyncReplicas = inSyncReplicas.toSet -- assignedReplicas.toSet
+    val phantomInSyncReplicas = inSyncReplicas.get.toSet -- assignedReplicas.toSet
     assertTrue("All in sync replicas %s must be in the assigned replica list %s".format(inSyncReplicas, assignedReplicas),
       phantomInSyncReplicas.isEmpty)
   }
 
-  def ensureNoUnderReplicatedPartitions(zkUtils: ZkUtils, topic: String, partitionToBeReassigned: Int, assignedReplicas: Seq[Int],
+  def ensureNoUnderReplicatedPartitions(zkClient: KafkaZkClient, topic: String, partitionToBeReassigned: Int, assignedReplicas: Seq[Int],
                                                 servers: Seq[KafkaServer]) {
+    val topicPartition = new TopicPartition(topic, partitionToBeReassigned)
     TestUtils.waitUntilTrue(() => {
-        val inSyncReplicas = zkUtils.getInSyncReplicasForPartition(topic, partitionToBeReassigned)
-        inSyncReplicas.size == assignedReplicas.size
+        val inSyncReplicas = zkClient.getInSyncReplicasForPartition(topicPartition)
+        inSyncReplicas.get.size == assignedReplicas.size
       },
       "Reassigned partition [%s,%d] is under replicated".format(topic, partitionToBeReassigned))
     var leader: Option[Int] = None
     TestUtils.waitUntilTrue(() => {
-        leader = zkUtils.getLeaderForPartition(topic, partitionToBeReassigned)
+        leader = zkClient.getLeaderForPartition(topicPartition)
         leader.isDefined
       },
       "Reassigned partition [%s,%d] is unavailable".format(topic, partitionToBeReassigned))
@@ -1019,7 +929,7 @@ object TestUtils extends Logging {
                        defaultConfig: LogConfig = LogConfig(),
                        cleanerConfig: CleanerConfig = CleanerConfig(enableCleaner = false),
                        time: MockTime = new MockTime()): LogManager = {
-    new LogManager(logDirs = logDirs,
+    new LogManager(logDirs = logDirs.map(_.getAbsoluteFile),
                    initialOfflineDirs = Array.empty[File],
                    topicConfigs = Map(),
                    initialDefaultConfig = defaultConfig,
@@ -1037,126 +947,42 @@ object TestUtils extends Logging {
                    logDirFailureChannel = new LogDirFailureChannel(logDirs.size))
   }
 
-  @deprecated("This method has been deprecated and it will be removed in a future release.", "0.10.0.0")
-  def sendMessages(servers: Seq[KafkaServer],
-                   topic: String,
-                   numMessages: Int,
-                   partition: Int = -1,
-                   compression: CompressionCodec = NoCompressionCodec): List[String] = {
-    val header = "test-%d".format(partition)
-    val props = new Properties()
-    props.put("compression.codec", compression.codec.toString)
-    val ms = 0.until(numMessages).map(x => header + "-" + x)
-
-    // Specific Partition
-    if (partition >= 0) {
-      val producer: Producer[Int, String] =
-        createProducer(TestUtils.getBrokerListStrFromServers(servers),
-          encoder = classOf[StringEncoder].getName,
-          keyEncoder = classOf[IntEncoder].getName,
-          partitioner = classOf[FixedValuePartitioner].getName,
-          producerProps = props)
-
-      producer.send(ms.map(m => new KeyedMessage[Int, String](topic, partition, m)): _*)
-      debug("Sent %d messages for partition [%s,%d]".format(ms.size, topic, partition))
-      producer.close()
-      ms.toList
-    } else {
-      // Use topic as the key to determine partition
-      val producer: Producer[String, String] = createProducer(
-        TestUtils.getBrokerListStrFromServers(servers),
-        encoder = classOf[StringEncoder].getName,
-        keyEncoder = classOf[StringEncoder].getName,
-        partitioner = classOf[DefaultPartitioner].getName,
-        producerProps = props)
-      producer.send(ms.map(m => new KeyedMessage[String, String](topic, topic, m)): _*)
-      producer.close()
-      debug("Sent %d messages for topic [%s]".format(ms.size, topic))
-      ms.toList
-    }
-  }
-
   def produceMessages(servers: Seq[KafkaServer],
-                      topic: String,
-                      numMessages: Int,
+                      records: Seq[ProducerRecord[Array[Byte], Array[Byte]]],
                       acks: Int = -1,
-                      valueBytes: Int = -1,
-                      props: Option[Properties] = None): Seq[Array[Byte]] = {
-
-    val producer = createNewProducer(
-      TestUtils.getBrokerListStrFromServers(servers),
-      retries = 5,
-      acks = acks
-    )
-    val values = try {
-      val curValues = (0 until numMessages).map(x => valueBytes match {
-        case -1 => s"test-$x".getBytes
-        case _ => new Array[Byte](valueBytes)
-      })
-
-      val futures = curValues.map { value =>
-        producer.send(new ProducerRecord(topic, value))
-      }
+                      compressionType: CompressionType = CompressionType.NONE): Unit = {
+    val props = new Properties()
+    props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, compressionType.name)
+    val producer = createProducer(TestUtils.getBrokerListStrFromServers(servers), retries = 5, acks = acks)
+    try {
+      val futures = records.map(producer.send)
       futures.foreach(_.get)
-      curValues 
     } finally {
       producer.close()
     }
 
-    debug(s"Sent ${values.size} messages for topic [$topic]")
+    val topics = records.map(_.topic).distinct
+    debug(s"Sent ${records.size} messages for topics ${topics.mkString(",")}")
+  }
 
+  def generateAndProduceMessages(servers: Seq[KafkaServer],
+                                 topic: String,
+                                 numMessages: Int,
+                                 acks: Int = -1,
+                                 compressionType: CompressionType = CompressionType.NONE): Seq[String] = {
+    val values = (0 until numMessages).map(x =>  s"test-$x")
+    val records = values.map(v => new ProducerRecord[Array[Byte], Array[Byte]](topic, v.getBytes))
+    produceMessages(servers, records, acks, compressionType)
     values
   }
 
   def produceMessage(servers: Seq[KafkaServer], topic: String, message: String) {
-    val producer = createNewProducer(
+    val producer = createProducer(
       TestUtils.getBrokerListStrFromServers(servers),
       retries = 5
     )
     producer.send(new ProducerRecord(topic, topic.getBytes, message.getBytes)).get
     producer.close()
-  }
-
-  /**
-   * Consume all messages (or a specific number of messages)
-   *
-   * @param topicMessageStreams the Topic Message Streams
-   * @param nMessagesPerThread an optional field to specify the exact number of messages to be returned.
-   *                           ConsumerTimeoutException will be thrown if there are no messages to be consumed.
-   *                           If not specified, then all available messages will be consumed, and no exception is thrown.
-   * @return the list of messages consumed.
-   */
-  @deprecated("This method has been deprecated and will be removed in a future release.", "0.11.0.0")
-  def getMessages(topicMessageStreams: Map[String, List[KafkaStream[String, String]]],
-                     nMessagesPerThread: Int = -1): List[String] = {
-
-    var messages: List[String] = Nil
-    val shouldGetAllMessages = nMessagesPerThread < 0
-    for (messageStreams <- topicMessageStreams.values) {
-      for (messageStream <- messageStreams) {
-        val iterator = messageStream.iterator()
-        try {
-          var i = 0
-          while ((shouldGetAllMessages && iterator.hasNext()) || (i < nMessagesPerThread)) {
-            assertTrue(iterator.hasNext)
-            val message = iterator.next().message // will throw a timeout exception if the message isn't there
-            messages ::= message
-            debug("received message: " + message)
-            i += 1
-          }
-        } catch {
-          case e: ConsumerTimeoutException =>
-            if (shouldGetAllMessages) {
-              // swallow the exception
-              debug("consumer timed out after receiving " + messages.length + " message(s).")
-            } else {
-              throw e
-            }
-        }
-      }
-    }
-
-    messages.reverse
   }
 
   def verifyTopicDeletion(zkClient: KafkaZkClient, topic: String, numPartitions: Int, servers: Seq[KafkaServer]) {
@@ -1246,8 +1072,11 @@ object TestUtils extends Logging {
   }
 
   def waitAndVerifyAcls(expected: Set[Acl], authorizer: Authorizer, resource: Resource) = {
+    val newLine = scala.util.Properties.lineSeparator
+
     TestUtils.waitUntilTrue(() => authorizer.getAcls(resource) == expected,
-      s"expected acls $expected but got ${authorizer.getAcls(resource)}", waitTime = JTestUtils.DEFAULT_MAX_WAIT_MS)
+      s"expected acls:${expected.mkString(newLine + "\t", newLine + "\t", newLine)}" +
+        s"but got:${authorizer.getAcls(resource).mkString(newLine + "\t", newLine + "\t", newLine)}", waitTime = JTestUtils.DEFAULT_MAX_WAIT_MS)
   }
 
   /**
@@ -1359,10 +1188,11 @@ object TestUtils extends Logging {
   def consumeTopicRecords[K, V](servers: Seq[KafkaServer],
                                 topic: String,
                                 numMessages: Int,
+                                groupId: String = "group",
                                 securityProtocol: SecurityProtocol = SecurityProtocol.PLAINTEXT,
                                 trustStoreFile: Option[File] = None,
                                 waitTime: Long = JTestUtils.DEFAULT_MAX_WAIT_MS): Seq[ConsumerRecord[Array[Byte], Array[Byte]]] = {
-    val consumer = createNewConsumer(TestUtils.getBrokerListStrFromServers(servers, securityProtocol),
+    val consumer = createConsumer(TestUtils.getBrokerListStrFromServers(servers, securityProtocol), groupId = groupId,
       securityProtocol = securityProtocol, trustStoreFile = trustStoreFile)
     try {
       consumer.subscribe(Collections.singleton(topic))
@@ -1374,7 +1204,7 @@ object TestUtils extends Logging {
                            waitTime: Long = JTestUtils.DEFAULT_MAX_WAIT_MS): Seq[ConsumerRecord[K, V]] = {
     val records = new ArrayBuffer[ConsumerRecord[K, V]]()
     waitUntilTrue(() => {
-      records ++= consumer.poll(50).asScala
+      records ++= consumer.poll(Duration.ofMillis(50)).asScala
       records.size >= numMessages
     }, s"Consumed ${records.size} records until timeout instead of the expected $numMessages records", waitTime)
     assertEquals("Consumed more records than expected", numMessages, records.size)
@@ -1389,11 +1219,11 @@ object TestUtils extends Logging {
     *
     * @return All the records consumed by the consumer within the specified duration.
     */
-  def consumeRecordsFor[K, V](consumer: KafkaConsumer[K, V], duration: Long): Seq[ConsumerRecord[K, V]] = {
+  def consumeRecordsFor[K, V](consumer: KafkaConsumer[K, V], duration: Long = JTestUtils.DEFAULT_MAX_WAIT_MS): Seq[ConsumerRecord[K, V]] = {
     val startTime = System.currentTimeMillis()
     val records = new ArrayBuffer[ConsumerRecord[K, V]]()
     waitUntilTrue(() => {
-      records ++= consumer.poll(50).asScala
+      records ++= consumer.poll(Duration.ofMillis(50)).asScala
       System.currentTimeMillis() - startTime > duration
     }, s"The timeout $duration was greater than the maximum wait time.")
     records
@@ -1407,14 +1237,14 @@ object TestUtils extends Logging {
     props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true")
     props.put(ProducerConfig.BATCH_SIZE_CONFIG, batchSize.toString)
     props.put(ProducerConfig.TRANSACTION_TIMEOUT_CONFIG, transactionTimeoutMs.toString)
-    TestUtils.createNewProducer(TestUtils.getBrokerListStrFromServers(servers), retries = Integer.MAX_VALUE, acks = -1, props = Some(props))
+    TestUtils.createProducer(TestUtils.getBrokerListStrFromServers(servers), retries = Integer.MAX_VALUE, acks = -1, props = Some(props))
   }
 
   // Seeds the given topic with records with keys and values in the range [0..numRecords)
   def seedTopicWithNumberedRecords(topic: String, numRecords: Int, servers: Seq[KafkaServer]): Unit = {
     val props = new Properties()
     props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true")
-    val producer = TestUtils.createNewProducer(TestUtils.getBrokerListStrFromServers(servers),
+    val producer = TestUtils.createProducer(TestUtils.getBrokerListStrFromServers(servers),
       retries = Integer.MAX_VALUE, acks = -1, props = Some(props))
     try {
       for (i <- 0 until numRecords) {
@@ -1476,20 +1306,35 @@ object TestUtils extends Logging {
   def pollUntilAtLeastNumRecords(consumer: KafkaConsumer[Array[Byte], Array[Byte]], numRecords: Int): Seq[ConsumerRecord[Array[Byte], Array[Byte]]] = {
     val records = new ArrayBuffer[ConsumerRecord[Array[Byte], Array[Byte]]]()
     TestUtils.waitUntilTrue(() => {
-      records ++= consumer.poll(50).asScala
+      records ++= consumer.poll(Duration.ofMillis(50)).asScala
       records.size >= numRecords
     }, s"Consumed ${records.size} records until timeout, but expected $numRecords records.")
     records
   }
 
   def resetToCommittedPositions(consumer: KafkaConsumer[Array[Byte], Array[Byte]]) = {
-    consumer.assignment.asScala.foreach { case(topicPartition) =>
+    consumer.assignment.asScala.foreach { topicPartition =>
       val offset = consumer.committed(topicPartition)
       if (offset != null)
         consumer.seek(topicPartition, offset.offset)
       else
         consumer.seekToBeginning(Collections.singletonList(topicPartition))
     }
+  }
+
+  def alterConfigs(servers: Seq[KafkaServer], adminClient: AdminClient, props: Properties,
+                   perBrokerConfig: Boolean): AlterConfigsResult = {
+    val configEntries = props.asScala.map { case (k, v) => new ConfigEntry(k, v) }.toList.asJava
+    val newConfig = new Config(configEntries)
+    val configs = if (perBrokerConfig) {
+      servers.map { server =>
+        val resource = new ConfigResource(ConfigResource.Type.BROKER, server.config.brokerId.toString)
+        (resource, newConfig)
+      }.toMap.asJava
+    } else {
+      Map(new ConfigResource(ConfigResource.Type.BROKER, "") -> newConfig).asJava
+    }
+    adminClient.alterConfigs(configs)
   }
 
   /**
@@ -1526,20 +1371,15 @@ object TestUtils extends Logging {
     (out.toString, err.toString)
   }
 
-}
-
-class IntEncoder(props: VerifiableProperties = null) extends Encoder[Int] {
-  override def toBytes(n: Int) = n.toString.getBytes
-}
-
-@deprecated("This class is deprecated and it will be removed in a future release.", "0.10.0.0")
-class StaticPartitioner(props: VerifiableProperties = null) extends Partitioner {
-  def partition(data: Any, numPartitions: Int): Int = {
-    data.asInstanceOf[String].length % numPartitions
+  def assertFutureExceptionTypeEquals(future: KafkaFuture[_], clazz: Class[_ <: Throwable]): Unit = {
+    try {
+      future.get()
+      fail("Expected CompletableFuture.get to return an exception")
+    } catch {
+      case e: ExecutionException =>
+        val cause = e.getCause()
+        assertTrue("Expected an exception of type " + clazz.getName + "; got type " +
+            cause.getClass().getName, clazz.isInstance(cause))
+    }
   }
-}
-
-@deprecated("This class has been deprecated and it will be removed in a future release.", "0.10.0.0")
-class FixedValuePartitioner(props: VerifiableProperties = null) extends Partitioner {
-  def partition(data: Any, numPartitions: Int): Int = data.asInstanceOf[Int]
 }

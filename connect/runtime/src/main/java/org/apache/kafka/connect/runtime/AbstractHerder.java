@@ -91,6 +91,7 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
                           StatusBackingStore statusBackingStore,
                           ConfigBackingStore configBackingStore) {
         this.worker = worker;
+        this.worker.herder = this;
         this.workerId = workerId;
         this.kafkaClusterId = kafkaClusterId;
         this.statusBackingStore = statusBackingStore;
@@ -249,10 +250,6 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         if (connType == null)
             throw new BadRequestException("Connector config " + connectorProps + " contains no connector type");
 
-        List<ConfigValue> configValues = new ArrayList<>();
-        Map<String, ConfigKey> configKeys = new LinkedHashMap<>();
-        Set<String> allGroups = new LinkedHashSet<>();
-
         Connector connector = getConnector(connType);
         ClassLoader savedLoader = plugins().compareAndSwapLoaders(connector);
         try {
@@ -269,13 +266,29 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
                     enrichedConfigDef,
                     connectorProps
             );
-            configValues.addAll(validatedConnectorConfig.values());
-            configKeys.putAll(enrichedConfigDef.configKeys());
-            allGroups.addAll(enrichedConfigDef.groups());
+            List<ConfigValue> configValues = new ArrayList<>(validatedConnectorConfig.values());
+            Map<String, ConfigKey> configKeys = new LinkedHashMap<>(enrichedConfigDef.configKeys());
+            Set<String> allGroups = new LinkedHashSet<>(enrichedConfigDef.groups());
 
             // do custom connector-specific validation
             Config config = connector.validate(connectorProps);
+            if (null == config) {
+                throw new BadRequestException(
+                    String.format(
+                        "%s.validate() must return a Config that is not null.",
+                        connector.getClass().getName()
+                    )
+                );
+            }
             ConfigDef configDef = connector.config();
+            if (null == configDef) {
+                throw new BadRequestException(
+                    String.format(
+                        "%s.config() must return a ConfigDef that is not null.",
+                        connector.getClass().getName()
+                    )
+                );
+            }
             configKeys.putAll(configDef.configKeys());
             allGroups.addAll(configDef.groups());
             configValues.addAll(config.configValues());

@@ -119,7 +119,7 @@ class MetricsTest extends IntegrationTestHarness with SaslSetup {
     saslProps.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-256")
     // Use acks=0 to verify error metric when connection is closed without a response
     saslProps.put(ProducerConfig.ACKS_CONFIG, "0")
-    val producer = TestUtils.createNewProducer(brokerList, securityProtocol = securityProtocol,
+    val producer = TestUtils.createProducer(brokerList, securityProtocol = securityProtocol,
         trustStoreFile = trustStoreFile, saslProperties = Some(saslProps), props = Some(producerProps))
 
     try {
@@ -239,11 +239,11 @@ class MetricsTest extends IntegrationTestHarness with SaslSetup {
     verifyYammerMetricRecorded(s"$errorMetricPrefix,request=Metadata,error=NONE")
 
     try {
-      consumers.head.partitionsFor("12 ,")
+      consumers.head.partitionsFor("12{}!")
     } catch {
       case _: InvalidTopicException => // expected
     }
-    verifyYammerMetricRecorded(s"$errorMetricPrefix,request=Metadata,error=INVALID_TOPIC_EXCEPTION")
+    verifyYammerMetricRecorded(s"$errorMetricPrefix,request=Metadata,error=LEADER_NOT_AVAILABLE")
 
     // Check that error metrics are registered dynamically
     val currentErrorMetricCount = errorMetricCount

@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.streams.tests;
 
+import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.KStream;
@@ -30,20 +31,22 @@ import java.util.Properties;
 public class StreamsUpgradeTest {
 
     @SuppressWarnings("unchecked")
-    public static void main(final String[] args) {
+    public static void main(final String[] args) throws Exception {
         if (args.length < 3) {
-            System.err.println("StreamsUpgradeTest requires three argument (kafka-url, zookeeper-url, state-dir) but only " + args.length + " provided: "
+            System.err.println("StreamsUpgradeTest requires three argument (kafka-url, zookeeper-url, properties-file) but only " + args.length + " provided: "
                 + (args.length > 0 ? args[0] + " " : "")
                 + (args.length > 1 ? args[1] : ""));
         }
         final String kafka = args[0];
         final String zookeeper = args[1];
-        final String stateDir = args[2];
+        final String propFileName = args.length > 2 ? args[2] : null;
+
+        final Properties streamsProperties = Utils.loadProps(propFileName);
 
         System.out.println("StreamsTest instance started (StreamsUpgradeTest v0.10.0)");
         System.out.println("kafka=" + kafka);
         System.out.println("zookeeper=" + zookeeper);
-        System.out.println("stateDir=" + stateDir);
+        System.out.println("props=" + streamsProperties);
 
         final KStreamBuilder builder = new KStreamBuilder();
         final KStream dataStream = builder.stream("data");
@@ -54,8 +57,8 @@ public class StreamsUpgradeTest {
         config.setProperty(StreamsConfig.APPLICATION_ID_CONFIG, "StreamsUpgradeTest");
         config.setProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafka);
         config.setProperty(StreamsConfig.ZOOKEEPER_CONNECT_CONFIG, zookeeper);
-        config.setProperty(StreamsConfig.STATE_DIR_CONFIG, stateDir);
         config.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000);
+        config.putAll(streamsProperties);
 
         final KafkaStreams streams = new KafkaStreams(builder, config);
         streams.start();

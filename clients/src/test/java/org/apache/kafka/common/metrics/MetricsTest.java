@@ -623,16 +623,8 @@ public class MetricsTest {
 
         final AtomicBoolean alive = new AtomicBoolean(true);
         executorService = Executors.newSingleThreadExecutor();
-        executorService.submit(new ConcurrentMetricOperation(alive, "record", new Runnable() {
-            @Override
-            public void run() {
-                while (alive.get()) {
-                    for (Sensor sensor : sensors) {
-                        sensor.record(random.nextInt(10000));
-                    }
-                }
-            }
-        }));
+        executorService.submit(new ConcurrentMetricOperation(alive, "record",
+            () -> sensors.forEach(sensor -> sensor.record(random.nextInt(10000)))));
 
         for (int i = 0; i < 10000; i++) {
             if (sensors.size() > 5) {
@@ -670,7 +662,7 @@ public class MetricsTest {
 
             @Override
             public synchronized void metricRemoval(KafkaMetric metric) {
-                activeMetrics.remove(metric.metricName());
+                activeMetrics.remove(metric.metricName(), metric);
             }
 
             @Override
@@ -698,34 +690,13 @@ public class MetricsTest {
         final AtomicBoolean alive = new AtomicBoolean(true);
         executorService = Executors.newFixedThreadPool(3);
 
-        Future<?> writeFuture = executorService.submit(new ConcurrentMetricOperation(alive, "record", new Runnable() {
-            @Override
-            public void run() {
-                while (alive.get()) {
-                    for (Sensor sensor : sensors) {
-                        sensor.record(random.nextInt(10000));
-                    }
-                }
-            }
-        }));
-        Future<?> readFuture = executorService.submit(new ConcurrentMetricOperation(alive, "read", new Runnable() {
-            @Override
-            public void run() {
-                while (alive.get()) {
-                    for (Sensor sensor : sensors) {
-                        for (Metric metric : sensor.metrics()) {
-                            assertNotNull("Invalid metric value", metric.metricValue());
-                        }
-                    }
-                }
-            }
-        }));
-        Future<?> reportFuture = executorService.submit(new ConcurrentMetricOperation(alive, "report", new Runnable() {
-            @Override
-            public void run() {
-                reporter.processMetrics();
-            }
-        }));
+        Future<?> writeFuture = executorService.submit(new ConcurrentMetricOperation(alive, "record",
+            () -> sensors.forEach(sensor -> sensor.record(random.nextInt(10000)))));
+        Future<?> readFuture = executorService.submit(new ConcurrentMetricOperation(alive, "read",
+            () -> sensors.forEach(sensor -> sensor.metrics().forEach(metric ->
+                assertNotNull("Invalid metric value", metric.metricValue())))));
+        Future<?> reportFuture = executorService.submit(new ConcurrentMetricOperation(alive, "report",
+            () -> reporter.processMetrics()));
 
         for (int i = 0; i < 10000; i++) {
             if (sensors.size() > 10) {

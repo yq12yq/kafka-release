@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -61,6 +62,7 @@ public class GlobalStateManagerImpl extends AbstractStateManager implements Glob
     private InternalProcessorContext processorContext;
     private final int retries;
     private final long retryBackoffMs;
+    private final Duration pollTime;
     private final Set<String> globalNonPersistentStoresTopics = new HashSet<>();
 
     public GlobalStateManagerImpl(final LogContext logContext,
@@ -86,6 +88,7 @@ public class GlobalStateManagerImpl extends AbstractStateManager implements Glob
         this.stateRestoreListener = stateRestoreListener;
         this.retries = config.getInt(StreamsConfig.RETRIES_CONFIG);
         this.retryBackoffMs = config.getLong(StreamsConfig.RETRY_BACKOFF_MS_CONFIG);
+        this.pollTime = Duration.ofMillis(config.getLong(StreamsConfig.POLL_MS_CONFIG));
     }
 
     @Override
@@ -271,7 +274,7 @@ public class GlobalStateManagerImpl extends AbstractStateManager implements Glob
 
             while (offset < highWatermark) {
                 try {
-                    final ConsumerRecords<byte[], byte[]> records = globalConsumer.poll(100);
+                    final ConsumerRecords<byte[], byte[]> records = globalConsumer.poll(pollTime);
                     final List<KeyValue<byte[], byte[]>> restoreRecords = new ArrayList<>();
                     for (final ConsumerRecord<byte[], byte[]> record : records) {
                         if (record.key() != null) {
@@ -285,7 +288,7 @@ public class GlobalStateManagerImpl extends AbstractStateManager implements Glob
                 } catch (final InvalidOffsetException recoverableException) {
                     log.warn("Restoring GlobalStore {} failed due to: {}. Deleting global store to recreate from scratch.",
                         storeName,
-                        recoverableException.getMessage());
+                        recoverableException.toString());
                     reinitializeStateStoresForPartitions(recoverableException.partitions(), processorContext);
 
                     stateRestoreListener.onRestoreStart(topicPartition, storeName, offset, highWatermark);
@@ -327,7 +330,7 @@ public class GlobalStateManagerImpl extends AbstractStateManager implements Glob
                     closeFailed.append("Failed to close global state store:")
                             .append(entry.getKey())
                             .append(". Reason: ")
-                            .append(e.getMessage())
+                            .append(e.toString())
                             .append("\n");
                 }
             }

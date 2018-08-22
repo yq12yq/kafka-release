@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -104,7 +105,7 @@ public class SslSelectorTest extends SelectorTest {
         verifySelectorEmpty();
     }
 
-    private void waitForBytesBuffered(final Selector selector, final String node) throws Exception {
+    private void waitForBytesBuffered(Selector selector, String node) throws Exception {
         TestUtils.waitForCondition(new TestCondition() {
             @Override
             public boolean conditionMet() {
@@ -120,18 +121,20 @@ public class SslSelectorTest extends SelectorTest {
 
     @Test
     public void testBytesBufferedChannelWithNoIncomingBytes() throws Exception {
-        verifyNoUnnecessaryPollWithBytesBuffered(false);
+        verifyNoUnnecessaryPollWithBytesBuffered(key ->
+            key.interestOps(key.interestOps() & ~SelectionKey.OP_READ));
     }
 
     @Test
     public void testBytesBufferedChannelAfterMute() throws Exception {
-        verifyNoUnnecessaryPollWithBytesBuffered(true);
+        verifyNoUnnecessaryPollWithBytesBuffered(key -> ((KafkaChannel) key.attachment()).mute());
     }
 
-    private void verifyNoUnnecessaryPollWithBytesBuffered(boolean explicitlyMute) throws Exception {
+    private void verifyNoUnnecessaryPollWithBytesBuffered(Consumer<SelectionKey> disableRead)
+            throws Exception {
         this.selector.close();
 
-        final String node1 = "1";
+        String node1 = "1";
         String node2 = "2";
         final AtomicInteger node1Polls = new AtomicInteger();
 
@@ -156,13 +159,7 @@ public class SslSelectorTest extends SelectorTest {
         selector.send(createSend(node1,  TestUtils.randomString(largeRequestSize)));
         waitForBytesBuffered(selector, node1);
         TestSslChannelBuilder.TestSslTransportLayer.transportLayers.get(node1).truncateReadBuffer();
-        KafkaChannel channel1 = selector.channel(node1);
-        if (explicitlyMute) {
-            channel1.mute();
-        } else {
-            SelectionKey key = channel1.selectionKey();
-            key.interestOps(key.interestOps() & ~SelectionKey.OP_READ);
-        }
+        disableRead.accept(selector.channel(node1).selectionKey());
 
         // Clear poll count and count the polls from now on
         node1Polls.set(0);

@@ -22,20 +22,17 @@ import java.util.Properties
 import javax.management.ObjectName
 import com.yammer.metrics.Metrics
 import com.yammer.metrics.core.{Meter, MetricPredicate}
-import kafka.consumer.{ConsumerConfig, ZookeeperConsumerConnector}
-import kafka.integration.KafkaServerTestHarness
-import kafka.log.LogConfig
-import kafka.serializer._
-import kafka.server.{BrokerTopicStats, DelayedFetchMetrics, KafkaConfig}
-import kafka.utils.TestUtils._
-import kafka.utils._
-import org.apache.kafka.common.TopicPartition
-import org.junit.Assert._
 import org.junit.Test
+import org.junit.Assert._
+import kafka.integration.KafkaServerTestHarness
+import kafka.server._
+import kafka.utils._
 
 import scala.collection.JavaConverters._
 import scala.collection._
 import scala.util.matching.Regex
+import kafka.log.LogConfig
+import org.apache.kafka.common.TopicPartition
 
 class MetricsTest extends KafkaServerTestHarness with Logging {
   val numNodes = 2
@@ -49,26 +46,6 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     TestUtils.createBrokerConfigs(numNodes, zkConnect, enableDeleteTopic=true).map(KafkaConfig.fromProps(_, overridingProps))
 
   val nMessages = 2
-
-  @Test
-  @deprecated("This test has been deprecated and it will be removed in a future release", "0.10.0.0")
-  def testMetricsLeak() {
-    val topic = "test-metrics-leak"
-    // create topic topic1 with 1 partition on broker 0
-    createTopic(topic, numPartitions = 1, replicationFactor = 1)
-    // force creation not client's specific metrics.
-    createAndShutdownStep(topic, "group0", "consumer0", "producer0")
-
-    //this assertion is only used for creating the metrics for DelayedFetchMetrics, it should never fail, but should not be removed
-    assertNotNull(DelayedFetchMetrics)
-
-    val countOfStaticMetrics = Metrics.defaultRegistry.allMetrics.keySet.size
-
-    for (i <- 0 to 5) {
-      createAndShutdownStep(topic, "group" + i % 3, "consumer" + i % 2, "producer" + i % 2)
-      assertEquals(countOfStaticMetrics, Metrics.defaultRegistry.allMetrics.keySet.size)
-    }
-  }
 
   @Test
   def testMetricsReporterAfterDeletingTopic() {
@@ -85,7 +62,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     adminZkClient.createTopic(topic, 2, 1)
     // Produce a few messages to create the metrics
     // Don't consume messages as it may cause metrics to be re-created causing the test to fail, see KAFKA-5238
-    TestUtils.produceMessages(servers, topic, nMessages)
+    TestUtils.generateAndProduceMessages(servers, topic, nMessages)
     assertTrue("Topic metrics don't exist", topicMetricGroups(topic).nonEmpty)
     servers.foreach(s => assertNotNull(s.brokerTopicStats.topicStats(topic)))
     adminZkClient.deleteTopic(topic)
@@ -109,18 +86,6 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     assert(metric.getMBeanName.endsWith(expectedMBeanName))
   }
 
-  @deprecated("This test has been deprecated and it will be removed in a future release", "0.10.0.0")
-  def createAndShutdownStep(topic: String, group: String, consumerId: String, producerId: String): Unit = {
-    sendMessages(servers, topic, nMessages)
-    // create a consumer
-    val consumerConfig1 = new ConsumerConfig(TestUtils.createConsumerProperties(zkConnect, group, consumerId))
-    val zkConsumerConnector1 = new ZookeeperConsumerConnector(consumerConfig1, true)
-    val topicMessageStreams1 = zkConsumerConnector1.createMessageStreams(Map(topic -> 1), new StringDecoder, new StringDecoder)
-    getMessages(topicMessageStreams1, nMessages)
-
-    zkConsumerConnector1.shutdown()
-  }
-
   @Test
   def testBrokerTopicMetricsBytesInOut(): Unit = {
     val topic = "test-bytes-in-out"
@@ -133,7 +98,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     topicConfig.setProperty(LogConfig.MinInSyncReplicasProp, "2")
     createTopic(topic, 1, numNodes, topicConfig)
     // Produce a few messages to create the metrics
-    TestUtils.produceMessages(servers, topic, nMessages)
+    TestUtils.generateAndProduceMessages(servers, topic, nMessages)
 
     // Check the log size for each broker so that we can distinguish between failures caused by replication issues
     // versus failures caused by the metrics
@@ -152,7 +117,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     val initialBytesOut = meterCount(bytesOut)
 
     // Produce a few messages to make the metrics tick
-    TestUtils.produceMessages(servers, topic, nMessages)
+    TestUtils.generateAndProduceMessages(servers, topic, nMessages)
 
     assertTrue(meterCount(replicationBytesIn) > initialReplicationBytesIn)
     assertTrue(meterCount(replicationBytesOut) > initialReplicationBytesOut)

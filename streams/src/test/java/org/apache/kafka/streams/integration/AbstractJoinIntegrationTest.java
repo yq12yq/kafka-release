@@ -163,7 +163,7 @@ public abstract class AbstractJoinIntegrationTest {
 
     @After
     public void cleanup() throws InterruptedException {
-        CLUSTER.deleteTopicsAndWait(120000, INPUT_TOPIC_LEFT, INPUT_TOPIC_RIGHT, OUTPUT_TOPIC);
+        CLUSTER.deleteAllTopicsAndWait(120000);
     }
 
     private void checkResult(final String outputTopic, final List<String> expectedResult) throws InterruptedException {
@@ -193,7 +193,7 @@ public abstract class AbstractJoinIntegrationTest {
         assert expectedResult.size() == input.size();
 
         IntegrationTestUtils.purgeLocalStreamsState(STREAMS_CONFIG);
-        streams = new KafkaStreams(builder.build(), new StreamsConfig(STREAMS_CONFIG));
+        streams = new KafkaStreams(builder.build(), STREAMS_CONFIG);
 
         String expectedFinalResult = null;
 
@@ -234,7 +234,7 @@ public abstract class AbstractJoinIntegrationTest {
      */
     void runTest(final String expectedFinalResult, final String storeName) throws Exception {
         IntegrationTestUtils.purgeLocalStreamsState(STREAMS_CONFIG);
-        streams = new KafkaStreams(builder.build(), new StreamsConfig(STREAMS_CONFIG));
+        streams = new KafkaStreams(builder.build(), STREAMS_CONFIG);
 
         try {
             streams.start();

@@ -16,12 +16,21 @@
  */
 package org.apache.kafka.common.metrics;
 
+import org.apache.kafka.common.MetricName;
+import org.apache.kafka.common.metrics.stats.Avg;
+import org.apache.kafka.common.metrics.stats.Meter;
 import org.apache.kafka.common.metrics.stats.Rate;
+import org.apache.kafka.common.metrics.stats.Sum;
+import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.common.utils.SystemTime;
+import org.apache.kafka.common.utils.Time;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -34,6 +43,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SensorTest {
     @Test
@@ -72,6 +82,59 @@ public class SensorTest {
         assertFalse(debugSensor.shouldRecord());
     }
 
+    @Test
+    public void testExpiredSensor() {
+        MetricConfig config = new MetricConfig();
+        Time mockTime = new MockTime();
+        Metrics metrics =  new Metrics(config, Arrays.asList((MetricsReporter) new JmxReporter()), mockTime, true);
+
+        long inactiveSensorExpirationTimeSeconds = 60L;
+        Sensor sensor = new Sensor(metrics, "sensor", null, config, mockTime,
+            inactiveSensorExpirationTimeSeconds, Sensor.RecordingLevel.INFO);
+
+        assertTrue(sensor.add(metrics.metricName("test1", "grp1"), new Avg()));
+
+        Map<String, String> emptyTags = Collections.emptyMap();
+        MetricName rateMetricName = new MetricName("rate", "test", "", emptyTags);
+        MetricName totalMetricName = new MetricName("total", "test", "", emptyTags);
+        Meter meter = new Meter(rateMetricName, totalMetricName);
+        assertTrue(sensor.add(meter));
+
+        mockTime.sleep(TimeUnit.SECONDS.toMillis(inactiveSensorExpirationTimeSeconds + 1));
+        assertFalse(sensor.add(metrics.metricName("test3", "grp1"), new Avg()));
+        assertFalse(sensor.add(meter));
+
+        metrics.close();
+    }
+
+    @Test
+    public void testIdempotentAdd() {
+        final Metrics metrics = new Metrics();
+        final Sensor sensor = metrics.sensor("sensor");
+
+        assertTrue(sensor.add(metrics.metricName("test-metric", "test-group"), new Avg()));
+
+        // adding the same metric to the same sensor is a no-op
+        assertTrue(sensor.add(metrics.metricName("test-metric", "test-group"), new Avg()));
+
+
+        // but adding the same metric to a DIFFERENT sensor is an error
+        final Sensor anotherSensor = metrics.sensor("another-sensor");
+        try {
+            anotherSensor.add(metrics.metricName("test-metric", "test-group"), new Avg());
+            fail("should have thrown");
+        } catch (final IllegalArgumentException ignored) {
+            // pass
+        }
+
+        // note that adding a different metric with the same name is also a no-op
+        assertTrue(sensor.add(metrics.metricName("test-metric", "test-group"), new Sum()));
+
+        // so after all this, we still just have the original metric registered
+        assertEquals(1, sensor.metrics().size());
+        assertEquals(org.apache.kafka.common.metrics.stats.Avg.class, sensor.metrics().get(0).measurable().getClass());
+    }
+
     /**
      * The Sensor#checkQuotas should be thread-safe since the method may be used by many ReplicaFetcherThreads.
      */
@@ -84,7 +147,7 @@ public class SensorTest {
             .samples(100));
         final Sensor sensor = metrics.sensor("sensor");
 
-        sensor.add(metrics.metricName("test-metric", "test-group"), new Rate());
+        assertTrue(sensor.add(metrics.metricName("test-metric", "test-group"), new Rate()));
         final int threadCount = 10;
         final CountDownLatch latch = new CountDownLatch(1);
         ExecutorService service = Executors.newFixedThreadPool(threadCount);

@@ -28,7 +28,6 @@ import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.requests.AbstractRequest;
-import org.apache.kafka.common.requests.RequestHeader;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
@@ -63,7 +62,7 @@ public class ConsumerNetworkClient implements Closeable {
     private final Time time;
     private final long retryBackoffMs;
     private final int maxPollTimeoutMs;
-    private final long unsentExpiryMs;
+    private final int requestTimeoutMs;
     private final AtomicBoolean wakeupDisabled = new AtomicBoolean();
 
     // We do not need high throughput, so use a fair lock to try to avoid starvation
@@ -84,7 +83,7 @@ public class ConsumerNetworkClient implements Closeable {
                                  Metadata metadata,
                                  Time time,
                                  long retryBackoffMs,
-                                 long requestTimeoutMs,
+                                 int requestTimeoutMs,
                                  int maxPollTimeoutMs) {
         this.log = logContext.logger(ConsumerNetworkClient.class);
         this.client = client;
@@ -92,7 +91,15 @@ public class ConsumerNetworkClient implements Closeable {
         this.time = time;
         this.retryBackoffMs = retryBackoffMs;
         this.maxPollTimeoutMs = Math.min(maxPollTimeoutMs, MAX_POLL_TIMEOUT_MS);
-        this.unsentExpiryMs = requestTimeoutMs;
+        this.requestTimeoutMs = requestTimeoutMs;
+    }
+
+
+    /**
+     * Send a request with the default timeout. See {@link #send(Node, AbstractRequest.Builder, int)}.
+     */
+    public RequestFuture<ClientResponse> send(Node node, AbstractRequest.Builder<?> requestBuilder) {
+        return send(node, requestBuilder, requestTimeoutMs);
     }
 
     /**
@@ -105,13 +112,18 @@ public class ConsumerNetworkClient implements Closeable {
      *
      * @param node The destination of the request
      * @param requestBuilder A builder for the request payload
+     * @param requestTimeoutMs Maximum time in milliseconds to await a response before disconnecting the socket and
+     *                         cancelling the request. The request may be cancelled sooner if the socket disconnects
+     *                         for any reason.
      * @return A future which indicates the result of the send.
      */
-    public RequestFuture<ClientResponse> send(Node node, AbstractRequest.Builder<?> requestBuilder) {
+    public RequestFuture<ClientResponse> send(Node node,
+                                              AbstractRequest.Builder<?> requestBuilder,
+                                              int requestTimeoutMs) {
         long now = time.milliseconds();
         RequestFutureCompletionHandler completionHandler = new RequestFutureCompletionHandler();
         ClientRequest clientRequest = client.newClientRequest(node.idString(), requestBuilder, now, true,
-                completionHandler);
+                requestTimeoutMs, completionHandler);
         unsent.put(node, clientRequest);
 
         // wakeup the client in case it is blocking in poll so that we can send the queued request
@@ -128,20 +140,13 @@ public class ConsumerNetworkClient implements Closeable {
         }
     }
 
-    public boolean hasReadyNodes() {
+    public boolean hasReadyNodes(long now) {
         lock.lock();
         try {
-            return client.hasReadyNodes();
+            return client.hasReadyNodes(now);
         } finally {
             lock.unlock();
         }
-    }
-
-    /**
-     * Block until the metadata has been refreshed.
-     */
-    public void awaitMetadataUpdate() {
-        awaitMetadataUpdate(Long.MAX_VALUE);
     }
 
     /**
@@ -165,9 +170,13 @@ public class ConsumerNetworkClient implements Closeable {
      * Ensure our metadata is fresh (if an update is expected, this will block
      * until it has completed).
      */
-    public void ensureFreshMetadata() {
-        if (this.metadata.updateRequested() || this.metadata.timeToNextUpdate(time.milliseconds()) == 0)
-            awaitMetadataUpdate();
+    boolean ensureFreshMetadata(final long timeout) {
+        if (this.metadata.updateRequested() || this.metadata.timeToNextUpdate(time.milliseconds()) == 0) {
+            return awaitMetadataUpdate(timeout);
+        } else {
+            // the metadata is already fresh
+            return true;
+        }
     }
 
     /**
@@ -249,7 +258,8 @@ public class ConsumerNetworkClient implements Closeable {
             handlePendingDisconnects();
 
             // send all the requests we can send now
-            trySend(now);
+            long pollDelayMs = trySend(now);
+            timeout = Math.min(timeout, pollDelayMs);
 
             // check whether the poll is still needed by the caller. Note that if the expected completion
             // condition becomes satisfied after the call to shouldBlock() (because of a fired completion
@@ -409,12 +419,9 @@ public class ConsumerNetworkClient implements Closeable {
                 for (ClientRequest request : requests) {
                     RequestFutureCompletionHandler handler = (RequestFutureCompletionHandler) request.callback();
                     AuthenticationException authenticationException = client.authenticationException(node);
-                    if (authenticationException != null)
-                        handler.onFailure(authenticationException);
-                    else
-                        handler.onComplete(new ClientResponse(request.makeHeader(request.requestBuilder().latestAllowedVersion()),
+                    handler.onComplete(new ClientResponse(request.makeHeader(request.requestBuilder().latestAllowedVersion()),
                             request.callback(), request.destination(), request.createdTimeMs(), now, true,
-                            null, null));
+                            null, authenticationException, null));
                 }
             }
         }
@@ -443,10 +450,10 @@ public class ConsumerNetworkClient implements Closeable {
 
     private void failExpiredRequests(long now) {
         // clear all expired unsent requests and fail their corresponding futures
-        Collection<ClientRequest> expiredRequests = unsent.removeExpiredRequests(now, unsentExpiryMs);
+        Collection<ClientRequest> expiredRequests = unsent.removeExpiredRequests(now);
         for (ClientRequest request : expiredRequests) {
             RequestFutureCompletionHandler handler = (RequestFutureCompletionHandler) request.callback();
-            handler.onFailure(new TimeoutException("Failed to send request after " + unsentExpiryMs + " ms."));
+            handler.onFailure(new TimeoutException("Failed to send request after " + request.requestTimeoutMs() + " ms."));
         }
     }
 
@@ -464,22 +471,24 @@ public class ConsumerNetworkClient implements Closeable {
         }
     }
 
-    private boolean trySend(long now) {
-        // send any requests that can be sent now
-        boolean requestsSent = false;
+    private long trySend(long now) {
+        long pollDelayMs = Long.MAX_VALUE;
 
+        // send any requests that can be sent now
         for (Node node : unsent.nodes()) {
             Iterator<ClientRequest> iterator = unsent.requestIterator(node);
+            if (iterator.hasNext())
+                pollDelayMs = Math.min(pollDelayMs, client.pollDelayMs(node, now));
+
             while (iterator.hasNext()) {
                 ClientRequest request = iterator.next();
                 if (client.ready(node, now)) {
                     client.send(request, now);
                     iterator.remove();
-                    requestsSent = true;
                 }
             }
         }
-        return requestsSent;
+        return pollDelayMs;
     }
 
     public void maybeTriggerWakeup() {
@@ -510,15 +519,29 @@ public class ConsumerNetworkClient implements Closeable {
         }
     }
 
+
     /**
-     * Find whether a previous connection has failed. Note that the failure state will persist until either
-     * {@link #tryConnect(Node)} or {@link #send(Node, AbstractRequest.Builder)} has been called.
-     * @param node Node to connect to if possible
+     * Check if the code is disconnected and unavailable for immediate reconnection (i.e. if it is in
+     * reconnect backoff window following the disconnect).
      */
-    public boolean connectionFailed(Node node) {
+    public boolean isUnavailable(Node node) {
         lock.lock();
         try {
-            return client.connectionFailed(node);
+            return client.connectionFailed(node) && client.connectionDelay(node, time.milliseconds()) > 0;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Check for an authentication error on a given node and raise the exception if there is one.
+     */
+    public void maybeThrowAuthFailure(Node node) {
+        lock.lock();
+        try {
+            AuthenticationException exception = client.authenticationException(node);
+            if (exception != null)
+                throw exception;
         } finally {
             lock.unlock();
         }
@@ -551,11 +574,11 @@ public class ConsumerNetworkClient implements Closeable {
         public void fireCompletion() {
             if (e != null) {
                 future.raise(e);
+            } else if (response.authenticationException() != null) {
+                future.raise(response.authenticationException());
             } else if (response.wasDisconnected()) {
-                RequestHeader requestHeader = response.requestHeader();
-                int correlation = requestHeader.correlationId();
-                log.debug("Cancelled {} request {} with correlation id {} due to node {} being disconnected",
-                        requestHeader.apiKey(), requestHeader, correlation, response.destination());
+                log.debug("Cancelled request with header {} due to node {} being disconnected",
+                        response.requestHeader(), response.destination());
                 future.raise(DisconnectException.INSTANCE);
             } else if (response.versionMismatch() != null) {
                 future.raise(response.versionMismatch());
@@ -593,7 +616,7 @@ public class ConsumerNetworkClient implements Closeable {
     }
 
     /*
-     * A threadsafe helper class to hold requests per node that have not been sent yet
+     * A thread-safe helper class to hold requests per node that have not been sent yet
      */
     private final static class UnsentRequests {
         private final ConcurrentMap<Node, ConcurrentLinkedQueue<ClientRequest>> unsent;
@@ -638,13 +661,14 @@ public class ConsumerNetworkClient implements Closeable {
             return false;
         }
 
-        public Collection<ClientRequest> removeExpiredRequests(long now, long unsentExpiryMs) {
+        private Collection<ClientRequest> removeExpiredRequests(long now) {
             List<ClientRequest> expiredRequests = new ArrayList<>();
             for (ConcurrentLinkedQueue<ClientRequest> requests : unsent.values()) {
                 Iterator<ClientRequest> requestIterator = requests.iterator();
                 while (requestIterator.hasNext()) {
                     ClientRequest request = requestIterator.next();
-                    if (request.createdTimeMs() < now - unsentExpiryMs) {
+                    long elapsedMs = Math.max(0, now - request.createdTimeMs());
+                    if (elapsedMs > request.requestTimeoutMs()) {
                         expiredRequests.add(request);
                         requestIterator.remove();
                     } else

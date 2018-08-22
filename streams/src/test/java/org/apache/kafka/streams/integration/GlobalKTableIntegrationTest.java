@@ -22,13 +22,13 @@ import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.common.utils.Bytes;
-import org.apache.kafka.streams.Consumed;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.integration.utils.EmbeddedKafkaCluster;
 import org.apache.kafka.streams.integration.utils.IntegrationTestUtils;
+import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.ForeachAction;
 import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.apache.kafka.streams.kstream.KStream;
@@ -231,17 +231,17 @@ public class GlobalKTableIntegrationTest {
         globalTable = builder.globalTable(
             globalTableTopic,
             Consumed.with(Serdes.Long(), Serdes.String()),
-            Materialized.<Long, String>as(Stores.inMemoryKeyValueStore(globalStore)));
+            Materialized.as(Stores.inMemoryKeyValueStore(globalStore)));
 
         produceInitialGlobalTableValues();
 
         startStreams();
-        ReadOnlyKeyValueStore<Long, String> store = kafkaStreams.store(globalStore, QueryableStoreTypes.<Long, String>keyValueStore());
+        ReadOnlyKeyValueStore<Long, String> store = kafkaStreams.store(globalStore, QueryableStoreTypes.keyValueStore());
         assertThat(store.approximateNumEntries(), equalTo(4L));
         kafkaStreams.close();
 
         startStreams();
-        store = kafkaStreams.store(globalStore, QueryableStoreTypes.<Long, String>keyValueStore());
+        store = kafkaStreams.store(globalStore, QueryableStoreTypes.keyValueStore());
         assertThat(store.approximateNumEntries(), equalTo(4L));
     }
 

@@ -20,7 +20,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.Bytes;
-import org.apache.kafka.streams.Consumed;
+import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
@@ -39,26 +39,24 @@ import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.Stores;
 import org.apache.kafka.streams.state.WindowStore;
 
-import java.io.File;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 public class SmokeTestClient extends SmokeTestUtil {
 
-    private final String kafka;
-    private final File stateDir;
-    private KafkaStreams streams;
+    private final Properties streamsProperties;
+
     private Thread thread;
+    private KafkaStreams streams;
     private boolean uncaughtException = false;
 
-    public SmokeTestClient(final File stateDir, final String kafka) {
+    public SmokeTestClient(final Properties streamsProperties) {
         super();
-        this.stateDir = stateDir;
-        this.kafka = kafka;
+        this.streamsProperties = streamsProperties;
     }
 
     public void start() {
-        streams = createKafkaStreams(stateDir, kafka);
+        streams = createKafkaStreams(streamsProperties);
         streams.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             @Override
             public void uncaughtException(final Thread t, final Throwable e) {
@@ -98,25 +96,26 @@ public class SmokeTestClient extends SmokeTestUtil {
         }
     }
 
-    private static Properties getStreamsConfig(final File stateDir, final String kafka) {
-        final Properties props = new Properties();
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "SmokeTest");
-        props.put(StreamsConfig.STATE_DIR_CONFIG, stateDir.toString());
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafka);
-        props.put(StreamsConfig.NUM_STREAM_THREADS_CONFIG, 3);
-        props.put(StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG, 2);
-        props.put(StreamsConfig.BUFFERED_RECORDS_PER_PARTITION_CONFIG, 100);
-        props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000);
-        props.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, 3);
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ProducerConfig.RETRIES_CONFIG, Integer.MAX_VALUE);
-        props.put(ProducerConfig.ACKS_CONFIG, "all");
+    private static Properties getStreamsConfig(final Properties props) {
+        final Properties fullProps = new Properties(props);
+        fullProps.put(StreamsConfig.APPLICATION_ID_CONFIG, "SmokeTest");
+        fullProps.put(StreamsConfig.NUM_STREAM_THREADS_CONFIG, 3);
+        fullProps.put(StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG, 2);
+        fullProps.put(StreamsConfig.BUFFERED_RECORDS_PER_PARTITION_CONFIG, 100);
+        fullProps.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000);
+        fullProps.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, 3);
+        fullProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        fullProps.put(ProducerConfig.RETRIES_CONFIG, Integer.MAX_VALUE);
+        fullProps.put(ProducerConfig.ACKS_CONFIG, "all");
+
         //TODO remove this config or set to smaller value when KIP-91 is merged
-        props.put(StreamsConfig.producerPrefix(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG), 80000);
-        return props;
+        fullProps.put(StreamsConfig.producerPrefix(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG), 80000);
+
+        fullProps.putAll(props);
+        return fullProps;
     }
 
-    private static KafkaStreams createKafkaStreams(final File stateDir, final String kafka) {
+    private static KafkaStreams createKafkaStreams(final Properties props) {
         final StreamsBuilder builder = new StreamsBuilder();
         final Consumed<String, Integer> stringIntConsumed = Consumed.with(stringSerde, intSerde);
         final KStream<String, Integer> source = builder.stream("data", stringIntConsumed);
@@ -252,7 +251,7 @@ public class SmokeTestClient extends SmokeTestUtil {
             .toStream()
             .to("tagg", Produced.with(stringSerde, longSerde));
 
-        final KafkaStreams streamsClient = new KafkaStreams(builder.build(), getStreamsConfig(stateDir, kafka));
+        final KafkaStreams streamsClient = new KafkaStreams(builder.build(), getStreamsConfig(props));
         streamsClient.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             @Override
             public void uncaughtException(final Thread t, final Throwable e) {

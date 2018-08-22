@@ -30,10 +30,9 @@ from kafkatest.services.kafka import config_property
 from kafkatest.services.monitor.jmx import JmxMixin
 from kafkatest.services.security.minikdc import MiniKdc
 from kafkatest.services.security.security_config import SecurityConfig
-from kafkatest.version import DEV_BRANCH
+from kafkatest.version import DEV_BRANCH, LATEST_0_10_0
 
 Port = collections.namedtuple('Port', ['name', 'number', 'open'])
-
 
 class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
     PERSISTENT_ROOT = "/mnt/kafka"
@@ -72,14 +71,14 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
     def __init__(self, context, num_nodes, zk, security_protocol=SecurityConfig.PLAINTEXT, interbroker_security_protocol=SecurityConfig.PLAINTEXT,
                  client_sasl_mechanism=SecurityConfig.SASL_MECHANISM_GSSAPI, interbroker_sasl_mechanism=SecurityConfig.SASL_MECHANISM_GSSAPI,
                  authorizer_class_name=None, topics=None, version=DEV_BRANCH, jmx_object_names=None,
-                 jmx_attributes=None, zk_connect_timeout=5000, zk_session_timeout=6000, server_prop_overides=[], zk_chroot=None):
+                 jmx_attributes=None, zk_connect_timeout=5000, zk_session_timeout=6000, server_prop_overides=None, zk_chroot=None):
         """
         :type context
         :type zk: ZookeeperService
         :type topics: dict
         """
         Service.__init__(self, context, num_nodes)
-        JmxMixin.__init__(self, num_nodes, jmx_object_names, jmx_attributes or [],
+        JmxMixin.__init__(self, num_nodes=num_nodes, jmx_object_names=jmx_object_names, jmx_attributes=(jmx_attributes or []),
                           root=KafkaService.PERSISTENT_ROOT)
 
         self.zk = zk
@@ -92,7 +91,10 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         self.minikdc = None
         self.authorizer_class_name = authorizer_class_name
         self.zk_set_acl = False
-        self.server_prop_overides = server_prop_overides
+        if server_prop_overides is None:
+            self.server_prop_overides = []
+        else:
+            self.server_prop_overides = server_prop_overides
         self.log_level = "DEBUG"
         self.zk_chroot = zk_chroot
 
@@ -103,9 +105,9 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         # is authenticating and waiting for the SaslAuthenticated
         # in addition to the SyncConnected event.
         #
-        # The defaut value for zookeeper.connect.timeout.ms is
+        # The default value for zookeeper.connect.timeout.ms is
         # 2 seconds and here we increase it to 5 seconds, but
-        # it can be overriden by setting the corresponding parameter
+        # it can be overridden by setting the corresponding parameter
         # for this constructor.
         self.zk_connect_timeout = zk_connect_timeout
 
@@ -322,6 +324,9 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
                 'partitions': topic_cfg.get('partitions', 1),
                 'replication-factor': topic_cfg.get('replication-factor', 1)
             }
+
+        if topic_cfg.get('if-not-exists', False):
+            cmd += ' --if-not-exists'
 
         if "configs" in topic_cfg.keys() and topic_cfg["configs"] is not None:
             for config_name, config_value in topic_cfg["configs"].items():
@@ -566,7 +571,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
             self.logger.debug("Data in /cluster/id znode could not be parsed. Data = %s" % cluster)
             raise
 
-    def list_consumer_groups(self, node=None, new_consumer=True, command_config=None):
+    def list_consumer_groups(self, node=None, command_config=None):
         """ Get list of consumer groups.
         """
         if node is None:
@@ -578,13 +583,10 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         else:
             command_config = "--command-config " + command_config
 
-        if new_consumer:
-            cmd = "%s --new-consumer --bootstrap-server %s %s --list" % \
-                  (consumer_group_script,
-                   self.bootstrap_servers(self.security_protocol),
-                   command_config)
-        else:
-            cmd = "%s --zookeeper %s %s --list" % (consumer_group_script, self.zk_connect_setting(), command_config)
+        cmd = "%s --bootstrap-server %s %s --list" % \
+              (consumer_group_script,
+               self.bootstrap_servers(self.security_protocol),
+               command_config)
         output = ""
         self.logger.debug(cmd)
         for line in node.account.ssh_capture(cmd):
@@ -593,7 +595,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         self.logger.debug(output)
         return output
 
-    def describe_consumer_group(self, group, node=None, new_consumer=True, command_config=None):
+    def describe_consumer_group(self, group, node=None, command_config=None):
         """ Describe a consumer group.
         """
         if node is None:
@@ -605,12 +607,11 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         else:
             command_config = "--command-config " + command_config
 
-        if new_consumer:
-            cmd = "%s --new-consumer --bootstrap-server %s %s --group %s --describe" % \
-                  (consumer_group_script, self.bootstrap_servers(self.security_protocol), command_config, group)
-        else:
-            cmd = "%s --zookeeper %s %s --group %s --describe" % \
-                  (consumer_group_script, self.zk_connect_setting(), command_config, group)
+        cmd = "%s --bootstrap-server %s %s --group %s --describe" % \
+              (consumer_group_script,
+               self.bootstrap_servers(self.security_protocol),
+               command_config, group)
+
         output = ""
         self.logger.debug(cmd)
         for line in node.account.ssh_capture(cmd):

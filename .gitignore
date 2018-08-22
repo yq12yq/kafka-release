@@ -47,3 +47,7 @@ gradlew.bat
 docs/generated/
 
 .release-settings.json
+
+kafkatest.egg-info/
+systest/
+*.swp

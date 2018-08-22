@@ -30,6 +30,7 @@ import org.apache.kafka.common.errors.DelegationTokenDisabledException;
 import org.apache.kafka.common.errors.DelegationTokenExpiredException;
 import org.apache.kafka.common.errors.DelegationTokenNotFoundException;
 import org.apache.kafka.common.errors.DelegationTokenOwnerMismatchException;
+import org.apache.kafka.common.errors.ListenerNotFoundException;
 import org.apache.kafka.common.errors.FetchSessionIdNotFoundException;
 import org.apache.kafka.common.errors.GroupAuthorizationException;
 import org.apache.kafka.common.errors.GroupIdNotFoundException;
@@ -378,14 +379,14 @@ public enum Errors {
                 return new TopicExistsException(message);
             }
         }),
-    INVALID_PARTITIONS(37, "Number of partitions is invalid.",
+    INVALID_PARTITIONS(37, "Number of partitions is below 1.",
         new ApiExceptionBuilder() {
             @Override
             public ApiException build(String message) {
                 return new InvalidPartitionsException(message);
             }
         }),
-    INVALID_REPLICATION_FACTOR(38, "Replication-factor is invalid.",
+    INVALID_REPLICATION_FACTOR(38, "Replication factor is below 1 or larger than the number of available brokers.",
         new ApiExceptionBuilder() {
             @Override
             public ApiException build(String message) {
@@ -624,7 +625,14 @@ public enum Errors {
             public ApiException build(String message) {
                 return new InvalidFetchSessionEpochException(message);
             }
-    });
+    }),
+    LISTENER_NOT_FOUND(72, "There is no listener on the leader broker that matches the listener on which metadata request was processed",
+        new ApiExceptionBuilder() {
+            @Override
+            public ApiException build(String message) {
+                return new ListenerNotFoundException(message);
+            }
+    }),;
 
     private interface ApiExceptionBuilder {
         ApiException build(String message);

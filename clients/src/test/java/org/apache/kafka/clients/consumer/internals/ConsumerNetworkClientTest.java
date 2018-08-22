@@ -22,7 +22,9 @@ import org.apache.kafka.clients.MockClient;
 import org.apache.kafka.clients.NetworkClient;
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.Node;
+import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.DisconnectException;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.HeartbeatRequest;
@@ -70,6 +72,24 @@ public class ConsumerNetworkClientTest {
     }
 
     @Test
+    public void sendWithinBlackoutPeriodAfterAuthenticationFailure() throws InterruptedException {
+        client.authenticationFailed(node, 300);
+        client.prepareResponse(heartbeatResponse(Errors.NONE));
+        final RequestFuture<ClientResponse> future = consumerClient.send(node, heartbeat());
+        consumerClient.poll(future);
+        assertTrue(future.failed());
+        assertTrue("Expected only an authentication error.", future.exception() instanceof AuthenticationException);
+
+        time.sleep(30); // wait less than the blackout period
+        assertTrue(client.connectionFailed(node));
+
+        final RequestFuture<ClientResponse> future2 = consumerClient.send(node, heartbeat());
+        consumerClient.poll(future2);
+        assertTrue(future2.failed());
+        assertTrue("Expected only an authentication error.", future2.exception() instanceof AuthenticationException);
+    }
+
+    @Test
     public void multiSend() {
         client.prepareResponse(heartbeatResponse(Errors.NONE));
         client.prepareResponse(heartbeatResponse(Errors.NONE));
@@ -104,6 +124,26 @@ public class ConsumerNetworkClientTest {
         consumerClient.pollNoWakeup();
         assertTrue(future.failed());
         assertTrue(future.exception() instanceof DisconnectException);
+    }
+
+    @Test
+    public void testTimeoutUnsentRequest() {
+        // Delay connection to the node so that the request remains unsent
+        client.delayReady(node, 1000);
+
+        RequestFuture<ClientResponse> future = consumerClient.send(node, heartbeat(), 500);
+        consumerClient.pollNoWakeup();
+
+        // Ensure the request is pending, but hasn't been sent
+        assertTrue(consumerClient.hasPendingRequests());
+        assertFalse(client.hasInFlightRequests());
+
+        time.sleep(501);
+        consumerClient.pollNoWakeup();
+
+        assertFalse(consumerClient.hasPendingRequests());
+        assertTrue(future.failed());
+        assertTrue(future.exception() instanceof TimeoutException);
     }
 
     @Test
@@ -156,7 +196,7 @@ public class ConsumerNetworkClientTest {
 
         NetworkClient mockNetworkClient = EasyMock.mock(NetworkClient.class);
         ConsumerNetworkClient consumerClient = new ConsumerNetworkClient(new LogContext(),
-                mockNetworkClient, metadata, time, retryBackoffMs, 1000L, Integer.MAX_VALUE);
+                mockNetworkClient, metadata, time, retryBackoffMs, 1000, Integer.MAX_VALUE);
 
         EasyMock.expect(mockNetworkClient.inFlightRequestCount()).andReturn(0);
         EasyMock.expect(mockNetworkClient.poll(EasyMock.eq(retryBackoffMs), EasyMock.anyLong())).andReturn(Collections.<ClientResponse>emptyList());
@@ -254,8 +294,8 @@ public class ConsumerNetworkClientTest {
     }
 
     @Test
-    public void sendExpiry() throws InterruptedException {
-        long unsentExpiryMs = 10;
+    public void sendExpiry() {
+        int requestTimeoutMs = 10;
         final AtomicBoolean isReady = new AtomicBoolean();
         final AtomicBoolean disconnected = new AtomicBoolean();
         client = new MockClient(time) {
@@ -272,13 +312,13 @@ public class ConsumerNetworkClientTest {
             }
         };
         // Queue first send, sleep long enough for this to expire and then queue second send
-        consumerClient = new ConsumerNetworkClient(new LogContext(), client, metadata, time, 100, unsentExpiryMs, Integer.MAX_VALUE);
+        consumerClient = new ConsumerNetworkClient(new LogContext(), client, metadata, time, 100, requestTimeoutMs, Integer.MAX_VALUE);
         RequestFuture<ClientResponse> future1 = consumerClient.send(node, heartbeat());
         assertEquals(1, consumerClient.pendingRequestCount());
         assertEquals(1, consumerClient.pendingRequestCount(node));
         assertFalse(future1.isDone());
 
-        time.sleep(unsentExpiryMs + 1);
+        time.sleep(requestTimeoutMs + 1);
         RequestFuture<ClientResponse> future2 = consumerClient.send(node, heartbeat());
         assertEquals(2, consumerClient.pendingRequestCount());
         assertEquals(2, consumerClient.pendingRequestCount(node));
