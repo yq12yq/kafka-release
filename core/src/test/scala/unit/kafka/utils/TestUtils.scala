@@ -950,10 +950,12 @@ object TestUtils extends Logging {
   def produceMessages(servers: Seq[KafkaServer],
                       records: Seq[ProducerRecord[Array[Byte], Array[Byte]]],
                       acks: Int = -1,
-                      compressionType: CompressionType = CompressionType.NONE): Unit = {
+                      compressionType: CompressionType = CompressionType.NONE,
+                      produceProps: Option[Properties] = None): Unit = {
     val props = new Properties()
     props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, compressionType.name)
-    val producer = createProducer(TestUtils.getBrokerListStrFromServers(servers), retries = 5, acks = acks)
+    produceProps.foreach(p => props.putAll(p))
+    val producer = createProducer(TestUtils.getBrokerListStrFromServers(servers), retries = 5, acks = acks, props = Some(props))
     try {
       val futures = records.map(producer.send)
       futures.foreach(_.get)

@@ -17,9 +17,9 @@
 
 package kafka.metrics
 
-import java.util.Properties
-
+import java.util.{Properties, UUID}
 import javax.management.ObjectName
+
 import com.yammer.metrics.Metrics
 import com.yammer.metrics.core.{Meter, MetricPredicate}
 import org.junit.Test
@@ -28,10 +28,11 @@ import kafka.integration.KafkaServerTestHarness
 import kafka.server._
 import kafka.utils._
 
-import scala.collection.JavaConverters._
 import scala.collection._
+import scala.collection.JavaConverters._
 import scala.util.matching.Regex
 import kafka.log.LogConfig
+import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.TopicPartition
 
 class MetricsTest extends KafkaServerTestHarness with Logging {
@@ -41,7 +42,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   val overridingProps = new Properties
   overridingProps.put(KafkaConfig.NumPartitionsProp, numParts.toString)
   overridingProps.put(KafkaConfig.ProducerMetricsEnableProp, "true")
-
+  
   def generateConfigs =
     TestUtils.createBrokerConfigs(numNodes, zkConnect, enableDeleteTopic=true).map(KafkaConfig.fromProps(_, overridingProps))
 
@@ -140,6 +141,58 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     assertEquals(metrics.keySet.asScala.count(_.getMBeanName == "kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount"), 1)
     assertEquals(metrics.keySet.asScala.count(_.getMBeanName == "kafka.controller:type=KafkaController,name=GlobalTopicCount"), 1)
     assertEquals(metrics.keySet.asScala.count(_.getMBeanName == "kafka.controller:type=KafkaController,name=GlobalPartitionCount"), 1)
+  }
+
+  @Test
+  def testProducerMetricsOnBroker() : Unit = {
+    val topic = "test-messages-in-broker-client"
+    val clientId = "client-" + UUID.randomUUID()
+    val messagesIn = s"${BrokerTopicStats.MessagesInPerSec},clientId=$clientId,topic=$topic,partition=0"
+
+    doTestBrokerTopicPartitionMetrics(topic, clientId, messagesIn)
+  }
+
+  @Test
+  def testBrokerTopicPartitionMetrics() : Unit = {
+    val topic = "test-messages-in-broker-topic-partition"
+    val clientId = "client-" + UUID.randomUUID()
+    val messagesIn = s"${BrokerTopicStats.MessagesInPerSec},topic=$topic,partition=0"
+
+    doTestBrokerTopicPartitionMetrics(topic, clientId, messagesIn)
+  }
+
+  private def doTestBrokerTopicPartitionMetrics(topic: String, clientId: String, messagesInMetricName: String) = {
+    val topicConfig = new Properties
+    topicConfig.setProperty(LogConfig.MinInSyncReplicasProp, "2")
+    adminZkClient.createTopic(topic, 1, numNodes, topicConfig)
+
+    // Produce a few messages to create the metrics
+    var properties = new Properties()
+    properties.setProperty(ProducerConfig.CLIENT_ID_CONFIG, clientId)
+    val props: Option[Properties] = Some(properties)
+     val records = (0 until nMessages).map(_ => new ProducerRecord[Array[Byte], Array[Byte]](topic,
+      new Array[Byte](100 * 1000)))
+    TestUtils.produceMessages(servers, records, produceProps = props)
+
+    // Check the log size for each broker so that we can distinguish between failures caused by replication issues
+    // versus failures caused by the metrics
+    val topicPartition = new TopicPartition(topic, 0)
+    servers.foreach { server =>
+      val log = server.logManager.logsByTopicPartition.get(new TopicPartition(topic, 0))
+      val brokerId = server.config.brokerId
+      val logSize = log.map(_.size)
+      assertTrue(s"Expected broker $brokerId to have a Log for $topicPartition with positive size, actual: $logSize",
+        logSize.map(_ > 0).getOrElse(false))
+    }
+
+    val initialMessagesIn = meterCount(messagesInMetricName)
+
+    // Produce a few messages to make the metrics tick
+    TestUtils.produceMessages(servers, records, produceProps = props)
+
+    val recvdMsgsIn = meterCount(messagesInMetricName)
+
+    assertTrue(recvdMsgsIn > initialMessagesIn)
   }
 
   /**

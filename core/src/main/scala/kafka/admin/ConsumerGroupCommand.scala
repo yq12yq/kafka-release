@@ -19,21 +19,19 @@ package kafka.admin
 
 import java.text.{ParseException, SimpleDateFormat}
 import java.util.{Date, Properties}
-
 import javax.xml.datatype.DatatypeFactory
 import joptsimple.{OptionParser, OptionSpec}
-import kafka.common.security.LoginManager
+
+
 import kafka.utils._
 import kafka.utils.Implicits._
+
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer, OffsetAndMetadata}
-import org.apache.kafka.common.config.SaslConfigs
+import org.apache.kafka.common.{KafkaException, Node, TopicPartition}
 import org.apache.kafka.common.protocol.Errors
-import org.apache.kafka.common.security.JaasUtils
-import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.utils.Utils
-import org.apache.kafka.common.{KafkaException, Node, TopicPartition}
 
 import scala.collection.JavaConverters._
 import scala.collection.{Seq, Set}
@@ -52,14 +50,6 @@ object ConsumerGroupCommand extends Logging {
       CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --list, --describe, --delete, --reset-offsets")
 
     opts.checkArgs()
-    if (CoreUtils.isSaslProtocol(SecurityProtocol.valueOf(opts.securityProtocol))) {
-      val saslConfigs = new java.util.HashMap[String, Any]()
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_KINIT_CMD, SaslConfigs.DEFAULT_KERBEROS_KINIT_CMD)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_JITTER, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_TICKET_RENEW_WINDOW_FACTOR, SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER)
-      saslConfigs.put(SaslConfigs.SASL_KERBEROS_MIN_TIME_BEFORE_RELOGIN, SaslConfigs.DEFAULT_KERBEROS_MIN_TIME_BEFORE_RELOGIN)
-      LoginManager.init(JaasUtils.LOGIN_CONTEXT_CLIENT, saslConfigs)
-    }
 
     val consumerGroupService = new ConsumerGroupService(opts)
 
@@ -394,11 +384,9 @@ object ConsumerGroupCommand extends Logging {
       adminClient.close()
       if (consumer != null) consumer.close()
     }
-    
+
     private def createAdminClient(): AdminClient = {
-      val props = new Properties()
-      props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, opts.securityProtocol)
-      if (opts.options.has(opts.commandConfigOpt)) props.putAll(Utils.loadProps(opts.options.valueOf(opts.commandConfigOpt)))
+      val props = if (opts.options.has(opts.commandConfigOpt)) Utils.loadProps(opts.options.valueOf(opts.commandConfigOpt)) else new Properties()
       props.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, opts.options.valueOf(opts.bootstrapServerOpt))
       AdminClient.create(props)
     }
@@ -413,7 +401,6 @@ object ConsumerGroupCommand extends Logging {
       val properties = new Properties()
       val deserializer = (new StringDeserializer).getClass.getName
       val brokerUrl = opts.options.valueOf(opts.bootstrapServerOpt)
-      properties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, opts.securityProtocol)
       properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerUrl)
       properties.put(ConsumerConfig.GROUP_ID_CONFIG, opts.options.valueOf(opts.groupOpt))
       properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
@@ -688,11 +675,6 @@ object ConsumerGroupCommand extends Logging {
     val listOpt = parser.accepts("list", ListDoc)
     val describeOpt = parser.accepts("describe", DescribeDoc)
     val deleteOpt = parser.accepts("delete", DeleteDoc)
-    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
-      .withRequiredArg
-      .describedAs("security-protocol")
-      .ofType(classOf[String])
-      .defaultsTo("PLAINTEXT")
     val timeoutMsOpt = parser.accepts("timeout", TimeoutMsDoc)
                              .withRequiredArg
                              .describedAs("timeout (ms)")
@@ -747,11 +729,6 @@ object ConsumerGroupCommand extends Logging {
     val allConsumerGroupLevelOpts: Set[OptionSpec[_]] = Set(listOpt, describeOpt, deleteOpt, resetOffsetsOpt)
     val allResetOffsetScenarioOpts: Set[OptionSpec[_]] = Set(resetToOffsetOpt, resetShiftByOpt,
       resetToDatetimeOpt, resetByDurationOpt, resetToEarliestOpt, resetToLatestOpt, resetToCurrentOpt, resetFromFileOpt)
-
-    val props = new Properties()
-    props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, options.valueOf(securityProtocolOpt))
-    if (options.has(commandConfigOpt)) props.putAll(Utils.loadProps(options.valueOf(commandConfigOpt)))
-    val securityProtocol = props.getProperty(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG)
 
     def checkArgs() {
       // check required args

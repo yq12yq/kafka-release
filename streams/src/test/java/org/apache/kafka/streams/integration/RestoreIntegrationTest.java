@@ -78,10 +78,12 @@ import static org.junit.Assert.assertTrue;
 @Category({IntegrationTest.class})
 public class RestoreIntegrationTest {
     private static final int NUM_BROKERS = 1;
+
     private static final String APPID = "restore-test";
 
     @ClassRule
-    public static final EmbeddedKafkaCluster CLUSTER = new EmbeddedKafkaCluster(NUM_BROKERS);
+    public static final EmbeddedKafkaCluster CLUSTER =
+            new EmbeddedKafkaCluster(NUM_BROKERS);
     private static final String INPUT_STREAM = "input-stream";
     private static final String INPUT_STREAM_2 = "input-stream-2";
     private final int numberOfKeys = 10000;
@@ -250,6 +252,7 @@ public class RestoreIntegrationTest {
         assertThat(numReceived.get(), equalTo(numberOfKeys));
     }
 
+
     @Test
     public void shouldSuccessfullyStartWhenLoggingDisabled() throws InterruptedException {
         final StreamsBuilder builder = new StreamsBuilder();
@@ -332,7 +335,6 @@ public class RestoreIntegrationTest {
         assertTrue(processorLatch.await(30, TimeUnit.SECONDS));
 
     }
-
 
 
     public static class KeyValueStoreProcessor implements Processor<Integer, Integer> {

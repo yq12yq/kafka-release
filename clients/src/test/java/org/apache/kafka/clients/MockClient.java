@@ -454,12 +454,12 @@ public class MockClient implements KafkaClient {
         authenticationErrors.clear();
     }
 
-    public int numAwaitingResponses() {
-        return futureResponses.size();
-    }
-
     public boolean hasPendingMetadataUpdates() {
         return !metadataUpdates.isEmpty();
+    }
+
+    public int numAwaitingResponses() {
+        return futureResponses.size();
     }
 
     public void prepareMetadataUpdate(Cluster cluster, Set<String> unavailableTopics) {

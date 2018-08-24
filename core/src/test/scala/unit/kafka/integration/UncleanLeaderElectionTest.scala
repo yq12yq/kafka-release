@@ -192,9 +192,6 @@ class UncleanLeaderElectionTest extends ZooKeeperTestHarness {
     //remove any previous unclean election metric
     servers.map(_.kafkaController.controllerContext.stats.removeMetric("UncleanLeaderElectionsPerSec"))
 
-    //remove any previous unclean election metric
-    servers.map(server => server.kafkaController.controllerContext.stats.removeMetric("UncleanLeaderElectionsPerSec"))
-
     // shutdown leader and then restart follower
     servers.filter(_.config.brokerId == leaderId).map(shutdownServer)
     val followerServer = servers.find(_.config.brokerId == followerId).get
@@ -229,9 +226,6 @@ class UncleanLeaderElectionTest extends ZooKeeperTestHarness {
 
     produceMessage(servers, topic, "second")
     assertEquals(List("first", "second"), consumeAllMessages(topic, 2))
-
-    //remove any previous unclean election metric
-    servers.map(server => server.kafkaController.controllerContext.stats.removeMetric("UncleanLeaderElectionsPerSec"))
 
     //remove any previous unclean election metric
     servers.map(server => server.kafkaController.controllerContext.stats.removeMetric("UncleanLeaderElectionsPerSec"))

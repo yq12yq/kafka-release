@@ -54,7 +54,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -241,7 +240,6 @@ public class TopologyTestDriverTest {
             context.forward(key, value);
         }
 
-        @SuppressWarnings("deprecation")
         @Override
         public void close() {
             closed = true;

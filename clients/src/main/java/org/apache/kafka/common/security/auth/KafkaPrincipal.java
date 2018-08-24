@@ -42,7 +42,6 @@ import static java.util.Objects.requireNonNull;
  *    authorizer which is capable of using the additional group information.
  */
 public class KafkaPrincipal implements Principal {
-    public static final String SEPARATOR = ":";
     public static final String USER_TYPE = "User";
     public final static KafkaPrincipal ANONYMOUS = new KafkaPrincipal(KafkaPrincipal.USER_TYPE, "ANONYMOUS");
 

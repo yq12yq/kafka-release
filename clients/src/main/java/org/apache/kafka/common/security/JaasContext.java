@@ -84,7 +84,7 @@ public class JaasContext {
         return load(JaasContext.Type.CLIENT, null, globalContextName, dynamicJaasConfig);
     }
 
-    public static JaasContext load(JaasContext.Type contextType, String listenerContextName,
+    static JaasContext load(JaasContext.Type contextType, String listenerContextName,
                             String globalContextName, Password dynamicJaasConfig) {
         if (dynamicJaasConfig != null) {
             JaasConfig jaasConfig = new JaasConfig(globalContextName, dynamicJaasConfig.value());

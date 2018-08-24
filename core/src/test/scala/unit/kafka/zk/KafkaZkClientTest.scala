@@ -45,12 +45,6 @@ import kafka.zookeeper._
 import org.apache.kafka.common.security.JaasUtils
 import org.apache.zookeeper.data.Stat
 
-import kafka.controller.LeaderIsrAndControllerEpoch
-import kafka.zk.KafkaZkClient.UpdateLeaderAndIsrResult
-import kafka.zookeeper._
-import org.apache.kafka.common.security.JaasUtils
-import org.apache.zookeeper.data.Stat
-
 class KafkaZkClientTest extends ZooKeeperTestHarness {
 
   private val group = "my-group"

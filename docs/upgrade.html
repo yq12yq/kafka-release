@@ -349,17 +349,10 @@
          be used if the SaslHandshake request version is greater than 0. </li>
 </ul>
 
-<<<<<<< HEAD
-<h5><a id="upgrade_100_streams" href="#upgrade_100_streams">Upgrading a 0.11.0 Kafka Streams Application</a></h5>
-<ul>
-    <li> Upgrading your Streams application from 0.11.0 to 1.0.0 does not require a broker upgrade.
-         A Kafka Streams 1.0.0 application can connect to 0.11.0, 0.10.2 and 0.10.1 brokers (it is not possible to connect to 0.10.0 brokers though).
-=======
 <h5><a id="upgrade_100_streams_from_0110" href="#upgrade_100_streams_from_0110">Upgrading a 0.11.0 Kafka Streams Application</a></h5>
 <ul>
     <li> Upgrading your Streams application from 0.11.0 to 1.0 does not require a broker upgrade.
          A Kafka Streams 1.0 application can connect to 0.11.0, 0.10.2 and 0.10.1 brokers (it is not possible to connect to 0.10.0 brokers though).
->>>>>>> apache-ref/2.0.0
          However, Kafka Streams 1.0 requires 0.10 message format or newer and does not work with older message formats. </li>
     <li> If you are monitoring on streams metrics, you will need make some changes to the metrics names in your reporting and monitoring code, because the metrics sensor hierarchy was changed. </li>
     <li> There are a few public APIs including <code>ProcessorContext#schedule()</code>, <code>Processor#punctuate()</code> and <code>KStreamBuilder</code>, <code>TopologyBuilder</code> are being deprecated by new APIs.
@@ -413,10 +406,7 @@
         </ul>
     </li>
     <li> Upgrading from 0.10.0.x to 1.0.0 or 1.0.1 requires an offline upgrade (rolling bounce upgrade is not supported)
-<<<<<<< HEAD
-=======
 
->>>>>>> apache-ref/2.0.0
         <ul>
             <li> stop all old (0.10.0.x) application instances </li>
             <li> update your code and swap old code and jar file with new code and new jar file </li>
@@ -518,13 +508,8 @@
 
 <h5><a id="upgrade_1103_notable" href="#upgrade_1103_notable">Notable changes in 0.11.0.3</a></h5>
 <ul>
-<<<<<<< HEAD
-    <li> New Kafka Streams configuration parameter <code>upgrade.from</code> added that allows rolling bounce upgrade from version 0.10.0.x </li>
-    <li> See the <a href="/{{version}}/documentation/streams/upgrade-guide.html"><b>Kafka Streams upgrade guide</b></a> for details about this new config.
-=======
 <li> New Kafka Streams configuration parameter <code>upgrade.from</code> added that allows rolling bounce upgrade from version 0.10.0.x </li>
 <li> See the <a href="/{{version}}/documentation/streams/upgrade-guide.html"><b>Kafka Streams upgrade guide</b></a> for details about this new config.
->>>>>>> apache-ref/2.0.0
 </ul>
 
 <h5><a id="upgrade_1100_notable" href="#upgrade_1100_notable">Notable changes in 0.11.0.0</a></h5>
@@ -703,11 +688,7 @@ Kafka cluster before upgrading your clients. Version 0.10.2 brokers support 0.8.
 
 <h5><a id="upgrade_10202_notable" href="#upgrade_10202_notable">Notable changes in 0.10.2.2</a></h5>
 <ul>
-<<<<<<< HEAD
-    <li> New configuration parameter <code>upgrade.from</code> added that allows rolling bounce upgrade from version 0.10.0.x </li>
-=======
 <li> New configuration parameter <code>upgrade.from</code> added that allows rolling bounce upgrade from version 0.10.0.x </li>
->>>>>>> apache-ref/2.0.0
 </ul>
 
 <h5><a id="upgrade_10201_notable" href="#upgrade_10201_notable">Notable changes in 0.10.2.1</a></h5>
@@ -806,19 +787,11 @@ only support 0.10.1.x or later brokers while 0.10.1.x brokers also support older
         </ul>
     </li>
     <li> Upgrading from 0.10.0.x to 0.10.1.0 or 0.10.1.1 requires an offline upgrade (rolling bounce upgrade is not supported)
-<<<<<<< HEAD
-        <ul>
-            <li> stop all old (0.10.0.x) application instances </li>
-            <li> update your code and swap old code and jar file with new code and new jar file </li>
-            <li> restart all new (0.10.1.0 or 0.10.1.1) application instances </li>
-        </ul>
-=======
     <ul>
         <li> stop all old (0.10.0.x) application instances </li>
         <li> update your code and swap old code and jar file with new code and new jar file </li>
         <li> restart all new (0.10.1.0 or 0.10.1.1) application instances </li>
     </ul>
->>>>>>> apache-ref/2.0.0
     </li>
 </ul>
 

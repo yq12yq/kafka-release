@@ -137,7 +137,7 @@ class LeaderEpochFileCacheTest {
   }
 
   @Test
-  def shouldReturnUnsupportedIfNoEpochRecorded() {
+  def shouldReturnUnsupportedIfNoEpochRecorded(){
     def leoFinder() = new LogOffsetMetadata(0)
 
     //Given

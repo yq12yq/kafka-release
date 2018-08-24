@@ -350,10 +350,6 @@ public class KafkaChannel {
         return transportLayer.hasBytesBuffered();
     }
 
-    public TransportLayer transportLayer() {
-        return this.transportLayer;
-    }
-    
     @Override
     public boolean equals(Object o) {
         if (this == o) {

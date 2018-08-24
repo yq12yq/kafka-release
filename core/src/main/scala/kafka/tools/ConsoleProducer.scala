@@ -26,7 +26,6 @@ import java.io._
 import java.nio.charset.StandardCharsets
 
 import joptsimple._
-import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.producer.internals.ErrorLoggingCallback
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.KafkaException
@@ -103,7 +102,6 @@ object ConsoleProducer {
     props.put(ProducerConfig.LINGER_MS_CONFIG, config.sendTimeout.toString)
     props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, config.maxMemoryBytes.toString)
     props.put(ProducerConfig.BATCH_SIZE_CONFIG, config.maxPartitionMemoryBytes.toString)
-    props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, config.securityProtocol.toString)
     props.put(ProducerConfig.CLIENT_ID_CONFIG, "console-producer")
     props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer")
     props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer")
@@ -206,13 +204,6 @@ object ConsoleProducer {
       .describedAs("config file")
       .ofType(classOf[String])
 
-    val securityProtocolOpt = parser.accepts("security-protocol", "The security protocol to use to connect to broker.")
-      .withRequiredArg
-      .describedAs("security-protocol")
-      .ofType(classOf[String])
-      .defaultsTo("PLAINTEXT")
-
-
     val options = parser.parse(args : _*)
     if (args.length == 0)
       CommandLineUtils.printUsageAndDie(parser, "Read data from standard input and publish it to Kafka.")
@@ -242,7 +233,6 @@ object ConsoleProducer {
     val maxPartitionMemoryBytes = options.valueOf(maxPartitionMemoryBytesOpt)
     val metadataExpiryMs = options.valueOf(metadataExpiryMsOpt)
     val maxBlockMs = options.valueOf(maxBlockMsOpt)
-    val securityProtocol = options.valueOf(securityProtocolOpt).toString
   }
 
   class LineMessageReader extends MessageReader {

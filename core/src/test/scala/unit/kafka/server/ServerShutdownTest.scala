@@ -20,7 +20,6 @@ import kafka.zk.ZooKeeperTestHarness
 import kafka.utils.{CoreUtils, TestUtils}
 import kafka.utils.TestUtils._
 import java.io.File
-import java.net.UnknownHostException
 
 import kafka.log.LogManager
 import kafka.zookeeper.ZooKeeperClientTimeoutException
@@ -31,7 +30,6 @@ import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.serialization.{IntegerDeserializer, IntegerSerializer, StringDeserializer, StringSerializer}
 import org.junit.{Before, Test}
 import org.junit.Assert._
-import scala.reflect.ClassTag
 
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag

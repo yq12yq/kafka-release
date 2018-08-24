@@ -591,8 +591,6 @@
 <span class="n">streamsSettings</span><span class="o">.</span><span class="na">put</span><span class="o">(</span><span class="n">StreamsConfig</span><span class="o">.</span><span class="na">consumerPrefix</span><span class="o">(</span><span class="s">&quot;PARAMETER_NAME&quot;</span><span class="o">),</span> <span class="s">&quot;consumer-value&quot;</span><span class="o">);</span>
 <span class="n">streamsSettings</span><span class="o">.</span><span class="na">put</span><span class="o">(</span><span class="n">StreamsConfig</span><span class="o">.</span><span class="na">producerPrefix</span><span class="o">(</span><span class="s">&quot;PARAMETER_NAME&quot;</span><span class="o">),</span> <span class="s">&quot;producer-value&quot;</span><span class="o">);</span>
 <span class="n">streamsSettings</span><span class="o">.</span><span class="na">put</span><span class="o">(</span><span class="n">StreamsConfig</span><span class="o">.</span><span class="na">adminClientPrefix</span><span class="o">(</span><span class="s">&quot;PARAMETER_NAME&quot;</span><span class="o">),</span> <span class="s">&quot;admin-value&quot;</span><span class="o">);</span>
-<<<<<<< HEAD
-=======
 </pre></div>
           <p>You could further separate consumer configuration by adding different prefixes:</p>
           <ul class="simple">
@@ -609,7 +607,6 @@
 <span class="n">streamsSettings</span><span class="o">.</span><span class="na">put</span><span class="o">(</span><span class="s">&quot;restore.consumer.PARAMETER_NAME&quot;</span><span class="o">,</span> <span class="s">&quot;restore-consumer-value&quot;</span><span class="o">);</span>
 <span class="c1">// alternatively, you can use</span>
 <span class="n">streamsSettings</span><span class="o">.</span><span class="na">put</span><span class="o">(</span><span class="n">StreamsConfig</span><span class="o">.</span><span class="na">restoreConsumerPrefix</span><span class="o">(</span><span class="s">&quot;PARAMETER_NAME&quot;</span><span class="o">),</span> <span class="s">&quot;restore-consumer-value&quot;</span><span class="o">);</span>
->>>>>>> apache-ref/2.0.0
 </pre></div>
           </div>
           <p> Same applied to <code class="docutils literal"><span class="pre">main.consumer.</span></code> and <code class="docutils literal"><span class="pre">main.consumer.</span></code>, if you only want to specify one consumer type config.</p>
@@ -768,15 +765,6 @@
 <span class="n">streamsSettings</span><span class="o">.</span><span class="na">put</span><span class="o">(</span><span class="n">StreamsConfig</span><span class="o">.</span><span class="na">producerPrefix</span><span class="o">(</span><span class="n">ProducerConfig</span><span class="o">.</span><span class="na">ACKS_CONFIG</span><span class="o">),</span> <span class="s">&quot;all&quot;</span><span class="o">);</span>
 </pre></div>
           </div>
-<<<<<<< HEAD
-          <div class="admonition note">
-            <p class="first admonition-title">Note</p>
-            <p class="last">A future version of Kafka Streams will allow developers to set their own app-specific configuration settings through
-              <code class="docutils literal"><span class="pre">StreamsConfig</span></code> as well, which can then be accessed through
-              <a class="reference external" href="../../../javadoc/org/apache/kafka/streams/processor/ProcessorContext.html">ProcessorContext</a>.</p>
-</div>
-=======
->>>>>>> apache-ref/2.0.0
 </div>
 </div>
 </div>

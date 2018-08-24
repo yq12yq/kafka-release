@@ -65,6 +65,7 @@ object CoreUtils extends Logging {
 
   /**
     * Create a thread
+    *
     * @param name The name of the thread
     * @param daemon Whether the thread should block JVM shutdown
     * @param fun The function to execute in the thread
@@ -312,10 +313,6 @@ object CoreUtils extends Logging {
     }
     validate(endPoints)
     endPoints
-  }
-
-  def isSaslProtocol(protocol: SecurityProtocol): Boolean = {
-    protocol == SecurityProtocol.SASL_PLAINTEXT || protocol == SecurityProtocol.PLAINTEXTSASL
   }
 
   def generateUuidAsBase64(): String = {

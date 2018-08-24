@@ -90,8 +90,6 @@
   using <code>kafka-configs.sh</code> even if the password config is not being altered. This constraint will be removed in
   a future release.</p>
 
-<<<<<<< HEAD
-=======
   <h5>Updating Password Configs in ZooKeeper Before Starting Brokers</h5>
 
   From Kafka 2.0.0 onwards, <code>kafka-configs.sh</code> enables dynamic broker configs to be updated using ZooKeeper before
@@ -109,7 +107,6 @@
   The configuration <code>listener.name.internal.ssl.key.password</code> will be persisted in ZooKeeper in encrypted
   form using the provided encoder configs. The encoder secret and iterations are not persisted in ZooKeeper.
 
->>>>>>> apache-ref/2.0.0
   <h5>Updating SSL Keystore of an Existing Listener</h5>
   Brokers may be configured with SSL keystores with short validity periods to reduce the risk of compromised certificates.
   Keystores may be updated dynamically without restarting the broker. The config name must be prefixed with the listener prefix
@@ -125,8 +122,6 @@
   configured for that listener. For other listeners, no trust validation is performed on the keystore by the broker. Certificates
   must be signed by the same certificate authority that signed the old certificate to avoid any client authentication failures.
 
-<<<<<<< HEAD
-=======
   <h5>Updating SSL Truststore of an Existing Listener</h5>
   Broker truststores may be updated dynamically without restarting the broker to add or remove certificates.
   Updated truststore will be used to authenticate new client connections. The config name must be prefixed with the
@@ -141,7 +136,6 @@
   the new truststore. For other listeners, no trust validation is performed by the broker before the update. Removal of CA certificates
   used to sign client certificates from the new truststore can lead to client authentication failures.
 
->>>>>>> apache-ref/2.0.0
   <h5>Updating Default Topic Configuration</h5>
   Default topic configuration options used by brokers may be updated without broker restart. The configs are applied to topics
   without a topic config override for the equivalent per-topic config. One or more of these configs may be overridden at
@@ -174,11 +168,8 @@
     <li><code>log.message.timestamp.difference.max.ms</code></li>
   </ul>
 
-<<<<<<< HEAD
-=======
   From Kafka version 2.0.0 onwards, unclean leader election is automatically enabled by the controller when the config
   <code>unclean.leader.election.enable</code> is dynamically updated.
->>>>>>> apache-ref/2.0.0
   In Kafka version 1.1.x, changes to <code>unclean.leader.election.enable</code> take effect only when a new controller is elected.
   Controller re-election may be forced by running:
 

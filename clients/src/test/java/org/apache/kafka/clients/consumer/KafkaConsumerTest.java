@@ -335,7 +335,6 @@ public class KafkaConsumerTest {
         return new KafkaConsumer<>(props, new ByteArrayDeserializer(), new ByteArrayDeserializer());
     }
 
-
     @Test
     public void verifyHeartbeatSent() throws Exception {
         Time time = new MockTime();

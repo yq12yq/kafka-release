@@ -35,7 +35,6 @@ import org.apache.zookeeper.ZooDefs
 import scala.collection._
 import scala.collection.JavaConverters._
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.security.auth.SecurityProtocol
 
 @deprecated("This is an internal class that is no longer used by Kafka and will be removed in a future release. Please " +
   "use org.apache.kafka.clients.admin.AdminClient instead.", since = "2.0.0")
@@ -259,10 +258,6 @@ class ZkUtils(val zkClient: ZkClient,
   def getAllBrokersInCluster(): Seq[Broker] = {
     val brokerIds = getChildrenParentMayNotExist(BrokerIdsPath).sorted
     brokerIds.map(_.toInt).map(getBrokerInfo(_)).filter(_.isDefined).map(_.get)
-  }
-
-  def getAllBrokerEndPointsForChannel(protocolType: SecurityProtocol): Seq[BrokerEndPoint] = {
-    getAllBrokersInCluster().map(_.getBrokerEndPoint(protocolType))
   }
 
   def getLeaderAndIsrForPartition(topic: String, partition: Int): Option[LeaderAndIsr] = {

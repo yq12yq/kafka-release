@@ -470,7 +470,7 @@ class ReplicaManager(val config: KafkaConfig,
                     responseCallback: Map[TopicPartition, PartitionResponse] => Unit,
                     delayedProduceLock: Option[Lock] = None,
                     recordConversionStatsCallback: Map[TopicPartition, RecordConversionStats] => Unit = _ => (),
-                    clientId:String = null) {
+                    clientId: String = null) {
     if (isValidRequiredAcks(requiredAcks)) {
       val sTime = time.milliseconds
       val localProduceResults = appendToLocalLog(clientId, internalTopicsAllowed = internalTopicsAllowed,
@@ -759,6 +759,9 @@ class ReplicaManager(val config: KafkaConfig,
           brokerTopicStats.topicStats(topicPartition.topic).messagesInRate.mark(numAppendedMessages)
           brokerTopicStats.topicStats(topicPartition.topic, topicPartition.partition).messagesInRate.mark(numAppendedMessages)
           brokerTopicStats.allTopicsStats.messagesInRate.mark(numAppendedMessages)
+
+          if(clientId != null && !clientId.isEmpty)
+            producerStats.foreach(_.clientMetrics(clientId, topicPartition).messagesInRate.mark(numAppendedMessages))
 
           trace(s"${records.sizeInBytes} written to log ${topicPartition} beginning at offset " +
             s"${info.firstOffset.getOrElse(-1)} and ending at offset ${info.lastOffset}")

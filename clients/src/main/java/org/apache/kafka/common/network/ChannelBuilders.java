@@ -106,7 +106,6 @@ public class ChannelBuilders {
                 channelBuilder = new SslChannelBuilder(mode, listenerName, isInterBrokerListener);
                 break;
             case SASL_SSL:
-            case PLAINTEXTSASL:
             case SASL_PLAINTEXT:
                 requireNonNullMode(mode, securityProtocol);
                 Map<String, JaasContext> jaasContexts;

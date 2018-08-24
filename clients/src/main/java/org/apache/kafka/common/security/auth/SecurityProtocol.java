@@ -31,9 +31,7 @@ public enum SecurityProtocol {
     /** SASL authenticated, non-encrypted channel */
     SASL_PLAINTEXT(2, "SASL_PLAINTEXT"),
     /** SASL authenticated, SSL channel */
-    SASL_SSL(3, "SASL_SSL"),
-    /** Deprecated, same as SASL_PLAINTEXT */
-    PLAINTEXTSASL(4, "PLAINTEXTSASL");
+    SASL_SSL(3, "SASL_SSL");
 
     private static final Map<Short, SecurityProtocol> CODE_TO_SECURITY_PROTOCOL;
     private static final List<String> NAMES;

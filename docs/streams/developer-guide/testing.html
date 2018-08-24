@@ -18,28 +18,6 @@
 <script><!--#include virtual="../../js/templateData.js" --></script>
 
 <script id="content-template" type="text/x-handlebars-template">
-<<<<<<< HEAD
-  <!-- h1>Developer Guide for Kafka Streams</h1 -->
-  <div class="sub-nav-sticky">
-    <div class="sticky-top">
-      <!-- div style="height:35px">
-        <a href="/{{version}}/documentation/streams/">Introduction</a>
-        <a class="active-menu-item" href="/{{version}}/documentation/streams/developer-guide">Developer Guide</a>
-        <a href="/{{version}}/documentation/streams/core-concepts">Concepts</a>
-        <a href="/{{version}}/documentation/streams/quickstart">Run Demo App</a>
-        <a href="/{{version}}/documentation/streams/tutorial">Tutorial: Write App</a>
-      </div -->
-    </div>
-  </div>
-
-  <div class="section" id="testing">
-    <span id="streams-developer-guide-testing"></span><h1>Testing a Streams Application<a class="headerlink" href="#testing" title="Permalink to this headline"></a></h1>
-    <p>
-      To test a Kafka Streams application, Kafka provides a test-utils artifact that can be added as regular dependency to your test code base.
-      Example <code>pom.xml</code> snippet when using Maven:
-    </p>
-    <pre>
-=======
     <!-- h1>Developer Guide for Kafka Streams</h1 -->
     <div class="sub-nav-sticky">
         <div class="sticky-top">
@@ -74,7 +52,6 @@
                 dependency to your test code base. Example <code>pom.xml</code> snippet when using Maven:
             </p>
             <pre>
->>>>>>> apache-ref/2.0.0
 &lt;dependency&gt;
     &lt;groupId&gt;org.apache.kafka&lt;/groupId&gt;
     &lt;artifactId&gt;kafka-streams-test-utils&lt;/artifactId&gt;
@@ -82,15 +59,6 @@
     &lt;scope&gt;test&lt;/scope&gt;
 &lt;/dependency&gt;
     </pre>
-<<<<<<< HEAD
-    <p>
-    The test-utils package provides a <code>TopologyTestDriver</code> that can be used pipe data through a <code>Topology</code> that is either assembled manually
-    using Processor API or via the DSL using <code>StreamsBuilder</code>.
-    The test driver simulates the library runtime that continuously fetches records from input topics and processes them by traversing the topology.
-    You can use the test driver to verify that your specified processor topology computes the correct result with the manually piped in data records.
-    The test driver captures the results records and allows to query its embedded state stores.
-    <pre>
-=======
         </div>
         <div class="section" id="testing-topologytestdriver">
             <h2><a class="toc-backref" href="#testing-topologytestdriver" title="Permalink to this headline">Testing a
@@ -106,7 +74,6 @@
                 with the manually piped in data records.
                 The test driver captures the results records and allows to query its embedded state stores.
             <pre>
->>>>>>> apache-ref/2.0.0
 // Processor API
 Topology topology = new Topology();
 topology.addSource("sourceProcessor", "input-topic");
@@ -119,68 +86,6 @@ builder.stream("input-topic").filter(...).to("output-topic");
 Topology topology = builder.build();
 
 // setup test driver
-<<<<<<< HEAD
-Properties config = new Properties();
-config.put(StreamsConfig.APPLICATION_ID_CONFIG, "test");
-config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234");
-TopologyTestDriver testDriver = new TopologyTestDriver(topology, config);
-    </pre>
-    <p>
-    The test driver accepts <code>ConsumerRecord</code>s with key and value type <code>byte[]</code>.
-    Because <code>byte[]</code> types can be problematic, you can use the <code>ConsumerRecordFactory</code> to generate those records
-    by providing regular Java types for key and values and the corresponding serializers.
-    </p>
-    <pre>
-ConsumerRecordFactory&lt;String, Integer&gt; factory = new ConsumerRecordFactory&lt;&gt;("input-topic", new StringSerializer(), new IntegerSerializer());
-testDriver.pipe(factory.create("key", 42L));
-    </pre>
-    <p>
-    To verify the output, the test driver produces <code>ProducerRecord</code>s with key and value type <code>byte[]</code>.
-    For result verification, you can specify corresponding deserializers when reading the output record from the driver.
-    <pre>
-ProducerRecord&lt;String, Integer&gt; outputRecord = testDriver.readOutput("output-topic", new StringDeserializer(), new LongDeserializer());
-    </pre>
-    <p>
-    For result verification, you can use <code>OutputVerifier</code>.
-    It offers helper methods to compare only certain parts of the result record:
-    for example, you might only care about the key and value, but not the timestamp of the result record.
-    </p>
-    <pre>
-OutputVerifier.compareKeyValue(outputRecord, "key", 42L); // throws AssertionError if key or value does not match
-    </pre>
-    <p>
-    <code>TopologyTestDriver</code> supports punctuations, too.
-    Event-time punctuations are triggered automatically based on the processed records' timestamps.
-    Wall-clock-time punctuations can also be triggered by advancing the test driver's wall-clock-time (the driver mocks wall-clock-time internally to give users control over it).
-    </p>
-    <pre>
-testDriver.advanceWallClockTime(20L);
-    </pre>
-    </div>
-    <p>
-    Additionally, you can access state stores via the test driver before or after a test.
-    Accessing stores before a test is useful to pre-populate a store with some initial values.
-    After data was processed, expected updates to the store can be verified.
-    </p>
-    <pre>
-KeyValueStore store = testDriver.getKeyValueStore("store-name");
-    </pre>
-    <p>
-    Note, that you should always close the test driver at the end to make sure all resources are release properly.
-    </p>
-    <pre>
-testDriver.close();
-    </pre>
-
-    <h2>Example</h2>
-    <p>
-    The following example demonstrates how to use the test driver and helper classes.
-    The example creates a topology that computes the maximum value per key using a key-value-store.
-    While processing, no output is generated, but only the store is updated.
-    Output is only sent downstream based on event-time and wall-clock punctuations.
-    </p>
-    <pre>
-=======
 Properties props = new Properties();
 props.put(StreamsConfig.APPLICATION_ID_CONFIG, "test");
 props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234");
@@ -245,7 +150,6 @@ testDriver.close();
                 Output is only sent downstream based on event-time and wall-clock punctuations.
             </p>
             <pre>
->>>>>>> apache-ref/2.0.0
 private TopologyTestDriver testDriver;
 private KeyValueStore&lt;String, Long&gt; store;
 
@@ -267,21 +171,12 @@ public void setup() {
     topology.addSink("sinkProcessor", "result-topic", "aggregator");
 
     // setup test driver
-<<<<<<< HEAD
-    Properties config = new Properties();
-    config.setProperty(StreamsConfig.APPLICATION_ID_CONFIG, "maxAggregation");
-    config.setProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234");
-    config.setProperty(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-    config.setProperty(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.Long().getClass().getName());
-    testDriver = new TopologyTestDriver(topology, config);
-=======
     Properties props = new Properties();
     props.setProperty(StreamsConfig.APPLICATION_ID_CONFIG, "maxAggregation");
     props.setProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234");
     props.setProperty(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
     props.setProperty(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.Long().getClass().getName());
     testDriver = new TopologyTestDriver(topology, props);
->>>>>>> apache-ref/2.0.0
 
     // pre-populate store
     store = testDriver.getKeyValueStore("aggStore");
@@ -360,23 +255,8 @@ public class CustomMaxAggregator implements Processor&lt;String, Long&gt; {
     @Override
     public void init(ProcessorContext context) {
         this.context = context;
-<<<<<<< HEAD
-        context.schedule(60000, PunctuationType.WALL_CLOCK_TIME, new Punctuator() {
-            @Override
-            public void punctuate(long timestamp) {
-                flushStore();
-            }
-        });
-        context.schedule(10000, PunctuationType.STREAM_TIME, new Punctuator() {
-            @Override
-            public void punctuate(long timestamp) {
-                flushStore();
-            }
-        });
-=======
         context.schedule(60000, PunctuationType.WALL_CLOCK_TIME, time -&gt; flushStore());
         context.schedule(10000, PunctuationType.STREAM_TIME, time -&gt; flushStore());
->>>>>>> apache-ref/2.0.0
         store = (KeyValueStore&lt;String, Long&gt;) context.getStateStore("aggStore");
     }
 
@@ -397,19 +277,6 @@ public class CustomMaxAggregator implements Processor&lt;String, Long&gt; {
     }
 
     @Override
-<<<<<<< HEAD
-    public void punctuate(long timestamp) {} // deprecated; not used
-
-    @Override
-    public void close() {}
-}
-    </pre>
-  <div class="pagination">
-  <div class="pagination">
-    <a href="/{{version}}/documentation/streams/developer-guide/datatypes" class="pagination__btn pagination__btn__prev">Previous</a>
-    <a href="/{{version}}/documentation/streams/developer-guide/interactive-queries" class="pagination__btn pagination__btn__next">Next</a>
-  </div>
-=======
     public void close() {}
 }
         </pre>
@@ -530,28 +397,11 @@ punctuator.punctuate(/*timestamp*/ 0L);
         <a href="/{{version}}/documentation/streams/developer-guide/datatypes" class="pagination__btn pagination__btn__prev">Previous</a>
         <a href="/{{version}}/documentation/streams/developer-guide/interactive-queries" class="pagination__btn pagination__btn__next">Next</a>
     </div>
->>>>>>> apache-ref/2.0.0
 </script>
 
 <!--#include virtual="../../../includes/_header.htm" -->
 <!--#include virtual="../../../includes/_top.htm" -->
 <div class="content documentation documentation--current">
-<<<<<<< HEAD
-  <!--#include virtual="../../../includes/_nav.htm" -->
-  <div class="right">
-    <!--#include virtual="../../../includes/_docs_banner.htm" -->
-    <ul class="breadcrumbs">
-      <li><a href="/documentation">Documentation</a></li>
-      <li><a href="/documentation/streams">Kafka Streams</a></li>
-      <li><a href="/documentation/streams/developer-guide/">Developer Guide</a></li>
-    </ul>
-    <div class="p-content"></div>
-  </div>
-</div>
-<!--#include virtual="../../../includes/_footer.htm" -->
-<script>
-    $(function() {
-=======
     <!--#include virtual="../../../includes/_nav.htm" -->
     <div class="right">
         <!--#include virtual="../../../includes/_docs_banner.htm" -->
@@ -566,7 +416,6 @@ punctuator.punctuate(/*timestamp*/ 0L);
 <!--#include virtual="../../../includes/_footer.htm" -->
 <script>
     $(function () {
->>>>>>> apache-ref/2.0.0
         // Show selected style on nav item
         $('.b-nav__streams').addClass('selected');
 
@@ -575,11 +424,7 @@ punctuator.punctuate(/*timestamp*/ 0L);
             y_pos = $navbar.offset().top,
             height = $navbar.height();
 
-<<<<<<< HEAD
-        $(window).scroll(function() {
-=======
         $(window).scroll(function () {
->>>>>>> apache-ref/2.0.0
             var scrollTop = $(window).scrollTop();
 
             if (scrollTop > y_pos - height) {
