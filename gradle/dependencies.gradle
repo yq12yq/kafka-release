@@ -64,6 +64,7 @@ versions += [
   jaxrs: "2.1",
   jfreechart: "1.0.0",
   jopt: "5.0.4",
+  jsr305: "3.0.1",
   junit: "4.12",
   kafka_0100: "0.10.0.1",
   kafka_0101: "0.10.1.1",
@@ -102,6 +103,8 @@ libs += [
   easymock: "org.easymock:easymock:$versions.easymock",
   jacksonDatabind: "com.fasterxml.jackson.core:jackson-databind:$versions.jackson",
   caffeine : "com.github.ben-manes.caffeine:caffeine:$versions.caffeine",
+  // this is required for caffeine library
+  jsr305: "com.google.code.findbugs:jsr305:$versions.jsr305",
   jacksonJaxrsJsonProvider: "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:$versions.jackson",
   jaxbApi: "javax.xml.bind:jaxb-api:$versions.jaxb",
   jaxrsApi: "javax.ws.rs:javax.ws.rs-api:$versions.jaxrs",
