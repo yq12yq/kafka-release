@@ -33,6 +33,7 @@ import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.security.JaasContext;
 import org.apache.kafka.common.security.auth.AuthenticateCallbackHandler;
 import org.apache.kafka.common.security.auth.Login;
+import org.apache.kafka.common.security.kerberos.KerberosLogin;
 import org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule;
 import org.apache.kafka.common.security.oauthbearer.internals.unsecured.OAuthBearerUnsecuredLoginCallbackHandler;
 import org.apache.kafka.common.utils.Utils;
@@ -62,6 +63,16 @@ public class LoginManager {
         loginCallbackHandler.configure(configs, saslMechanism, jaasContext.configurationEntries());
         login.configure(configs, jaasContext.name(), jaasContext.configuration(), loginCallbackHandler);
         login.login();
+    }
+
+    /**
+     * This is introduced for other modules which were using earlier API. But those module should avoid using this API
+     * and start using {@link #acquireLoginManager(JaasContext, String, Class, Map)}.
+     */
+    public static LoginManager acquireLoginManager(JaasContext jaasContext, boolean hasKerberos,
+                                                   Map<String, ?> configs) throws IOException, LoginException {
+        Class<? extends Login> loginClass = hasKerberos ? KerberosLogin.class : DefaultLogin.class;
+        return acquireLoginManager(jaasContext, SaslConfigs.GSSAPI_MECHANISM, loginClass, configs);
     }
 
     /**
