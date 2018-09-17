@@ -86,7 +86,7 @@ class ZookeeperService(KafkaPathResolverMixin, Service):
 
     def listening(self, node):
         try:
-            cmd = "nc %s %s <<<''" % (node.account.hostname, 2181)
+            cmd = "nc -z %s %s" % (node.account.hostname, 2181)
             node.account.ssh_output(cmd, allow_fail=False)
             self.logger.debug("Zookeeper started accepting connections at: '%s:%s')", node.account.hostname, 2181)
             return True
