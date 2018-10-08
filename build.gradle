@@ -65,6 +65,7 @@ allprojects {
       runtime {
         resolutionStrategy {
           force "com.fasterxml.jackson.core:jackson-annotations:$versions.jackson"
+          force "com.google.guava:guava:24.1.1-jre"
         }
       }
     }

@@ -51,7 +51,7 @@ versions += [
   apacheda: "1.0.1",
   apacheds: "2.0.0-M24",
   argparse4j: "0.7.0",
-  bcpkix: "1.59",
+  bcpkix: "1.60",
   caffeine: "2.6.1",
   easymock: "3.6",
   jackson: "2.9.6",
